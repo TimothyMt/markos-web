@@ -6,10 +6,10 @@ Luôn đọc `CLAUDE.md` ở root trước khi bắt đầu bất kỳ task nào
 ## Git workflow — bắt buộc, không ngoại lệ
 `main` đã bật branch protection (require PR + approval, chặn cả admin bypass) — nhưng vẫn phải tuân thủ đúng flow sau, không cố lách:
 
-1. KHÔNG BAO GIỜ commit hoặc push thẳng vào `main`.
+1. KHÔNG BAO GIỜ commit hoặc push thẳng vào `main` hoặc `staging`.
 2. Trước khi code, tạo branch mới từ `main`: `git checkout -b feature/<mô-tả-ngắn>`.
 3. Code, commit trên branch đó, `git push -u origin feature/<mô-tả-ngắn>`.
-4. Mở Pull Request bằng `gh pr create --base main --head feature/<mô-tả-ngắn>` kèm mô tả ngắn gọn thay đổi.
+4. Mở Pull Request nhắm vào `staging` (không phải `main`): `gh pr create --base staging --head feature/<mô-tả-ngắn>` kèm mô tả ngắn gọn thay đổi.
 5. KHÔNG tự merge PR (`gh pr merge`) dù có quyền — merge do Claude Code review xong rồi user quyết định.
 6. Nếu cần sửa tiếp theo feedback review, commit thêm vào cùng branch/PR đó, không tạo PR mới trừ khi được yêu cầu.
 
