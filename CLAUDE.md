@@ -53,3 +53,12 @@ Chi tiết: `docs/web/product-journey-4-tang.md`. Mọi bài **tự bám Thông 
 ## Không làm
 - Không thêm phụ thuộc Telegram / không đụng `bot/` (đã tách khỏi repo này).
 - Không đổi schema DB. Không bịa số liệu trong output AI (prompt đã cấm — giữ nguyên).
+
+## Git workflow (Cline code, Claude Code review, user merge)
+`main` có branch protection: bắt buộc PR + ≥1 approval, không cho push thẳng/force-push.
+
+1. Mọi task code mới → tạo branch riêng từ `main` (vd `feature/xxx`). KHÔNG bao giờ commit/push thẳng vào `main`.
+2. Cline code + push branch đó, mở PR bằng `gh pr create` — KHÔNG tự merge (không có quyền, và không được merge dù có quyền).
+3. Claude Code review PR (diff, logic, an toàn) trước khi merge.
+4. Sau khi Claude Code duyệt → merge vào nhánh trung gian (staging/dev) để user test.
+5. User test xong, tự quyết định merge nhánh đó vào `main`.
