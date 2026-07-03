@@ -23,7 +23,7 @@ python3 -c "import webapp.business, webapp.api"
 ## Thứ tự slice (chỉ P0 có brief sẵn — phase sau brief sau khi review)
 | Slice | File | Function | Xong chưa |
 |---|---|---|---|
-| **K1** | `K1-vault-skeleton.md` | F1 scaffold · F2 3 framework · F3 2 industry · F4 1 craft · F5 base | ⬜ |
+| **K1** | `K1-vault-skeleton.md` | F1 scaffold · F2 3 framework · F3 2 industry · F4 1 craft · F5 3 stage · F6 base | ⬜ |
 | 0.1 | `P0.1-strategy-spine.md` | F1 save_spine · F2 bizSpine · F3 route · F4 FE+mirror | ⬜ (treo — chờ core) |
 | 0.2 | `P0.2-spine-wire.md` | helper `_spine_anchor` + gắn từng hàm gen | ⬜ |
 | … | (P1+ / K2+ brief sau khi review xong) | | |

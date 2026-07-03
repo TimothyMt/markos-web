@@ -80,7 +80,7 @@ Loader = parse frontmatter (yaml) + filter thuần Python, **không DB**, cache/
 
 ## Cách xây (depth-first, không boil-ocean)
 Seed nhỏ chứng minh dây thần kinh bắn đúng TRƯỚC, rồi vòng tri thức fan-out từng ngành:
-- **K1** vault skeleton + seed **placeholder** (3 framework · 2 ngành · 1 craft) + 1 `.base`. (Cline — structure, KHÔNG nội dung marketing)
+- **K1** vault skeleton + seed **placeholder** (3 framework · 2 ngành · 1 craft · 3 stage) + 1 `.base` route ngành×stage. (Cline — structure, KHÔNG nội dung marketing)
 - **K2** loader runtime `webapp/brain.py` mirror `.base` + test đối chiếu.
 - **K3** wire `select()` vào business.py (điểm dùng đầu tiên).
 - Sau đó: vòng tri thức lấp nội dung `draft→live` từng ngành (gated).

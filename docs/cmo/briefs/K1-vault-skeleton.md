@@ -37,12 +37,21 @@
 - Frontmatter `craft`: `output: hook` · `channel: tiktok` · `industry: d2c-skincare` · `expresses: "[[jtbd]]"` · `exemplars: []` (ghi chú "chờ research: mỗi exemplar cần nguồn+ngày").
 - Commit: `feat(brain): K1 F4 seed 1 craft card placeholder`.
 
-### F5 — 1 Base: framework-selector (vỏ não truy hồi, xem được trong Obsidian)
+### F5 — 3 stage note (routing theo "thời điểm")
+- `brain/stages/launch.md`, `growth.md`, `scale.md`.
+- Frontmatter `stage` theo KNOWLEDGE.md: `type: stage · title · status: draft · updated` + `slug` (khớp tên file) · `priorities: [...]` · `signals: [...]` (cách nhận biết business đang ở stage này).
+- Thân = placeholder (chờ research lấp). `priorities/signals` để **vài mục gợi ý cấu trúc**, KHÔNG chế sâu.
+- Kiểm: slug stage (`launch/growth/scale`) khớp giá trị `stage:` trong frontmatter 3 framework F2 → synapse routing-theo-stage thông.
+- Commit: `feat(brain): K1 F5 seed 3 stage (launch/growth/scale)`.
+
+### F6 — 1 Base: framework-selector (vỏ não truy hồi, xem được trong Obsidian)
 - `brain/_bases/framework-selector.base` (YAML hợp lệ theo skill obsidian-bases).
-- Filter: `type == "framework"` AND `status == "draft"` (tạm, vì seed đang draft) — view table hiện `title · goal_type · applies_to · stage · updated`.
-- Thêm 1 view minh hoạ routing: filter thêm `applies_to.containsAny("d2c-skincare") || applies_to.contains("all")` → chứng minh "framework nào cháy cho ngành này".
-- Self-verify: mở trong Obsidian, `.base` render không lỗi YAML, bảng ra đúng 3 framework (view all) và đúng subset (view d2c). Dán screenshot/mô tả kết quả vào commit.
-- Commit: `feat(brain): K1 F5 base framework-selector (recall cortex)`.
+- **View 1 "all frameworks":** filter `type == "framework"` — table hiện `title · goal_type · applies_to · stage · updated`.
+- **View 2 "route: d2c-skincare × launch"** (chứng minh routing 2 khoá): filter thêm
+  `(applies_to.containsAny("d2c-skincare") || applies_to.contains("all"))` **AND** `stage.contains("launch")`
+  → ra đúng subset framework "cháy" cho ngành×thời-điểm đó.
+- Self-verify: mở trong Obsidian, `.base` render không lỗi YAML; View 1 ra đủ 3 framework, View 2 ra đúng subset. Dán mô tả kết quả (hoặc screenshot) vào commit.
+- Commit: `feat(brain): K1 F6 base framework-selector (recall cortex, route ngành×stage)`.
 
 ## Self-verify (mỗi F, dán report vào commit)
 - Frontmatter parse được (YAML hợp lệ) · slug khớp chéo · `.base` không lỗi.
@@ -53,4 +62,4 @@
 - KHÔNG loader Python (K2). KHÔNG wire vào Max (K3). KHÔNG viết nội dung framework/craft thật (research gated). KHÔNG promote `status: live`.
 
 ## Xong khi
-F1–F5 PASS cổng review. Reviewer: **CTO** (schema/slug/`.base` YAML) + **Tester** (mở Obsidian, `.base` lọc đúng). CMO-persona KHÔNG nổ (chưa có bề mặt marketing).
+F1–F6 PASS cổng review. Reviewer: **CTO** (schema/slug/`.base` YAML) + **Tester** (mở Obsidian, `.base` lọc đúng cả 2 view). CMO-persona KHÔNG nổ (chưa có bề mặt marketing).
