@@ -56,32 +56,70 @@ Bằng chứng: <link eval artifact nếu có>
 Chưa chắc: <điểm cần Orchestrator quyết, vd trường X qua EVAL chưa?>
 ```
 
-## Cổng review của Orchestrator — 2 MŨ: CTO + CMO (bước 6 chi tiết)
-Người đánh giá output cuối của Cline = **Human + Orchestrator**. Orchestrator đội **2 mũ tách bạch** trên cùng một output:
+## Cổng review — 4 VAI, nổ theo LỚP (bước 6 chi tiết)
+Người đánh giá output cuối = **Human + Orchestrator**, nhưng tách thành **4 vai**, mỗi vai chỉ nổ ở đúng lớp (tránh vai bịa việc ở lớp không có bề mặt của nó):
+
+| Vai | Ai đóng | Chấm gì | Nổ ở lớp |
+|---|---|---|---|
+| **CTO** | Orchestrator | Code vs ràng buộc (schema/mirror-FE/prompt agents/không bịa số) + verify commands | mọi function |
+| **Tester** | **subagent TƯƠI** (≠ Cline builder, ≠ tôi) | Chạy thật · edge case · round-trip · trace flow → xuất artifact, báo works/breaks | mọi function có hành vi runtime |
+| **CMO-persona** | **subagent** đóng 1 archetype EVAL (D2C solo / SME / dịch vụ) | Phản ứng NGƯỜI THẬT: câu hỏi có hiểu/điền được? output có phải bài dám đăng? | lớp có form hỏi user hoặc output AI |
+| **CMO-tổng hợp + gate** | Orchestrator + Human | Chuẩn marketing (rubric EVAL) · keep/cut · redesign | lớp chiến lược/gen; cổng cuối |
 
 ```
 Cline code xong
-   │
-   ▼  [CTO]  đọc code vs ràng buộc + EVAL cơ học → CHẠY THẬT → xuất ARTIFACT
-   ▼  [CMO]  đọc ARTIFACT (hành vi chạy, KHÔNG đọc code) → viết kết quả cho Human trong chat
-   ▼  [Human + Orchestrator]  cùng đánh giá: đúng mục tiêu marketing? giữ/sửa/bỏ?
-   ▼  [CTO]  viết brief function kế → giao Cline
+   ▼ [CTO]        code vs ràng buộc + verify  (mọi function)
+   ▼ [Tester]     chạy thật → ARTIFACT + works/breaks  (độc lập với builder)
+   ▼ [CMO-persona] đọc ARTIFACT như founder thật  (chỉ lớp có bề mặt marketing)
+   ▼ [CMO-tổng hợp + Human]  rubric + keep/cut  → brief kế
    └─► lặp
 ```
 
-**Mũ CTO — "xây có đúng không":**
-- So diff với: (A) ý định brief · (B) ràng buộc cứng (schema/mirror-FE/prompt agents/không bịa số) · (C) EVAL phần cơ học.
-- **Chạy thật:** `python run_web.py` (SQLite, không cần key) drive luồng non-LLM; luồng gen thì chạy với key → **xuất artifact** (persistence round-trip; hoặc output CÓ/KHÔNG-trường cho EVAL Test3).
+**Vì sao tách vai (không chỉ đổi tên):**
+- **Tester ≠ builder** → không ai tự chấm bài mình; đóng đúng phần **15%** self-review của Cline mù.
+- **Tester ≠ CTO/CMO** → ở lớp backend, CMO khỏi bịa việc (không có output marketing để chấm); ở lớp gen, phán marketing khỏi loãng vì QA.
+- **CMO-persona là subagent tươi** → phản ứng thật thà như user thật. Tôi *giả vờ* làm founder thì hỏng: tôi thiết kế nó nên không bao giờ bối rối ở chỗ founder thật bối rối (không ai usability-test được thiết kế của chính mình).
+- **CTO + CMO-tổng hợp giữ ở Orchestrator** → đây là phán xét cốt lõi (code-vs-brief, chuẩn marketing, keep/cut), uỷ đi chỉ thêm khâu trung gian.
 
-**Mũ CMO — "có đúng thứ cần làm không":**
-- **Đọc ARTIFACT, KHÔNG đọc code.** Nhìn *output/hành vi thật* qua lăng kính marketing: (D) có phục vụ mục tiêu "Max = AI CMO" · (C) EVAL Test1 consumption + persona.
-- Viết verdict cho Human **trong chat**, cùng chốt.
+**Ma trận lớp × vai:**
+| Lớp | CTO | Tester | CMO-persona | CMO-tổng hợp + gate |
+|---|:-:|:-:|:-:|:-:|
+| Backend thuần (vd F1 save_spine) | ✅ | ✅ | — | — |
+| Form hỏi user (vd F4) | ✅ | ✅ | ✅ | ✅ |
+| Output AI (P0.2, D1+ gen) | ✅ | ✅ | ✅ | ✅ (keep/cut) |
 
-**Kỷ luật chống rationalize chéo:** CTO pass TRƯỚC & độc lập; CMO chỉ nhìn *kết quả* chứ không nhìn *cách làm* — nếu CMO đi đọc code thì 2 mũ sụp thành 1, mất khả năng bắt cái CTO bỏ sót. Đây là cách đóng phần **15%** mà self-review của Cline không đóng được.
+**CMO sâu, không nông** (vai nặng nhất — quyết chất lượng sản phẩm). Chống nông bằng cấu trúc, không bằng "cố hơn":
+- **Mốc vàng do Human gieo** — vài bài/định vị "chuẩn" + vài cái "dở" → khẩu vị của founder này, không phải trung bình internet.
+- **Rubric có răng** (trong `EVAL.md`) — danh sách lỗi chết người có tên, không hỏi "hay không".
+- **CMO đóng vai ĐAO PHỦ:** output = "3 lý do một CMO thật sẽ GIẾT cái này", không phải điểm số. Không tìm ra lý do giết mới được PASS.
+- **Hai mắt độc lập hội tụ:** CMO-persona (naive) + CMO-tổng hợp (rubric). Lệch nhau → cờ cổng người.
 
-**Verdict** (tầng function/hành vi, kèm file:dòng): **PASS** / **cần sửa** (liệt kê A/B/C) / **cờ cổng người** (quyết định sản phẩm keep/cut — Orchestrator KHÔNG tự chốt).
+**Kỷ luật:** CTO + Tester pass TRƯỚC & độc lập; CMO-persona chỉ nhìn *artifact* không nhìn *code*.
+**Verdict** (kèm file:dòng): **PASS** / **cần sửa** (A/B/C) / **cờ cổng người** (keep/cut — Orchestrator KHÔNG tự chốt).
+**Key:** chỉ artifact cần gen mới cần key → **env var** cho session (đừng để chat/commit). Non-LLM chạy khô.
 
-**Key:** chỉ artifact cần gen mới cần key → set **env var** cho session (đừng để trong chat/commit). Non-LLM chạy khô.
+## Vòng TRI THỨC — đi trước build 1 nhịp (kho = moat của Max)
+LLM là hàng chợ; **kho craft marketing tuyển chọn, tươi, theo (output × kênh × ngành)** mới là moat. Kho phục vụ **3 đầu từ một nguồn:**
+1. **Thước** — CMO chấm output vs best-practice thật (không vibes).
+2. **Nhiên liệu gen** — rule/few-shot nhét prompt để LLM Max ra đúng chất.
+3. **Bản thiết kế** — định hình chính step/flow/function/câu-hỏi/output của Max (marketing quyết kiến trúc, không phải tôi bịa flow).
+
+**Đơn vị = Craft Card** cho mỗi node `(output × kênh × ngành)`, 5 phần: nguyên tắc craft (bền) · exemplar tươi (**nguồn + ngày**, chống bịa + biết khi rữa) · rubric chấm [đầu①] · spec gen [đầu②] · hàm ý thiết kế [đầu③].
+
+**Vòng (chạy TRƯỚC vòng build 1 nhịp):**
+```
+① bản đồ hệ thống (node) → ② CMO giao research-subagent (web/grounded) → ③ distill → CRAFT CARD
+   → ④ CTO chọn cơ chế (prompt bake / file-store /industry / LLM-grounded lôi) → brief Cline
+   → ⑤ Cline build wiring → ⑥ Max gen → Tester+CMO chấm vs CÙNG card → ⑦ hết đát → re-research
+```
+Bước ① là **output tự sửa** (research phát hiện node sai/thiếu → viết lại bản đồ). Tri thức ngồi TRÊN kiến trúc.
+
+**Governance (đầu③ gây bất ổn — 3 chốt):**
+1. **Không auto-apply** — redesign đi qua cổng Human + Orchestrator (keep/cut).
+2. **Lõi ổn định neo** — Spine + 6 miền là bedrock đã validate; tri thức chỉnh ở rìa/miền chưa build.
+3. **Đi trước build 1 nhịp** — research miền kế TRƯỚC khi brief nó (redesign rẻ nhất khi code chưa tồn tại). Research sau khi Cline đã code = chỉ tạo việc đập-xây-lại.
+
+> Cơ chế đưa vào Max (đầu②): craft bền → prompt `agents/`; card theo ngành/kênh → file repo lazy-load (KHÔNG bảng DB); ngành chưa có card → LLM grounded (`llm_router`) lôi live. Bắt đầu file-based, chỉ lên RAG khi ma trận phình. Chi tiết chuẩn kho: `KNOWLEDGE.md` (sẽ viết khi Giai đoạn 1 khởi động).
 
 ## Khoảng cách "bước ra" tăng dần
 Không buông ngay: **P0 tôi đứng gần** (review kỹ từng function). Chuẩn nào đã chứng minh qua vài function → tôi **lùi xa dần**, giao Cline chạy dài hơn. Trust tăng theo harness đã kiểm chứng.
