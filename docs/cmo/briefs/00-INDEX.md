@@ -1,25 +1,29 @@
 # BRIEFS cho Cline — cách làm
 
-> **Đọc `docs/cmo/00-PLAN.md` 1 lần** để hiểu bức tranh. Rồi làm **từng slice**, KHÔNG ôm cả phase.
-> **Branch:** `feature/ai-cmo-core` (worktree `D:/MarkOS/wt-cmo`). **KHÔNG mở PR** — commit từng slice, báo Claude review.
+> **Đọc trước khi làm bất cứ gì:**
+> 1. `docs/cmo/00-PLAN.md` — bức tranh + **6 NGUYÊN TẮC THIẾT KẾ**.
+> 2. `docs/cmo/WORKFLOW.md` — **Build Loop**: đơn vị việc = **1 function**, vòng Discovery→Plan→Execute→Self-verify→Handoff→Gate.
+> 3. `docs/cmo/EVAL.md` — **standard** đánh giá trường/tính năng (3 test · 5 lớp · 3 archetype).
+> **Branch:** `feature/ai-cmo-core` (worktree `D:/MarkOS/wt-cmo`).
 
-## Luật mỗi slice
-1. Chỉ đọc file brief của slice đó + đúng vài hàm code liên quan (brief chỉ tên hàm/dòng). ĐỪNG đọc cả `business.py`.
+## Luật mỗi function-task (rút gọn từ WORKFLOW)
+1. Đọc ĐÚNG brief của function + **grep tên hàm** (đừng tin số dòng, đừng đọc cả `business.py`). Brief mơ hồ → **HỎI, không đoán**.
 2. **KHÔNG đổi schema DB** → dữ liệu mới vào `profile.intake_extra`.
-3. **MIRROR FE:** `web/app.js` ↔ `<script>` standalone; `web/styles.css` ↔ `<style>` standalone.
-4. Verify trước khi commit:
-   ```bash
-   node --check web/app.js
-   python3 -c "import re;h=open('web/dashboard-standalone.html').read();open('/tmp/s.js','w').write(max(re.findall(r'<script[^>]*>(.*?)</script>',h,re.S),key=len))" && node --check /tmp/s.js
-   python3 -c "import webapp.business, webapp.api"
-   ```
-5. Commit 1 slice = 1 commit, message rõ. Báo Claude. **Chờ review xong mới sang slice sau.**
+3. **MIRROR FE cùng 1 commit:** `web/app.js` ↔ `<script>` standalone; `web/styles.css` ↔ `<style>` standalone.
+4. **Self-verify TRƯỚC khi gọi review** (verify commands dưới) + dán self-review report vào commit.
+5. 1 function = 1 commit. Push → auto-review chạy + báo Claude. **Chờ cổng PASS mới sang function sau. KHÔNG tự quyết keep/cut, KHÔNG tự merge.**
+
+```bash
+node --check web/app.js
+python3 -c "import re;h=open('web/dashboard-standalone.html').read();open('/tmp/s.js','w').write(max(re.findall(r'<script[^>]*>(.*?)</script>',h,re.S),key=len))" && node --check /tmp/s.js
+python3 -c "import webapp.business, webapp.api"
+```
 
 ## Thứ tự slice (chỉ P0 có brief sẵn — phase sau brief sau khi review)
-| Slice | File | Xong chưa |
-|---|---|---|
-| 0.1 | `P0.1-objective-intake.md` | ⬜ |
-| 0.2 | `P0.2-objective-wire.md` | ⬜ |
-| … | (P1+ sẽ được Claude brief sau khi P0 review xong) | |
+| Slice | File | Function | Xong chưa |
+|---|---|---|---|
+| 0.1 | `P0.1-strategy-spine.md` | F1 save_spine · F2 bizSpine · F3 route · F4 FE+mirror | ⬜ |
+| 0.2 | `P0.2-spine-wire.md` | helper `_spine_anchor` + gắn từng hàm gen | ⬜ |
+| … | (P1+ sẽ được Claude brief sau khi P0 review xong) | | |
 
 > Không chắc chỗ nào → hỏi lại, ĐỪNG bịa. Được tham khảo `marketingskills` repo + `product-journey-4-tang.md` (xem PLAN mục "Tham khảo").
