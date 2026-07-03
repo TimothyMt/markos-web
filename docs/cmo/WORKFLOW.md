@@ -56,6 +56,33 @@ Bằng chứng: <link eval artifact nếu có>
 Chưa chắc: <điểm cần Orchestrator quyết, vd trường X qua EVAL chưa?>
 ```
 
+## Cổng review của Orchestrator — 2 MŨ: CTO + CMO (bước 6 chi tiết)
+Người đánh giá output cuối của Cline = **Human + Orchestrator**. Orchestrator đội **2 mũ tách bạch** trên cùng một output:
+
+```
+Cline code xong
+   │
+   ▼  [CTO]  đọc code vs ràng buộc + EVAL cơ học → CHẠY THẬT → xuất ARTIFACT
+   ▼  [CMO]  đọc ARTIFACT (hành vi chạy, KHÔNG đọc code) → viết kết quả cho Human trong chat
+   ▼  [Human + Orchestrator]  cùng đánh giá: đúng mục tiêu marketing? giữ/sửa/bỏ?
+   ▼  [CTO]  viết brief function kế → giao Cline
+   └─► lặp
+```
+
+**Mũ CTO — "xây có đúng không":**
+- So diff với: (A) ý định brief · (B) ràng buộc cứng (schema/mirror-FE/prompt agents/không bịa số) · (C) EVAL phần cơ học.
+- **Chạy thật:** `python run_web.py` (SQLite, không cần key) drive luồng non-LLM; luồng gen thì chạy với key → **xuất artifact** (persistence round-trip; hoặc output CÓ/KHÔNG-trường cho EVAL Test3).
+
+**Mũ CMO — "có đúng thứ cần làm không":**
+- **Đọc ARTIFACT, KHÔNG đọc code.** Nhìn *output/hành vi thật* qua lăng kính marketing: (D) có phục vụ mục tiêu "Max = AI CMO" · (C) EVAL Test1 consumption + persona.
+- Viết verdict cho Human **trong chat**, cùng chốt.
+
+**Kỷ luật chống rationalize chéo:** CTO pass TRƯỚC & độc lập; CMO chỉ nhìn *kết quả* chứ không nhìn *cách làm* — nếu CMO đi đọc code thì 2 mũ sụp thành 1, mất khả năng bắt cái CTO bỏ sót. Đây là cách đóng phần **15%** mà self-review của Cline không đóng được.
+
+**Verdict** (tầng function/hành vi, kèm file:dòng): **PASS** / **cần sửa** (liệt kê A/B/C) / **cờ cổng người** (quyết định sản phẩm keep/cut — Orchestrator KHÔNG tự chốt).
+
+**Key:** chỉ artifact cần gen mới cần key → set **env var** cho session (đừng để trong chat/commit). Non-LLM chạy khô.
+
 ## Khoảng cách "bước ra" tăng dần
 Không buông ngay: **P0 tôi đứng gần** (review kỹ từng function). Chuẩn nào đã chứng minh qua vài function → tôi **lùi xa dần**, giao Cline chạy dài hơn. Trust tăng theo harness đã kiểm chứng.
 
