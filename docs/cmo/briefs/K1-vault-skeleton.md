@@ -10,7 +10,71 @@
 3. Mọi seed note `status: draft` (chưa `live`). Framework `maturity: evergreen`; craft exemplar để trống + ghi `(chờ research, có nguồn+ngày)`.
 4. KHÔNG đụng `webapp/`, `web/`, DB. Slice này chỉ tạo file trong `brain/`.
 
+## Khuôn frontmatter (CHÉP, đổi giá trị — đừng tự suy từ schema)
+```yaml
+# framework (F2)
+---
+type: framework
+title: "STP"
+status: draft
+maturity: evergreen
+updated: 2026-07-04
+source: ""
+applies_to: [all]                 # hoặc [d2c-skincare, service-local]
+stage: [launch, growth, scale]
+goal_type: [positioning, content] # tập con của: positioning|pricing|channel|content|lifecycle|measurement
+composes_with: []                 # vd ["[[jtbd]]"]
+---
+```
+```yaml
+# industry (F3)
+---
+type: industry
+title: "D2C Skincare"
+status: draft
+maturity: fresh
+updated: 2026-07-04
+source: ""
+slug: d2c-skincare               # khớp tên file
+channels: [tiktok-shop, tiktok, fb, shopee]
+fit_frameworks: ["[[stp]]", "[[jtbd]]"]
+pitfalls: []
+---
+```
+```yaml
+# craft (F4)
+---
+type: craft
+title: "TikTok Hook — D2C Skincare"
+status: draft
+maturity: fresh
+updated: 2026-07-04
+source: ""
+output: hook
+channel: tiktok
+industry: d2c-skincare
+expresses: "[[jtbd]]"
+exemplars: []                    # chờ research: mỗi exemplar cần nguồn+ngày
+---
+```
+```yaml
+# stage (F5)
+---
+type: stage
+title: "Launch"
+status: draft
+maturity: evergreen
+updated: 2026-07-04
+source: ""
+slug: launch                     # khớp tên file + khớp giá trị stage: trong framework
+priorities: []
+signals: []
+---
+```
+Thân note = placeholder (vd `> [!note] Nội dung do vòng tri thức lấp (status: draft)`).
+
 ## Chẻ theo FUNCTION (mỗi F = 1 commit = 1 review)
+> **Pre-flight:** F1 (scaffold) đóng luôn vai smoke-test tool-call cho model executor. Nếu 2 lần không hoàn tất nổi 1 bước → **DỪNG, báo, đừng lặp.**
 
 ### F1 — scaffold `brain/` + README convention
 - Tạo cây thư mục: `brain/frameworks/ industries/ craft/ stages/ _bases/ _canvas/` (mỗi thư mục rỗng thêm `.gitkeep`).

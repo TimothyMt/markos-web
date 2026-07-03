@@ -16,6 +16,12 @@ Cline có phiên ngắn → **KHÔNG ôm cả slice**. Mỗi brief chẻ thành 
 - Ngoại lệ **mirror FE**: sửa `app.js` + mirror `dashboard-standalone.html` phải nằm **cùng 1 commit** (không để repo lệch giữa 2 bản). Coi cặp này là *một* function-task.
 - Function tí hon (vd expose 1 key trong `biz_data`) có thể gộp commit với function liền kề — nêu rõ trong message.
 
+### Hợp đồng executor — robustness (model-agnostic)
+User tự chọn model cho Cline; brief viết bình thường, không chốt model. **3 chốt bất kể model:**
+1. **Pre-flight** — model/phiên MỚI: hành động đầu là 1 bước trivial (tạo file rác / hoặc chính function scaffold đầu tiên) để xác nhận **tool-call format chạy** TRƯỚC khi giao việc thật. Bắt sớm lỗi "model không bắn nổi tool-call" (đỡ loop đốt token).
+2. **Template inline** — việc cấu trúc (frontmatter / chữ ký hàm) → brief **dán khuôn copy-paste**, đừng bắt "tự suy từ schema".
+3. **Chốt loop** — brief ghi: *"2 lần không hoàn tất nổi 1 bước → DỪNG, báo, KHÔNG lặp."* Human + noti Telegram = circuit-breaker chính (kiến trúc review chặn được rác, nhưng KHÔNG chặn loop-đốt-tiền → mắt người chặn).
+
 ## Vòng mỗi function-task
 ```
 GOAL (human, 1 lần — khoá trong 00-PLAN)
