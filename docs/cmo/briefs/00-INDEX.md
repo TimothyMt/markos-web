@@ -26,10 +26,10 @@ python3 -c "import webapp.business, webapp.api"
 | Slice | File | Function | Xong chưa |
 |---|---|---|---|
 | **K1** | `K1-vault-skeleton.md` | F1 scaffold · F2 3 framework · F3 2 industry · F4 1 craft · F5 3 stage · F6 base | ✅ xong (F2 CTO vá goal_type) |
-| **B** | `B-industry-taxonomy.md` | re-seed family `health-beauty`+`fnb` + khoá `family` (1 commit atomic) | ⬜ |
-| 0.1 | `P0.1-strategy-spine.md` | F1 save_spine · F2 bizSpine · F3 route · F4 FE+mirror | ⬜ (chưa build — brief đã vá) |
-| **K2** | `K2-loader.md` | F1 `webapp/brain.py` loader+parse · F2 `select()` mirror .base + rank | ⬜ |
-| A1 | (brief sau) | thêm `stage` vào Spine (hỏi 1 câu / suy baseline) | ⬜ |
+| **B** | `B-industry-taxonomy.md` | re-seed family `health-beauty`+`fnb` + khoá `family` (1 commit atomic) | ✅ xong (142fd0a) |
+| **K2** | `K2-loader.md` | F1 `webapp/brain.py` loader+parse · F2 `select()` mirror .base + rank | ✅ xong (75be2b9) |
+| 0.1 | `P0.1-strategy-spine.md` | F1 save_spine (**+stage A1**) · F2 bizSpine · F3 route · F4 FE+mirror | ⬜ (chưa build — brief đã vá; **A1 gộp**: `stage` người khai) |
+| A2 | (brief sau) | Max **tinh chỉnh** `stage` theo tín hiệu (derived-state: confidence/why/freeze/override) — khi đã có baseline/lịch sử | ⬜ tương lai |
 | 0.2 | `P0.2-spine-wire.md` | helper `_spine_anchor` + gắn từng hàm gen | ⬜ |
 | … | (K3 wire select() vào business.py · P1+ brief sau khi review) | | |
 
