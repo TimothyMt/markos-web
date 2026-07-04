@@ -280,8 +280,9 @@ async def biz_data(user_id=None) -> dict:
         _ier = (out.get("bizProfile") or {}).get("intake_extra") or {}
         out["bizContentRhythm"] = content_rhythm_view(_ier.get("content_rhythm") if isinstance(_ier, dict) else None)
         out["bizMessaging"] = (_ier.get("messaging") if isinstance(_ier, dict) else None) or {}
+        out["bizSpine"] = (_ier.get("spine") if isinstance(_ier, dict) else None) or {}
     except Exception:
-        out["bizContentRhythm"] = content_rhythm_view(None); out["bizMessaging"] = {}
+        out["bizContentRhythm"] = content_rhythm_view(None); out["bizMessaging"] = {}; out["bizSpine"] = {}
     try:
         _ie2 = (out.get("bizProfile") or {}).get("intake_extra") or {}
         out["bizCampaignPortfolio"] = (_ie2.get("campaign_portfolio") if isinstance(_ie2, dict) else []) or []
