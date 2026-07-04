@@ -27,6 +27,65 @@ def _short_uuid() -> str:
     return uuid.uuid4().hex[:8]
 
 
+def _parse_vn_number(text: str):
+    """
+    Parse số theo locale Việt Nam: ',' = thập phân, '.' = phân nhóm nghìn.
+    - Bỏ ký tự không phải [0-9.,-]; lấy cụm số đầu.
+    - Có cả '.' và ',': dấu cuối là thập phân, dấu trước là phân nhóm.
+    - Chỉ '.' → phân nhóm nghìn, bỏ hết (1.500→1500, 1.500.000→1500000).
+    - Chỉ ',' → thập phân (1,5→1.5).
+    - Fail → None; số thật (int/float) → float.
+    """
+    if text is None:
+        return None
+    if isinstance(text, (int, float)):
+        return float(text)
+    if not isinstance(text, str):
+        return None
+    s = text.strip()
+    if not s:
+        return None
+    # Bỏ ký tự không phải số/./,/-
+    cleaned = re.sub(r'[^0-9.,-]', '', s)
+    if not cleaned:
+        return None
+    # Lấy cụm số đầu (có thể có dấu - ở đầu)
+    m = re.match(r'-?[0-9][0-9.,]*', cleaned)
+    if not m:
+        return None
+    num = m.group(0)
+    has_dot = '.' in num
+    has_comma = ',' in num
+    if has_dot and has_comma:
+        # Dấu cuối là thập phân
+        last_dot = num.rfind('.')
+        last_comma = num.rfind(',')
+        if last_comma > last_dot:
+            # comma là thập phân → bỏ dot (phân nhóm), đổi comma → .
+            num = num.replace('.', '').replace(',', '.')
+        else:
+            # dot là thập phân → bỏ comma (phân nhóm)
+            num = num.replace(',', '')
+    elif has_dot:
+        # Chỉ có dot → phân nhóm nghìn, bỏ hết
+        num = num.replace('.', '')
+    elif has_comma:
+        # Chỉ có comma → thập phân
+        num = num.replace(',', '.')
+    try:
+        return float(num)
+    except Exception:
+        return None
+
+
+def _validate_stage(stage: str) -> str:
+    """Validate stage enum: chỉ nhận {'launch','growth','scale'} (lower+strip); khác/rỗng → ''."""
+    if not stage:
+        return ""
+    s = str(stage).strip().lower()
+    return s if s in ("launch", "growth", "scale") else ""
+
+
 # M-E2 (B): bộ góc khai thác (value lens) — KHỚP nhãn FE để slot pre-select đúng option.
 _VALUE_LENSES = ["Nỗi đau/Vấn đề", "Kết quả/Lợi ích", "Bằng chứng xã hội", "Khát vọng/Định vị",
                  "Xử lý phản đối", "Cơ chế/USP", "Khẩn cấp", "Uy tín chuyên môn"]
@@ -377,6 +436,109 @@ async def save_pillars(user_id=None, pillars=None) -> dict:
         return {"ok": True, "locked": len(extra.get("pillars_locked") or []), "profile": row}
     except Exception as e:
         logger.warning("biz.save_pillars failed: %s", e)
+        return {"error": str(e)}
+
+
+async def save_spine(user_id=None, spine: dict = None) -> dict:
+    """P0.1 F1: lưu Strategy Spine (xương sống chiến lược) vào intake_extra.spine.
+
+    Cấu trúc:
+    - stage: "launch"|"growth"|"scale"|"" (enum khớp slug brain/stages/)
+    - objective: {outcome, metric, target:{value:number|null, unit, period}, baseline:{value:number|null, unit, period}, deadline}
+    - audience: {who, pain, where}
+    - positioning: {alternative, differentiator, statement}  (OBJECT — không phải chuỗi)
+    - constraint: {people, budget, capacity}
+
+    Mọi field cho phép trống (chuỗi rỗng / value: null). value ép số locale VN.
+    Strip text + cắt độ dài hợp lý. Trả {"ok": True}.
+    """
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        from storage.v2 import profiles
+        cur = await profiles.get_profile(uid) or {}
+        extra = cur.get("intake_extra") or {}
+        if not isinstance(extra, dict):
+            extra = {}
+
+        if spine and isinstance(spine, dict):
+            # Helper: strip + cắt độ dài
+            def _s(val, maxlen=500):
+                if val is None:
+                    return ""
+                s = str(val).strip()
+                return s[:maxlen]
+
+            def _s_short(val, maxlen=200):
+                if val is None:
+                    return ""
+                s = str(val).strip()
+                return s[:maxlen]
+
+            # stage: validate enum
+            stage = _validate_stage(spine.get("stage"))
+
+            # objective
+            obj_in = spine.get("objective") if isinstance(spine.get("objective"), dict) else {}
+            objective = {
+                "outcome":  _s_short(obj_in.get("outcome")),
+                "metric":   _s_short(obj_in.get("metric")),
+                "target":   {
+                    "value":  _parse_vn_number(obj_in.get("target", {}).get("value")) if isinstance(obj_in.get("target"), dict) else None,
+                    "unit":   _s_short(obj_in.get("target", {}).get("unit")) if isinstance(obj_in.get("target"), dict) else "",
+                    "period": _s_short(obj_in.get("target", {}).get("period")) if isinstance(obj_in.get("target"), dict) else "",
+                },
+                "baseline": {
+                    "value":  _parse_vn_number(obj_in.get("baseline", {}).get("value")) if isinstance(obj_in.get("baseline"), dict) else None,
+                    "unit":   _s_short(obj_in.get("baseline", {}).get("unit")) if isinstance(obj_in.get("baseline"), dict) else "",
+                    "period": _s_short(obj_in.get("baseline", {}).get("period")) if isinstance(obj_in.get("baseline"), dict) else "",
+                },
+                "deadline": _s_short(obj_in.get("deadline")),
+            }
+
+            # audience
+            aud_in = spine.get("audience") if isinstance(spine.get("audience"), dict) else {}
+            audience = {
+                "who":   _s(aud_in.get("who")),
+                "pain":  _s(aud_in.get("pain")),
+                "where": _s(aud_in.get("where")),
+            }
+
+            # positioning — OBJECT (không phải chuỗi)
+            pos_in = spine.get("positioning") if isinstance(spine.get("positioning"), dict) else {}
+            positioning = {
+                "alternative":   _s(pos_in.get("alternative")),
+                "differentiator": _s(pos_in.get("differentiator")),
+                "statement":     _s(pos_in.get("statement")),
+            }
+
+            # constraint
+            con_in = spine.get("constraint") if isinstance(spine.get("constraint"), dict) else {}
+            constraint = {
+                "people":   _s(con_in.get("people")),
+                "budget":   _s(con_in.get("budget")),
+                "capacity": _s(con_in.get("capacity")),
+            }
+
+            extra["spine"] = {
+                "stage": stage,
+                "objective": objective,
+                "audience": audience,
+                "positioning": positioning,
+                "constraint": constraint,
+            }
+        else:
+            # spine là None hoặc không phải dict → xoá spine
+            extra.pop("spine", None)
+
+        row = await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "profile": row}
+    except Exception as e:
+        logger.warning("biz.save_spine failed: %s", e)
         return {"error": str(e)}
 
 
