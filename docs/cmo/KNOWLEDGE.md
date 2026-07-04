@@ -48,7 +48,7 @@ stage:      [launch, growth, scale]              # giai đoạn hợp
 goal_type:  [positioning, pricing, channel, content, lifecycle, measurement]  # ↔ D1–D6
 composes_with: ["[[JTBD]]", "[[STP]]"]           # framework hay dùng chung
 ```
-**industry** (thêm): `slug` · `channels: [tiktok-shop, zalo, fb, ...]` · `fit_frameworks: ["[[STP]]"]` · `pitfalls: [...]`
+**industry** (thêm): `slug` · `family` (xem "Taxonomy ngành 2 tầng") · `channels: [tiktok-shop, zalo, fb, ...]` · `fit_frameworks: ["[[STP]]"]` · `pitfalls: [...]`
 **craft** (thêm): `output` (hook|post|email|caption…) · `channel` (tiktok|fb|…) · `industry` (slug|[all]) · `expresses: "[[framework]]"` · `exemplars` (mỗi cái có **nguồn+ngày**)
 **stage** (thêm): `slug` · `priorities: [...]` · `signals: [...]` (cách nhận biết business đang ở stage này)
 
@@ -72,6 +72,15 @@ select(industry, stage, goal_type) -> [note]:
   → xếp hạng (maturity/updated) → trả
 ```
 Loader = parse frontmatter (yaml) + filter thuần Python, **không DB**, cache/lazy-load. `.base` và loader phải cho **cùng kết quả** (test đối chiếu).
+
+## Taxonomy ngành 2 tầng + degrade (canonical)
+Ngành có **2 tầng**, tách "cái user KHAI" khỏi "cái recall DÙNG":
+- **family** (thô, ~14 key có sẵn: `fnb, health_beauty, ecommerce, agency…`) — **user khai** (ngôn ngữ người), nuôi `frameworks/industry_context.py` (archetype/mùa vụ). Đây là nguồn `industry` recall dùng NGAY.
+- **slug tinh** (theo mô hình KD: `d2c-skincare, spa-local…`) — **Max SUY RA** từ Spine (audience/positioning/kênh), KHÔNG hỏi user. Áp **Luật derived-state** (WIRING.md): log `confidence/why` + review + human-override.
+
+Mỗi industry note khai `family`: note tầng family thì `family` = chính nó (`slug`); note tinh thì `family` = key cha.
+**Chuẩn hoá seam:** field `industry` cũ dạng snake (`health_beauty`) → slug brain kebab (`health-beauty`) bằng `.replace("_","-")` ở recall (1 chỗ, ghi Sổ hợp đồng WIRING).
+**Degrade êm:** `select()` thử slug tinh (nếu Max đã suy + có note tinh) → không có thì **tụt về note family**. Chạy được ngay ở mức family, tinh dần khi vòng tri thức lấp note tinh. `industry_context` luôn tra theo `family` → phần cũ không vỡ.
 
 ## Governance + freshness (đầu③ gated)
 - `status`: research tạo `draft` → Orchestrator+Human review → `reviewed` → chốt `live`. **Chỉ `live` ra user.**
