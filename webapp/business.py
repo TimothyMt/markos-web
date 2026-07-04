@@ -1020,6 +1020,7 @@ async def campaign_plan(user_id=None, steer: str = "") -> dict:
         user = (f"# Ngành\n{industry}\n{ictx}\n\n# Wedge (tệp ưu tiên đã chọn)\n{wedge or '(chưa chọn — tự suy)'}\n\n"
                 f"# Chiến lược (Synthesis)\n{synth[:3500]}\n\n# Tactical Playbook\n{(tact or '(chưa có)')[:2500]}"
                 f"{steer_block}")
+        user += _spine_anchor(_extra)   # P0.2: bơm Chiến lược nền (Spine) vào prompt
         res = await router_call(task_type=TaskType.INTAKE_JSON, system=system, user=user, max_tokens=1600)
         raw = (res or {}).get("output", "").strip()
         raw = re.sub(r'^```(?:json)?\s*', '', raw)
@@ -1366,6 +1367,7 @@ async def gen_campaign_portfolio(user_id=None) -> dict:
         user = (f"# Ngành\n{industry} — {arche}\n# USP\n{usp or '(chưa rõ)'}\n# Wedge\n{wedge or '(chưa chọn)'}\n"
                 f"# Horizon\n{weeks} tuần\n\n# Chiến lược (Synthesis — roadmap)\n{synth[:3200]}\n\n"
                 f"# Tactical Playbook\n{(tact or '(chưa có)')[:1500]}")
+        user += _spine_anchor(extra)   # P0.2: bơm Chiến lược nền (Spine) vào prompt
         res = await router_call(task_type=TaskType.INTAKE_JSON, system=system, user=user, max_tokens=1800)
         raw = (res or {}).get("output", "").strip()
         raw = re.sub(r'^```(?:json)?\s*', '', raw)
@@ -3125,6 +3127,7 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
         user = (f"# Ngành\n{industry}\n# Sản phẩm/dịch vụ\n{product or '(chưa rõ)'}\n"
                 f"# Khách mục tiêu\n{target or '(chưa rõ)'}\n# USP\n{usp or '(chưa rõ)'}{voice_ctx}\n\n"
                 f"# Bối cảnh slot\n{ctx}{msg_anchor}{strat_anchor}")
+        user += _spine_anchor(_pe)   # P0.2: bơm Chiến lược nền (Spine) vào prompt
         res = await router_call(task_type=TaskType.OPS_CONTENT_CREATIVE, system=system, user=user, max_tokens=900)
         content = (res or {}).get("output", "").strip()
         if not content:
