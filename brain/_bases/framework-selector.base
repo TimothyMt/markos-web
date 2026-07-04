@@ -13,10 +13,10 @@ views:
       - updated
 
   - type: table
-    name: Route - d2c-skincare x launch
+    name: Route - health-beauty x launch
     filters:
       and:
-        - 'applies_to.containsAny("d2c-skincare", "all")'
+        - 'applies_to.containsAny("health-beauty", "all")'
         - 'stage.contains("launch")'
     order:
       - title

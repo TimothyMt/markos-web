@@ -1,13 +1,14 @@
 ---
 type: industry
-title: "D2C Skincare"
+title: "Sức khỏe & Làm đẹp"
 status: draft
 maturity: fresh
 updated: 2026-07-04
 source: ""
-slug: d2c-skincare
-channels: [tiktok-shop, tiktok, fb, shopee]
-fit_frameworks: ["[[stp]]", "[[jtbd]]"]
+slug: health-beauty
+family: health-beauty
+channels: [tiktok, tiktok-shop, fb, instagram]
+fit_frameworks: ["[[stp]]", "[[jtbd]]", "[[dunford-positioning]]"]
 pitfalls: []
 ---
 

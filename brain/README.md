@@ -2,12 +2,12 @@
 
 ## 4 Loại Note
 - **frameworks**: Framework marketing ứng dụng cho nhiều ngành
-- **industries**: Kiến trúc ngành cụ thể (d2c-skincare, b2b-saas)
-- **craft**: Kỹ năng thực tactical (copywriting, cro-campaign)
-- **stages**: Định giai đoạn khách hàng (awareness, consideration, conversion)
+- **industries**: Hồ sơ ngành (family: health-beauty, fnb, ...) — xem taxonomy 2 tầng ở KNOWLEDGE.md
+- **craft**: Craft card output×kênh×ngành (vd tiktok-hook__health-beauty)
+- **stages**: Giai đoạn trưởng thành business (launch, growth, scale)
 
 ## Quy Tác Đặt Tên
-- **Slug**: kebab-case (ví dụ: `d2c-skincare`, `copywriting-framework`)
+- **Slug**: kebab-case (ví dụ: `health-beauty`, `dunford-positioning`)
 - Khớp giữa `applies_to` (frontmatter), `industry` (folder), và `slug` (filename)
 
 ## Frontmatter Keys
