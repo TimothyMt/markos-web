@@ -1856,6 +1856,7 @@ async def gen_master_plan(user_id=None, gap_kind: str = "", gap_title: str = "",
         user = (f"# Ngành\n{industry}\n# ĐẶT CƯỢC (các GAP cấu thành 1 chiến lược, ngang hàng)\n{gaps_txt}\n"
                 f"- Tệp ưu tiên (wedge): {wedge or '(theo synthesis)'}\n- USP: {usp or '(theo synthesis)'}\n\n"
                 f"# Chiến lược\n{synth[:1800]}")
+        user += _spine_anchor(extra)   # P0.2: bơm Chiến lược nền (Spine) vào prompt
         res = await router_call(task_type=TaskType.INTAKE_JSON, system=system, user=user, max_tokens=1000)
         raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
         subs = []
@@ -2803,6 +2804,110 @@ def _messaging_anchor_from(extra) -> str:
         return ""
     return ("\n\n# THÔNG ĐIỆP (bám NGẦM — mọi bài cùng 1 cốt lõi/giọng; ƯU TIÊN hơn định vị thô)\n"
             + "\n".join(lines))
+
+
+def _spine_anchor(extra) -> str:
+    """P0.2 F1: text SPINE bơm vào prompt gen kế hoạch — truy ngược về xương sống chiến lược.
+
+    Nhận extra=intake_extra (KHÔNG nhận uid/KHÔNG load DB).
+    Trả block prepend:\\n\\n# CHIẾN LƯỢC NỀN... hoặc "" nếu spine rỗng/không dict.
+    """
+    s = (extra.get("spine") if isinstance(extra, dict) else None) or {}
+    if not isinstance(s, dict) or not s:
+        return ""
+    lines = []
+    # Giai đoạn — chỉ khi có
+    stage = s.get("stage") or ""
+    if stage:
+        lines.append(f"Giai đoạn: {stage}")
+
+    # Mục tiêu
+    obj = s.get("objective") if isinstance(s.get("objective"), dict) else {}
+    outcome = (obj.get("outcome") or "").strip()
+    metric = (obj.get("metric") or "").strip()
+    tgt = obj.get("target") if isinstance(obj.get("target"), dict) else {}
+    bl = obj.get("baseline") if isinstance(obj.get("baseline"), dict) else {}
+    deadline = (obj.get("deadline") or "").strip()
+    tgt_val = tgt.get("value")
+    tgt_unit = (tgt.get("unit") or "").strip()
+    tgt_per = (tgt.get("period") or "").strip()
+    bl_val = bl.get("value")
+    bl_unit = (bl.get("unit") or "").strip()
+    bl_per = (bl.get("period") or "").strip()
+    if outcome:
+        parts = [f"Mục tiêu: {outcome}"]
+        if metric:
+            parts.append(f"đo bằng {metric}")
+        has_tgt = tgt_val is not None
+        has_bl = bl_val is not None
+        if has_tgt:
+            tgt_str = (f"đích {int(tgt_val) if isinstance(tgt_val, float) and tgt_val == int(tgt_val) else tgt_val}"
+                       + (f"{tgt_unit}/{tgt_per}" if tgt_unit else f"/{tgt_per}"))
+            if has_bl:
+                bl_str = (f"hiện {int(bl_val) if isinstance(bl_val, float) and bl_val == int(bl_val) else bl_val}"
+                          + (f"{bl_unit}/{bl_per}" if bl_unit else f"/{bl_per}"))
+                parts.append(f"{tgt_str} ({bl_str})")
+            else:
+                parts.append(tgt_str)
+        if deadline:
+            parts.append(f"mốc {deadline}")
+        lines.append(" — ".join(parts))
+
+    # Tệp khách
+    aud = s.get("audience") if isinstance(s.get("audience"), dict) else {}
+    who = (aud.get("who") or "").strip()
+    pain = (aud.get("pain") or "").strip()
+    where = (aud.get("where") or "").strip()
+    if who or pain or where:
+        parts = []
+        if who:
+            parts.append(f"Tệp khách: {who}")
+        if pain:
+            parts.append(f"nỗi đau: {pain}")
+        if where:
+            parts.append(f"thường ở: {where}")
+        lines.append(" — ".join(parts))
+
+    # Định vị
+    pos = s.get("positioning") if isinstance(s.get("positioning"), dict) else {}
+    alt = (pos.get("alternative") or "").strip()
+    diff = (pos.get("differentiator") or "").strip()
+    stmt = (pos.get("statement") or "").strip()
+    if alt or diff or stmt:
+        if stmt and not alt and not diff:
+            lines.append(f"Định vị: {stmt}")
+        else:
+            parts = []
+            if alt:
+                parts.append(f"khách thường {alt}")
+            if diff:
+                parts.append(f"mình khác ở {diff}")
+            if parts:
+                base = "Định vị: " + " — ".join(parts)
+                if stmt:
+                    lines.append(f"{base} — {stmt}")
+                else:
+                    lines.append(base)
+
+    # Năng lực (RÀNG BUỘC)
+    con = s.get("constraint") if isinstance(s.get("constraint"), dict) else {}
+    people = (con.get("people") or "").strip()
+    budget = (con.get("budget") or "").strip()
+    cap = (con.get("capacity") or "").strip()
+    if people or budget or cap:
+        parts = ["Năng lực (RÀNG BUỘC — ĐỪNG đề xuất vượt quá):", people]
+        if budget:
+            parts.append(f"ngân sách {budget}")
+        if cap:
+            parts.append(f"làm nổi {cap}")
+        lines.append(" ".join(p for p in parts if p))
+
+    if not lines:
+        return ""
+    return ("\n\n# CHIẾN LƯỢC NỀN — mọi đề xuất phải phục vụ khối này\n"
+            + "\n".join(lines)
+            + "\nƯu tiên đề xuất phục vụ mục tiêu trên, hợp tệp khách + định vị, "
+              + "KHÔNG vượt năng lực. Bài nào không phục vụ trực tiếp mục tiêu, nói rõ vai trò gián tiếp.")
 
 
 async def gen_messaging(user_id=None, steer: str = "", stage: str = "all", core: str = "") -> dict:
