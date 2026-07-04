@@ -31,7 +31,7 @@ python3 -c "import webapp.business, webapp.api"
 | 0.1 | `P0.1-strategy-spine.md` | F1 save_spine (**+stage A1**) · F2 bizSpine · F3 route · F4 FE+mirror (Spine ở **trang Hồ sơ**) | ✅ xong (07eb89d…f749d04; A1 gộp: `stage` người khai) |
 | A2 | (brief sau) | Max **tinh chỉnh** `stage` theo tín hiệu (derived-state: confidence/why/freeze/override) — khi đã có baseline/lịch sử | ⬜ tương lai |
 | A3 | (brief sau) | **Hợp nhất intake** — Spine trùng field với profile (`p.stage↔spine.stage`, `target_customer↔audience.who`, `usp↔positioning`). Dọn: spine **pre-fill từ profile** (khuyến nghị) hoặc bỏ field trùng. 1 khái niệm = 1 producer. | ⬜ tương lai |
-| 0.2 | `P0.2-spine-wire.md` | helper `_spine_anchor` + gắn từng hàm gen | ⬜ |
+| 0.2 | `P0.2-spine-wire.md` | F1 `_spine_anchor`+gen_master_plan · F2 gắn campaign_plan/portfolio/calendar_post (calendar_plan skip: không LLM) | ✅ xong (e23b1a0, ab105f7) — *Test 3 empirical cần key thật để chạy* |
 | … | (K3 wire select() vào business.py · P1+ brief sau khi review) | | |
 
 > Không chắc chỗ nào → hỏi lại, ĐỪNG bịa. Được tham khảo `marketingskills` repo + `product-journey-4-tang.md` (xem PLAN mục "Tham khảo").
