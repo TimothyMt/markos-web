@@ -5,6 +5,7 @@
 > 2. `docs/cmo/WORKFLOW.md` — **Build Loop**: đơn vị việc = **1 function**, vòng Discovery→Plan→Execute→Self-verify→Handoff→Gate.
 > 3. `docs/cmo/EVAL.md` — **standard** đánh giá trường/tính năng (3 test · 5 lớp · 3 archetype).
 > 4. `docs/cmo/KNOWLEDGE.md` — **standard** bộ não/vault (ontology · frontmatter routing · loader · governance). Đọc khi làm slice **K***.
+> 5. `docs/cmo/WIRING.md` — **cổng kiểm mối nối** (seam check): linter `brain/_check.py` (Lớp 1) + sổ hợp đồng khoá xuyên component (Lớp 2). CTO chạy mỗi slice để bắt "consumer không có producer" TRƯỚC runtime.
 > **Branch:** `feature/ai-cmo-core` (worktree `D:/MarkOS/wt-cmo`).
 
 ## Luật mỗi function-task (rút gọn từ WORKFLOW)
