@@ -28,8 +28,9 @@ python3 -c "import webapp.business, webapp.api"
 | **K1** | `K1-vault-skeleton.md` | F1 scaffold · F2 3 framework · F3 2 industry · F4 1 craft · F5 3 stage · F6 base | ✅ xong (F2 CTO vá goal_type) |
 | **B** | `B-industry-taxonomy.md` | re-seed family `health-beauty`+`fnb` + khoá `family` (1 commit atomic) | ✅ xong (142fd0a) |
 | **K2** | `K2-loader.md` | F1 `webapp/brain.py` loader+parse · F2 `select()` mirror .base + rank | ✅ xong (75be2b9) |
-| 0.1 | `P0.1-strategy-spine.md` | F1 save_spine (**+stage A1**) · F2 bizSpine · F3 route · F4 FE+mirror | ⬜ (chưa build — brief đã vá; **A1 gộp**: `stage` người khai) |
+| 0.1 | `P0.1-strategy-spine.md` | F1 save_spine (**+stage A1**) · F2 bizSpine · F3 route · F4 FE+mirror (Spine ở **trang Hồ sơ**) | ✅ xong (07eb89d…f749d04; A1 gộp: `stage` người khai) |
 | A2 | (brief sau) | Max **tinh chỉnh** `stage` theo tín hiệu (derived-state: confidence/why/freeze/override) — khi đã có baseline/lịch sử | ⬜ tương lai |
+| A3 | (brief sau) | **Hợp nhất intake** — Spine trùng field với profile (`p.stage↔spine.stage`, `target_customer↔audience.who`, `usp↔positioning`). Dọn: spine **pre-fill từ profile** (khuyến nghị) hoặc bỏ field trùng. 1 khái niệm = 1 producer. | ⬜ tương lai |
 | 0.2 | `P0.2-spine-wire.md` | helper `_spine_anchor` + gắn từng hàm gen | ⬜ |
 | … | (K3 wire select() vào business.py · P1+ brief sau khi review) | | |
 
