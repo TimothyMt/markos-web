@@ -48,7 +48,17 @@ Chi tiết: `docs/web/product-journey-4-tang.md`. Mọi bài **tự bám Thông 
 2. `api.py`: thêm handler + `Route(...)` trong `api_routes()`.
 3. `business.py biz_data()`: expose dữ liệu ra key `bizXxx` cho FE.
 4. FE `app.js`: render + handler trong `handleAction()`; **mirror sang standalone**.
-5. Verify (mục trên) rồi commit.
+5. **Cổng kiểm mối nối** (xem dưới) rồi verify (mục trên) rồi commit.
+
+## ⚠️ Cổng kiểm mối nối (seam check) — LUẬT cho MỌI function
+Lỗi nguy hiểm nhất = **mối nối**: function *tiêu thụ* một khoá mà **không ai sản xuất** ra, hoặc lệch tên/slug/kiểu → **im tới runtime mới nổ**. Trước khi PASS bất kỳ function nào (code hoặc brief), qua Hiến pháp ở **`docs/cmo/WIRING.md`**:
+1. Mọi khoá function đọc/ghi có **producer** + dòng trong sổ hợp đồng WIRING; khớp **tên/slug/enum/kiểu** 2 đầu; **tới được** lúc runtime; có **đường degrade** nếu input thiếu/thô.
+2. Nếu function **TỰ SUY trạng thái user** (phân loại ngành, stage, funnel…) → **luật derived-state**: bắt buộc lưu `confidence`+`updated`+`why-log` + cổng review + **human-override** (con người thắng). Không đoán liều, đóng băng khi dao động.
+3. **Không dồn phân tích trước** — Hiến pháp (bất biến) chốt 1 lần; phân tích mối nối **từng function làm JIT tại brief-time** (mục "Phân tích mối nối" trong brief).
+- Đụng `brain/` → chạy `py brain/_check.py` (linter synapse, exit 1 = đứt).
+
+## Tài liệu thiết kế AI CMO (đọc khi làm slice CMO / brain / function mới)
+`docs/cmo/00-PLAN.md` (kiến trúc 2 tầng×6 miền + nguyên tắc) · `WORKFLOW.md` (build loop, 4 vai review) · `EVAL.md` (chuẩn đánh giá field/tính năng) · `KNOWLEDGE.md` (vault/bộ não brain/) · `WIRING.md` (Hiến pháp mối nối + sổ hợp đồng) · `briefs/00-INDEX.md` (thứ tự slice + luật mỗi function).
 
 ## Không làm
 - Không thêm phụ thuộc Telegram / không đụng `bot/` (đã tách khỏi repo này).

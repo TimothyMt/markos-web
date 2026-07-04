@@ -13,7 +13,8 @@
 2. **KHÔNG đổi schema DB** → dữ liệu mới vào `profile.intake_extra`.
 3. **MIRROR FE cùng 1 commit:** `web/app.js` ↔ `<script>` standalone; `web/styles.css` ↔ `<style>` standalone.
 4. **Self-verify TRƯỚC khi gọi review** (verify commands dưới) + dán self-review report vào commit.
-5. 1 function = 1 commit. Push → auto-review chạy + báo Claude. **Chờ cổng PASS mới sang function sau. KHÔNG tự quyết keep/cut, KHÔNG tự merge.**
+5. **Cổng mối nối (WIRING.md):** làm mục "Phân tích mối nối" trong brief — mọi khoá đọc/ghi có producer + khớp tên/slug/kiểu; nếu tự suy trạng thái user → luật derived-state. Đụng `brain/` → `py brain/_check.py`.
+6. 1 function = 1 commit. Push → auto-review chạy + báo Claude. **Chờ cổng PASS mới sang function sau. KHÔNG tự quyết keep/cut, KHÔNG tự merge.**
 
 ```bash
 node --check web/app.js
