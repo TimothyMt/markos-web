@@ -660,6 +660,8 @@
         ${card('Chẩn đoán & kết quả', diagBody, {cls:'span-7',
           action: `<span class="muted">Chạy từng mục, hoặc “Toàn diện” ở góc trên</span>`})}
 
+        <div class="span-12">${spineBand()}</div>
+
         ${jobs.length ? card('Tiến trình Agent (realtime)', `
           <ul class="rows">${jobs.map(j=>`
             <li class="row">
@@ -982,7 +984,6 @@
         // M4(1): chốt chiến lược — so version đã duyệt với bản mới nhất (tạo lại → version đổi → bỏ chốt)
         const approved = (((M.bizProfile || {}).intake_extra || {}).synthesis_approved_version) === latest.version;
         return `<section class="grid">
-          <div class="span-12">${spineBand()}</div>
           ${directionalBanner}
           ${inferredMeter()}
           ${card('Chiến lược — do Max lập', `
@@ -1011,7 +1012,6 @@
         if (researchDone) {
           const running = (M.agentJobs || []).some(j => j.status === 'running' && (j.task === 'strategize' || j.task === 'full'));
           return `<section class="grid">
-            <div class="span-12">${spineBand()}</div>
             <div class="card span-12 dir-banner">🚪 <b>Nghiên cứu xong (T1-T3).</b> Chốt <b>ĐẶT CƯỢC</b> (thị trường · tệp · định vị · giá · kênh) trên dữ liệu THẬT → Max chạy chiến lược (T4-T5) bám đúng lựa chọn → chia <b>tuyến nội dung</b> → lịch. <span class="muted">(Tin cậy/bằng chứng nằm ở tuyến nội dung, không ở đây.)</span></div>
             ${betForm()}
             ${card('⚙️ Tinh chỉnh nâng cao (tuỳ chọn)', `
@@ -1032,7 +1032,6 @@
           </section>`;
         }
         return `<section class="grid">
-          <div class="span-12">${spineBand()}</div>
           ${card('', `<div class="empty-cta">
             <div class="empty-ic">🔬</div>
             <h3>Chưa có nghiên cứu cho doanh nghiệp này</h3>
@@ -1044,7 +1043,6 @@
         </section>`;
       }
       return `<section class="grid">
-        <div class="span-12">${spineBand()}</div>
         <div class="card span-12" style="padding:10px 14px">${badge('Dữ liệu mẫu','amber')}
           <span class="muted"> Bản minh hoạ — chạy server thật (Supabase + LLM) để Max lập chiến lược cho bạn.</span></div>
         ${directionalBanner}
