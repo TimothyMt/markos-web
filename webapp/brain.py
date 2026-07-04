@@ -157,6 +157,53 @@ def load_notes(kinds: list[str] | None = None) -> list[dict]:
     return list(notes)
 
 
+# ===== K2 F2 — select() + helpers =====
+
+def _norm_industry(s: str | None) -> str:
+    """Normalize industry slug: strip, lower, replace _ with -."""
+    return (s or "").strip().lower().replace("_", "-")
+
+
+def _slug(v: str | None) -> str:
+    """Extract slug from [[link]] format or return normalized slug."""
+    v = str(v or "").strip()
+    if v.startswith("[[") and v.endswith("]]"):
+        v = v[2:-2]
+    return v.strip().lower()
+
+
+def select(
+    industry: str | None = None,
+    stage: str | None = None,
+    goal_type: str | None = None,
+    statuses: tuple[str, ...] | None = ("live",),
+) -> list[dict]:
+    """Select frameworks filtered by industry, stage, goal_type, statuses.
+    
+    Ranking: maturity evergreen(0) < fresh(1) < decaying(2), then updated descending.
+    Uses stable double-sort: updated desc first, then maturity asc.
+    """
+    ind = _norm_industry(industry) if industry else None
+    out = []
+    for n in load_notes(["framework"]):
+        applies = [_slug(a) for a in (n.get("applies_to") or [])]
+        if ind is not None and ind not in applies and "all" not in applies:
+            continue
+        if stage is not None and stage not in (n.get("stage") or []):
+            continue
+        if goal_type is not None and goal_type not in (n.get("goal_type") or []):
+            continue
+        if statuses is not None and n.get("status") not in statuses:
+            continue
+        out.append(n)
+
+    _MAT = {"evergreen": 0, "fresh": 1, "decaying": 2}
+    # Stable double-sort: updated desc first, then maturity asc
+    out.sort(key=lambda n: n.get("updated", ""), reverse=True)   # updated desc
+    out.sort(key=lambda n: _MAT.get(n.get("maturity"), 9))      # maturity asc (stable)
+    return out
+
+
 if __name__ == "__main__":
     # Self-test
     import sys
@@ -168,3 +215,12 @@ if __name__ == "__main__":
     for n in notes:
         assert "slug" in n and "type" in n and "status" in n, f"missing fields in {n.get('slug')}"
     print("All notes have slug/type/status ✓")
+
+    # Self-verify F2
+    f = lambda xs: sorted(n['slug'] for n in xs)
+    print('V1', f(select(statuses=None)))
+    print('V2', f(select(industry='health-beauty', stage='launch', statuses=None)))
+    print('snake', f(select(industry='health_beauty', stage='launch', statuses=None)))
+    print('gt-pricing', f(select(goal_type='pricing', statuses=None)))
+    print('gt-pos', f(select(goal_type='positioning', statuses=None)))
+    print('live-default', f(select()))
