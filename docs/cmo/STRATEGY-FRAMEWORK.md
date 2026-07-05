@@ -29,26 +29,39 @@ Spine (P0.1) build trên Dunford + STP thật, nên khung Max **vốn đã bám 
 
 ## Spec #4 — Hướng tăng trưởng trọng tâm (mục tiêu build sau)
 
-**Định nghĩa:** kỳ này Max **ưu tiên 1 (tối đa 2) đòn bẩy** trong AARRR, ánh xạ sang STDC để lái nội dung/kênh:
+**Định nghĩa:** kỳ này Max **ưu tiên 1 đòn bẩy chính** (tuỳ chọn thêm 1 phụ) trong AARRR — nhưng là **TRỌNG SỐ, không bật/tắt**. Gộp Activation+Revenue của AARRR thành "Chốt đơn" cho hợp SME (SME không tách activation/revenue kiểu SaaS).
 
-| Đòn bẩy (AARRR) | STDC | Nghĩa cho SME | Ví dụ tín hiệu chọn |
+**4 đòn bẩy** (`spine.growth_focus` enum `acquisition|conversion|retention|referral|""`):
+
+| Đòn bẩy | Nhãn VN (intake) | STDC | Nghĩa cho SME |
 |---|---|---|---|
-| **Acquisition** (kéo mới) | See/Think | chưa ai biết → cần phủ | stage=launch, baseline thấp |
-| **Activation/Revenue** (chuyển đổi) | Do | có traffic, thiếu đơn | traffic ổn nhưng CR thấp |
-| **Retention** (giữ chân) | Care | khách mua 1 lần rồi mất | mua lặp thấp, LTV ngắn |
-| **Referral** (lan truyền) | Care→See | khách hài lòng, muốn nhân | NPS tốt, ngân sách ads hẹp |
+| **acquisition** | 🎯 Kéo khách mới biết đến | See·Think | chưa ai biết → cần phủ |
+| **conversion** | 💰 Chốt đơn (quan tâm → mua) | Do | có quan tâm, thiếu đơn |
+| **retention** | 🔁 Giữ khách quay lại | Care | mua 1 lần rồi mất |
+| **referral** | 📣 Khách giới thiệu khách | Care→See | khách hài lòng, nhân lên |
 
-**Intake (chống friction):** hỏi **1 câu người khai** — *"Kỳ này bạn cần gì nhất?"* → 4 lựa (kéo khách mới / bán được nhiều hơn / giữ khách quay lại / khách giới thiệu khách). Lưu `spine.growth_focus` (enum). **Degrade:** trống → Max **gợi ý mặc định từ `stage`+`objective`** (launch→acquisition; mua-lặp-thấp→retention…) — đây là **derived-state** ⇒ theo luật WIRING (`confidence`+`why`+review+human-override), KHÔNG tự đè lựa chọn người khai.
+**Intake (1 câu, chống friction):** *"Kỳ này bạn cần dồn sức vào đâu nhất?"* → 4 nhãn trên + *(bỏ trống → Max gợi ý từ giai đoạn)*. Chọn 1 chính, tuỳ chọn 1 phụ.
 
-**Dùng để làm gì (xuôi dòng):**
-- **D4 Content** — nghiêng dạng/nhịp theo STDC (See→branding phủ; Do→chào giá/chốt; Care→CRM/loyalty).
-- **D5 Lifecycle** — bật motion giữ chân khi focus=Retention.
-- **D6 Measurement** — chọn **1 metric trọng tâm** khớp đòn bẩy (không đo tất, đo cái đang đẩy).
-- Bơm vào prompt qua `_spine_anchor` (P0.2) như các neo khác.
+**Núm re-weight cả kế hoạch (đây là lý do #4 là lựa chọn hạng-nhất, không phải trang trí — bơm vào mà output KHÔNG đổi = trượt EVAL Test 3):**
 
-**Adapt theo ngành (vault):** `brain/industries/*` có thể tag đòn bẩy trội của ngành (F&B → retention/referral; D2C launch → acquisition) làm gợi ý mặc định — vẫn người chốt.
+| Focus | Nội dung D4 nghiêng | Kênh D3 | Metric D6 trọng tâm |
+|---|---|---|---|
+| Kéo mới | hook, phủ rộng, cho người CHƯA biết | reach cao (TikTok/FB/SEO) | người mới · reach · CPM |
+| Chốt đơn | review, so sánh, chào giá, CTA mạnh | retargeting · landing · inbox | CR · số đơn · CPL |
+| Giữ chân | hướng dẫn dùng, chăm sóc, upsell | email/Zalo/CRM sequence | mua lặp · LTV · churn |
+| Giới thiệu | khơi chia sẻ, UGC, ưu đãi ref | community · referral program | % từ giới thiệu · K-factor |
 
-**Seam/WIRING:** khoá mới `spine.growth_focus` (enum `acquisition|activation|retention|referral|""`). Producer = Spine intake (người khai) + Max-suy (derived, để sau). Consumer = D4/D5/D6 + `_spine_anchor`. Thêm dòng vào Sổ hợp đồng khi build.
+**Degrade khi bỏ trống (derived-state, theo WIRING):** gợi ý mặc định từ `stage` — launch→Kéo mới · growth→Chốt đơn · scale→Giữ chân/Giới thiệu. Lưu `{current:{value,confidence,updated}, log:[{why,by}]}`; confidence thấp → **gợi ý chứ KHÔNG đè**; người chốt (`by:human`) thắng.
+
+**2 điểm phải giữ đúng (kẻo lẫn/lệch):**
+1. **`stage` ≠ `growth_focus`.** Stage = độ trưởng thành; focus = đòn bẩy ưu tiên *lúc này*. Shop scale vẫn có thể focus Kéo-mới khi mở thị trường mới → **giữ 2 field RIÊNG**, stage chỉ *gợi ý* focus mặc định.
+2. **Trọng số, không bật/tắt.** Focus Chốt-đơn KHÔNG bỏ hẳn branding. `_spine_anchor` phải ghi *"ưu tiên X, không bỏ phần còn lại"* — tránh Max làm lệch cực đoan.
+
+**Xuôi dòng (consumer):** D4 (nghiêng dạng/nhịp nội dung) · D5 (bật motion giữ chân khi focus=retention) · D6 (chọn 1 metric trọng tâm khớp đòn bẩy, không đo tất) · bơm prompt qua `_spine_anchor` (P0.2).
+
+**Theo ngành (vault):** `brain/industries/*` tag đòn bẩy trội (F&B→retention/referral; D2C launch→acquisition) làm gợi ý mặc định — vẫn người chốt.
+
+**Seam/WIRING:** khoá mới `spine.growth_focus` (enum `acquisition|conversion|retention|referral|""`). Producer = Spine intake (người khai) + Max-suy (derived, để sau). Consumer = D4/D5/D6 + `_spine_anchor`. Thêm dòng vào Sổ hợp đồng khi build slice GF.
 
 ## Ranh giới
 - File này là **xương + spec**, KHÔNG code. Build #4 = slice riêng (xem INDEX).
