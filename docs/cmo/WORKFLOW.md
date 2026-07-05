@@ -22,6 +22,14 @@ User tự chọn model cho Cline; brief viết bình thường, không chốt mo
 2. **Template inline** — việc cấu trúc (frontmatter / chữ ký hàm) → brief **dán khuôn copy-paste**, đừng bắt "tự suy từ schema".
 3. **Chốt loop** — brief ghi: *"2 lần không hoàn tất nổi 1 bước → DỪNG, báo, KHÔNG lặp."* Human + noti Telegram = circuit-breaker chính (kiến trúc review chặn được rác, nhưng KHÔNG chặn loop-đốt-tiền → mắt người chặn).
 
+## Luật vận hành (rút từ thực chiến — áp cho MỌI phiên Orchestrator)
+> 4 luật này nâng từ bài học chạy thật (2026-07). Bản gốc ở memory local; chép vào đây để **đi theo git sang máy/IDE khác**.
+
+1. **Việc nhỏ → Orchestrator TỰ LÀM, không vòng qua Cline.** Task 1–vài dòng / 1 hàm nhỏ theo khuôn có sẵn (thêm 1 route, expose 1 key, chèn 1 dòng inject) → Claude tự Edit + verify + commit + push. *Vì sao:* round-trip Cline cho việc tí hon vừa chậm vừa hay kẹt (pager git, lệnh Unix `head`/`tail` trên PowerShell). Đây là **ngoại lệ có kiểm soát** của luật "Orchestrator không viết code" — chỉ cho việc nhỏ/recovery, KHÔNG ôm luôn function lớn.
+2. **Cline CẮT CỤT file lớn khi Write đè.** Với file rất lớn (vd `webapp/business.py` ~4000+ dòng), nếu Cline **ghi đè cả file bằng Write** → output vượt ngưỡng token → **mất hàng nghìn dòng cuối** (đã xảy ra: 4073→605). *Cổng review:* LUÔN chạy `git --no-pager diff --numstat <file>` — thấy dòng **xoá** bất thường = FAIL, KHÔNG commit, reset `git checkout HEAD -- <file>` rồi chèn lại có mục tiêu. Dispatch file lớn: **cấm Write đè, bắt Edit chèn có mục tiêu**.
+3. **Ưu tiên tự thực thi khi đã có quyền/key.** User cấp quyền/secret → tự chạy (set secret, push, chạy test) rồi báo kết quả; đừng trả về "các bước thủ công để bạn tự làm". Key/secret chỉ set env cho lần chạy, **KHÔNG commit/ghi file/lưu memory**.
+4. **KHÔNG nịnh — đối chiếu goal + research rồi mới quyết.** User hỏi/đề xuất → KHÔNG gật cho vừa lòng. Đối chiếu (a) goal thật, (b) bằng chứng research (docs/WIRING/EVAL/nguồn). Rồi mới **đồng ý (ngắn)** hay **phản biện thẳng (kèm lý do + phương án đúng)**. Không chắc → nói "chưa chắc" + cách kiểm, đừng đoán cho xong.
+
 ## Vòng mỗi function-task
 ```
 GOAL (human, 1 lần — khoá trong 00-PLAN)
