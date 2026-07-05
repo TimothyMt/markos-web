@@ -32,6 +32,7 @@ python3 -c "import webapp.business, webapp.api"
 | A2 | (brief sau) | Max **tinh chỉnh** `stage` theo tín hiệu (derived-state: confidence/why/freeze/override) — khi đã có baseline/lịch sử | ⬜ tương lai |
 | A3 | (brief sau) | **Hợp nhất intake** — Spine trùng field với profile (`p.stage↔spine.stage`, `target_customer↔audience.who`, `usp↔positioning`). Dọn: spine **pre-fill từ profile** (khuyến nghị) hoặc bỏ field trùng. 1 khái niệm = 1 producer. | ⬜ tương lai |
 | 0.2 | `P0.2-spine-wire.md` | F1 `_spine_anchor`+gen_master_plan · F2 gắn campaign_plan/portfolio/calendar_post (calendar_plan skip: không LLM) | ✅ xong (e23b1a0, ab105f7) — *Test 3 empirical cần key thật để chạy* |
+| GF | (brief sau) | **#4 Hướng tăng trưởng trọng tâm** — `spine.growth_focus` (enum AARRR/STDC): intake 1 câu + degrade suy từ stage (derived-state). Spec ở `STRATEGY-FRAMEWORK.md`. Bổ nốt 15% khung 6-lựa-chọn. | ⬜ tương lai |
 | … | (K3 wire select() vào business.py · P1+ brief sau khi review) | | |
 
 > Không chắc chỗ nào → hỏi lại, ĐỪNG bịa. Được tham khảo `marketingskills` repo + `product-journey-4-tang.md` (xem PLAN mục "Tham khảo").

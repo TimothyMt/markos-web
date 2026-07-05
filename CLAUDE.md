@@ -58,7 +58,7 @@ Lỗi nguy hiểm nhất = **mối nối**: function *tiêu thụ* một khoá m
 - Đụng `brain/` → chạy `py brain/_check.py` (linter synapse, exit 1 = đứt).
 
 ## Tài liệu thiết kế AI CMO (đọc khi làm slice CMO / brain / function mới)
-`docs/cmo/00-PLAN.md` (kiến trúc 2 tầng×6 miền + nguyên tắc) · `WORKFLOW.md` (build loop, 4 vai review) · `EVAL.md` (chuẩn đánh giá field/tính năng) · `KNOWLEDGE.md` (vault/bộ não brain/) · `WIRING.md` (Hiến pháp mối nối + sổ hợp đồng) · `briefs/00-INDEX.md` (thứ tự slice + luật mỗi function).
+`docs/cmo/00-PLAN.md` (kiến trúc 2 tầng×6 miền + nguyên tắc) · `STRATEGY-FRAMEWORK.md` (khung 6 lựa chọn chiến lược — xương phân tích đa ngành, grounded Playing-to-Win/STP/Dunford/STDC/AARRR) · `WORKFLOW.md` (build loop, 4 vai review + 4 luật vận hành) · `EVAL.md` (chuẩn đánh giá field/tính năng) · `KNOWLEDGE.md` (vault/bộ não brain/) · `WIRING.md` (Hiến pháp mối nối + sổ hợp đồng) · `briefs/00-INDEX.md` (thứ tự slice + luật mỗi function).
 
 ## Không làm
 - Không thêm phụ thuộc Telegram / không đụng `bot/` (đã tách khỏi repo này).
