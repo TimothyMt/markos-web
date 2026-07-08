@@ -39,8 +39,8 @@ Intake → Research T1-T3 → 🚪 GATE (chọn wedge + USP trên data thật, D
 | Tầng | Khối chính | TT | Nợ mở (map notes/decisions) |
 |---|---|---|---|
 | ① Tâm lý / Nghiên cứu | Research T1-T3 web-owned (`research_web`) | ✅? | **Lô F chưa verify Railway (R-1)** *(N-12 ✅)* |
-| ② Chiến lược | Gate wedge/USP · Synthesis T4 · Playbook T5 · Thông điệp · Đặt cược 5 nhóm | ✅ | N-07b · N-08 · **✗ Keyword/Demand** *(N-16 ✅)* |
-| ③ Sáng tạo | 6 dạng nội dung · Occasion M1.1 · Retention M2.1 · Repurpose | ⚠️ | N-18 (trang #occasion rối) · N-17b (bài đọc playbook) |
+| ② Chiến lược | Gate wedge/USP · Synthesis T4 · Playbook T5 · Thông điệp · Đặt cược 5 nhóm | ✅ | N-08 (đánh giá, chờ R-1) · **✗ Keyword/Demand** *(N-07b/N-16 ✅)* |
+| ③ Sáng tạo | 6 dạng nội dung · Occasion M1.1 · Retention M2.1 · Repurpose | ✅ | *(hết nợ bug — N-18/N-17b ✅; tinh chỉnh naming 4 tuyến tuỳ chọn)* |
 | ④ Phân phối & Đo | Nhịp nền · Lịch 2-track M1.2 · Cảnh báo brand/đơn | ⚠️ | **✗ auto-pull đo-học (Lô I+)** · S-22 kéo-thả · ✗ A/B |
 | ⑤ Nền tảng & UX (cross-cut) | Render output · Doc-reader · Trạng thái task | ⚠️ | **N-02** · D-042 *(N-01/05/06/09/10/13/19/04b ✅ · standalone khai tử D-047)* |
 
@@ -64,6 +64,14 @@ Intake → Research T1-T3 → 🚪 GATE (chọn wedge + USP trên data thật, D
 | N-12 cắt output | ✅ **ĐÃ XONG** *(R-0 đọc nhầm docstring)* | Code `llm_router.py:297` **đã** `min(4000,25%)` → research `mx=16000` thinking 4000 → output ~12000. Chỉ docstring lệch → đã sửa 2026-07-08 |
 | N-19 `<br>` raw | ✅ **ĐÃ XONG** (2026-07-08) | `inline()` `app.js:182` un-escape `&lt;br&gt;`→`<br>`; test node pass |
 | N-04b JSON posmap trong `<p>` | ✅ **ĐÃ XONG** (2026-07-08) | đoạn văn JSON pos-map không fence → route sang `<pre>` cho `enhancePosMaps` (render/gỡ); test node pass |
+| N-07 / N-07b | ✅ **ĐÃ XONG** *(R-0 báo nhầm "badge chưa")* | cờ lệch `business.py:252` · ràng synth-id `:3539` · badge + nút regen `app.js:1083` · `regen_playbook` `:3546` |
+| N-17b bài đọc playbook | ✅ **ĐÃ XONG** *(R-0 báo nhầm)* | sinh bài inject `tactical_playbook`+synthesis làm nền ngầm `business.py:2918-2926` |
+| N-18 redesign #occasion | ✅ **PHẦN LỚN** *(R-0 báo nhầm "legacy rối")* | `app.js:1099` hub móng+spike (D-040), gỡ chồng chéo, tách nhịp/thông điệp ra 2 trang. Còn tinh chỉnh naming 4 tuyến = tuỳ chọn |
+
+> ⚠️ **Đính chính R-0 (2026-07-08, sau khi founder chất vấn):** bản R-0 đầu đọc comment/docstring nên
+> báo NHẦM 4 mục trên là "mở/một phần" trong khi đã xong. Re-audit bằng đọc implementation → **backlog
+> N-xx thực chất đã sạch**, chỉ còn N-02 (cần soi mắt Railway) + N-08 (chờ R-1). Phần còn lại của roadmap
+> là TÍNH NĂNG mới (Keyword/Demand, auto-pull đo-học), không phải bug.
 | N-02 UI bóp khi re-run | ❓ chưa verify được tĩnh | CSS/layout — cần soi bằng mắt trên Railway |
 | Standalone lệch bản | ✅ ĐÃ XỬ (D-047) | Phát hiện lệch → **xoá hẳn** `dashboard-standalone.html` + `build_standalone.py`; FE về 1 nguồn |
 
@@ -96,12 +104,10 @@ tab riêng (D-038A) · 🏛️ Messaging House · SWOT+TOWS đúng tầng, hết
 **Còn nợ (thứ tự):**
 1. **✗ Keyword / Demand (search intent)** — **gap DUY NHẤT còn thiếu ở tầng 2** (product-journey). Thêm 1
    bước demand/search-intent feed vào Strategy. *(tính năng mới, không phải bug.)*
-2. **N-07b — badge Playbook khi Synthesis đổi.** R-0: `regen_playbook` + timeout ĐÃ có; còn thiếu **badge
-   "Playbook theo chiến lược cũ"** khi fingerprint synthesis lệch (`_strategy_fp`). Verify regen chạy đúng khi "Chốt chiến lược".
-3. **N-08 — chất lượng Playbook "hơi kém".** Rà: (a) prompt `_TAC_SYSTEM` chung chung? (b) upstream research
-   mỏng → garbage-in. Làm SAU R-1 (research đủ trước rồi mới phán prompt).
+2. **N-08 — chất lượng Playbook "hơi kém".** Rà: (a) prompt `_TAC_SYSTEM` chung chung? (b) upstream research
+   mỏng → garbage-in. Làm SAU R-1 (research đủ trước rồi mới phán prompt). *(đánh giá, không phải bug binary.)*
 
-*(✅ đã xong: N-16 đặt cược sắc hơn — `gen_bet_options` OPS_BRIEF + SAVE + archetype + grounded, `business.py:1621`.)*
+*(✅ đã xong: N-16 đặt cược sắc (`business.py:1621`) · **N-07/N-07b** badge+regen Playbook đầy đủ (`business.py:252/3539`, `app.js:1083`).)*
 
 ---
 
@@ -111,12 +117,12 @@ tab riêng (D-038A) · 🏛️ Messaging House · SWOT+TOWS đúng tầng, hết
 Repurpose đa kênh/video/UGC · **M1.1 Occasion** (D-043/044: wizard chọn dịp→lever→brief SMART→lưu) ·
 **M2.1 Retention/Winback** cẩm nang if-then (D-045).
 
-**Còn nợ (thứ tự):**
-1. **N-18 — redesign trang #occasion "Tuyến nội dung".** Trang còn RỐI (legacy: pillars vs tuyến vs
-   branding-campaign vs occasion chồng chéo). Dựng lại thành 4 tuyến (Khai sáng/Tin cậy/Chuyển hoá/Lan toả)
-   bám playbook ngầm → nối lịch. Bỏ/gộp khối legacy. *(slice ~S-20/S-21, việc lớn nhất còn lại của M1.)*
-2. **N-17b — khâu sinh tuyến/bài phải ĐỌC CẢ Playbook** (không chỉ synthesis). Founder chốt Playbook = nền
-   ngầm; bài tự kế thừa dù user không mở tab. Gắn với N-07b (playbook refresh).
+**Còn nợ:** — ✅ tầng này **HẾT NỢ BUG** (N-18, N-17b đã xử, xem dưới).
+- *(tuỳ chọn, không gấp)* tinh chỉnh trang #occasion cho khớp hẳn naming 4 tuyến (Khai sáng/Tin cậy/Chuyển
+  hoá/Lan toả) nếu muốn — hiện đã là hub móng+spike gọn (D-040), không còn "rối legacy".
+
+*(✅ đã xong: **N-18** trang #occasion đã redesign móng+spike, gỡ chồng chéo (`app.js:1099`, D-040) ·
+**N-17b** sinh bài đọc CẢ `tactical_playbook`+synthesis làm nền ngầm (`business.py:2918`).)*
 
 ---
 
@@ -136,8 +142,8 @@ pillars + gen bài slot thật) · Cảnh báo cân bằng brand/đơn 60-40 (Bi
 
 ## ⑤ NỀN TẢNG & UX (cross-cutting — chạy song song mọi tầng)
 
-> **R-0 (làm NGAY, trước khi lên lịch): đối chiếu code chốt thật-giả** cho N-01/02/04b/05/06/09/10/13/19 —
-> `notes-todo` khai xong nhưng chưa chắc. Đọc `app.js`/`business.py` xác nhận từng cái rồi tick.
+> ✅ **R-0 XONG (2 vòng, 2026-07-08):** vòng 1 sơ sài (đọc comment → báo nhầm N-12/07b/17b/18); vòng 2
+> re-audit đọc implementation → đính chính. Kết luận: **N-xx gần như sạch**, chỉ N-02 + N-08 còn lại.
 
 **Render output** (dùng chung `renderAIContent` — fix 1 lần áp mọi trang) — ✅ **HẾT NỢ:**
 - ✅ **N-09** heading `####` lồng trong bullet — nâng thành heading (`app.js:192`).
@@ -161,14 +167,14 @@ pillars + gen bài slot thật) · Cảnh báo cân bằng brand/đơn 60-40 (Bi
 
 ## Thứ tự thực thi đề xuất (top-down)
 
-0. ✅ **R-0 XONG** (đối chiếu code 2026-07-08 — xem "Kết quả R-0" ở tầng ⑤).
-1. **🔴 R-1** — verify Lô F research trên Railway (chạy thật 1 business ngách). *Chặn mọi việc tầng dưới.* **← việc kế tiếp (thủ công, founder bấm nút).**
-2. ✅ **Tầng ① render** — N-12 (thực ra đã xong, sửa docstring) · **Tầng ⑤ render N-19 + N-04b XONG** (2026-07-08).
-3. **Tầng ②** — **N-07b badge** → N-08 (chất lượng, sau khi research đủ). ← *code kế tiếp sau khi R-1 pass.*
-4. **Tầng ③** — N-18 (redesign #occasion) + N-17b (bài đọc playbook). *Việc lớn nhất của M1.*
-5. **N-02** (soi mắt trên Railway) — verify layout re-run.
-6. **Tầng ④** — auto-pull đo-học (Lô I+) khi M0+M1 đã vững → S-22 kéo-thả.
-7. *(ngoài đợt)* Keyword/Demand (②) · A/B (④) · **Auth + Billing (M4)**.
+> **CHỐT (2026-07-08 sau re-audit):** backlog **N-xx bug đã sạch**. Việc còn lại KHÔNG phải "vá nợ" nữa
+> mà là **verify + tính năng mới**. Đừng đi fix lại N-01…N-19 (đã xong hết trừ N-02/N-08).
+
+1. **🔴 R-1** — verify Lô F research trên Railway (chạy thật 1 business ngách). **← việc kế tiếp, THỦ CÔNG (founder bấm nút), tôi không chạy LLM trong sandbox được.**
+2. **N-02** — soi mắt layout re-run trên Railway (song song R-1). N-08 — đánh giá chất lượng Playbook SAU khi R-1 cho thấy research đủ.
+3. **Tính năng tầng ②** — Keyword / Demand (search intent) — gap thật còn thiếu.
+4. **Tính năng tầng ④** — auto-pull đo-học (Lô I+) khi M0+M1 vững → S-22 kéo-thả.
+5. *(ngoài đợt)* A/B test (④) · **Auth + Billing (M4)**.
 
 ## ❓ Câu hỏi mở (chờ founder chốt)
 *(Trống — standalone đã chốt khai tử D-047; N-12 đã xong.)*
