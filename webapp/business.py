@@ -637,6 +637,76 @@ def _strip_preamble(text: str) -> str:
     return text.strip()
 
 
+# ════ R-1: soát tất định output research TRƯỚC khi lưu (N-03b + N-15) ════
+# Chặn ở ĐẦU RA bằng code — không phụ thuộc LLM có nghe guard hay không.
+# 5 skill research thuần (swot ĐƯỢC phép Cơ hội/Thách thức + TOWS — regex dưới đủ hẹp để KHÔNG đụng).
+_RESEARCH_SKILLS = {"market_research", "competitor", "customer_insight", "psychology_pricing", "swot"}
+
+# Heading báo hiệu LỘ TRÌNH/ROADMAP theo thời gian — thuộc Synthesis T4/Playbook T5, KHÔNG thuộc research.
+# Giữ HẸP: chỉ khớp từ khoá timeline/action rõ ràng, KHÔNG khớp "Chiến lược SO/WO" (TOWS) hay "Cơ hội".
+_ROADMAP_HEAD_RE = re.compile(
+    r'(quick[\s\-]?win|short[\s\-]?term|medium[\s\-]?term|long[\s\-]?term|'
+    r'ngắn hạn|trung hạn|dài hạn|lộ trình|roadmap|action plan|kế hoạch hành động|'
+    r'strategic implication|hàm ý chiến lược|next step|bước tiếp theo|đề xuất hành động)',
+    re.IGNORECASE)
+
+# Con số cần nguồn: %, tiền (triệu/tỷ/nghìn/k/vnđ/đ), bội số (x/lần).
+_NUM_TOKEN_RE = re.compile(
+    r'\d[\d.,]*\s*(%|phần trăm|triệu|tỷ|nghìn|k\b|vnđ|vnd|đồng|₫|x\b|lần)', re.IGNORECASE)
+# Dấu hiệu con số ĐÃ gắn nguồn hoặc đã dán nhãn suy đoán (cùng dòng).
+_SOURCED_RE = re.compile(r'\]\(https?://|\(ước tính\)|ước tính|chưa đủ dữ liệu', re.IGNORECASE)
+
+
+def _heading_level(line: str) -> int:
+    """Cấp heading markdown (1-6) ở ĐẦU dòng; 0 nếu không phải heading."""
+    m = re.match(r'^(#{1,6})\s+\S', line)
+    return len(m.group(1)) if m else 0
+
+
+def _scrub_research(content: str, skill: str) -> tuple[str, list[str]]:
+    """Soát tất định output research trước khi lưu. KHÔNG gọi LLM.
+      1. Gỡ mục lộ trình/roadmap theo thời gian (N-03b — việc của Synthesis, không thuộc research).
+      2. Đếm dòng có SỐ chưa gắn nguồn/(ước tính) → CẢNH BÁO (N-15 — chỉ báo, không sửa số).
+    Trả (content_đã_gỡ_roadmap, warns). Skill ngoài research → trả nguyên, không đụng.
+    """
+    warns: list[str] = []
+    if not content or skill not in _RESEARCH_SKILLS:
+        return content, warns
+
+    lines = content.split("\n")
+    kept: list[str] = []
+    i = 0
+    removed_roadmap = False
+    while i < len(lines):
+        lvl = _heading_level(lines[i])
+        if lvl and _ROADMAP_HEAD_RE.search(lines[i]):
+            # gỡ từ heading này tới heading kế cùng-hoặc-cao-hơn cấp (hoặc hết bài)
+            j = i + 1
+            while j < len(lines):
+                nlvl = _heading_level(lines[j])
+                if nlvl and nlvl <= lvl:
+                    break
+                j += 1
+            removed_roadmap = True
+            i = j
+            continue
+        kept.append(lines[i])
+        i += 1
+
+    cleaned = "\n".join(kept).strip()
+    if removed_roadmap:
+        warns.append(f"{skill}: đã gỡ mục lộ trình/roadmap (thuộc Chiến lược, không thuộc research)")
+
+    unsourced = sum(
+        1 for ln in cleaned.split("\n")
+        if _NUM_TOKEN_RE.search(ln) and not _SOURCED_RE.search(ln)
+    )
+    if unsourced >= 3:
+        warns.append(f"{skill}: {unsourced} dòng có số chưa gắn nguồn [..](URL) hoặc '(ước tính)' — rà lại")
+
+    return cleaned, warns
+
+
 def _rw_specs():
     """Spec 5 skill research web-owned. DÙNG LẠI prompt GỐC GIÀU CHI TIẾT của bot (agents/prompts.py —
     chỉ ĐỌC, không sửa) để giữ độ sâu; chèn guard (khoá scope + sạch lời dẫn + hyperlink)."""
@@ -751,6 +821,8 @@ async def research_web(user_id=None, progress=None, skills=None) -> dict:
             if not content:
                 warns.append(f"{sk}: trống")
                 continue
+            content, scrub_warns = _scrub_research(content, sk)   # R-1: gỡ roadmap + soát số trước khi lưu
+            warns.extend(scrub_warns)
             await skill_runs.insert_skill_run(uid, sk, content, model_used="web-research")
             done.append(sk)
         # Research đổi → gợi ý đặt cược + gap cũ thành STALE → xoá để buộc gợi ý LẠI bám research mới.
