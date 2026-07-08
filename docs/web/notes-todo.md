@@ -1,5 +1,15 @@
 # NOTES-TODO (web) — ghi chú chờ làm theo lô
 
+> 📍 **Nguồn "làm gì tiếp" = `roadmap.md` (v2, theo 4 tầng).** File này chỉ còn là **backlog bug lẻ**:
+> mỗi N-xx đã được map vào 1 tầng trong roadmap v2. Sửa xong 1 note → tick ở đây + cập nhật trạng thái tầng.
+>
+> ✅ **R-0 (đối chiếu code 2026-07-08) — đính chính header "đã làm N-01…N-17":**
+> - **XÁC NHẬN XONG:** N-01, N-05, N-06, N-09, N-10, N-11, N-13, N-14, N-16 (+ N-07 một phần: regen có, badge chưa).
+> - ❌ **N-12 khai xong nhưng CHƯA** — `_calc_thinking_budget` không đổi, research `mx=16000` vẫn bị cắt.
+> - ❌ **N-19, N-04b còn mở** (N-04 bản `<pre>` đã xong; N-19 `<br>`, N-04b `<p>` chưa).
+> - ❓ **N-02** chưa verify được tĩnh (CSS/layout) — cần soi mắt trên Railway.
+> - ✅ **Standalone đã KHAI TỬ (D-047)** — xoá `dashboard-standalone.html` + `build_standalone.py`; FE 1 nguồn, hết mirror.
+
 > Quy ước: "note" = chỉ ghi vào đây, KHÔNG tự sửa/push code. Chỉ code khi founder nói "làm các note".
 
 ## ✅ TRẠNG THÁI (dọn 2026-06-26 — founder "làm các note")
@@ -93,7 +103,7 @@
     2. Thêm 1 pass chuẩn hoá chung: mọi run `#` không phải heading-đầu-dòng-hợp-lệ → hoặc nâng thành
        tiểu mục, hoặc strip. (Phủ hết các biến thể `####`/`#####` rải rác.)
     3. Bỏ luôn dấu `:` cuối heading cho đồng nhất; thêm CSS `.md-subh` cho gọn-đẹp.
-  - Mirror app.js ↔ standalone. (Cùng họ trình bày output: cân nhắc gộp với N-04 posmap khi làm.)
+  - (Cùng họ trình bày output: cân nhắc gộp với N-04 posmap khi làm.) [standalone đã khai tử — hết mirror]
 
 - **[N-10] Chuyển trang KHÔNG tự cuộn lên đầu.**
   Đọc 1 doc dài (vd competitor) cuộn xuống giữa, bấm sang trang khác → trang mới vẫn ở vị trí cuộn
@@ -199,7 +209,7 @@
   Ô bảng có "…bảo hành).`<br>`Điểm yếu:…" — LLM xuất `<br>` để xuống dòng trong cell (tách Điểm mạnh/
   Điểm yếu), nhưng `renderAIContent.inline()` chạy `esc()` escape `<` → `&lt;` ⇒ hiện chữ `<br>` thô.
   → Fix sau (1 regex, an toàn): trong `inline()`, SAU esc thêm `.replace(/&lt;br\s*\/?&gt;/gi, '<br>')`
-  → chuyển `<br>` đã-escape về xuống dòng thật. Mirror app.js ↔ standalone. (cùng họ render N-09/N-13)
+  → chuyển `<br>` đã-escape về xuống dòng thật. (cùng họ render N-09/N-13) [FE 1 nguồn — hết mirror]
 
 ## ✅ Đã làm (lưu vết)
 - Enter ở ô intake = nút Tiếp (fcbb3e3)

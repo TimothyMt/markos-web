@@ -29,7 +29,7 @@ Mặc định dùng SQLite (`webapp/markos_web.db`, tự tạo lần đầu). Se
 
 ## Xem nhanh không cần backend
 
-Mở thẳng `web/index.html` hoặc `web/dashboard-standalone.html` bằng trình duyệt.
+Mở thẳng `web/index.html` bằng trình duyệt.
 Khi không có backend, giao diện tự dùng dữ liệu mock nhúng sẵn (`web/data.js`);
 các nút thao tác sẽ báo cần chạy backend.
 
@@ -41,7 +41,6 @@ web/                 # frontend (HTML/CSS/JS, SPA hash-router)
   styles.css
   data.js            # dữ liệu mock tĩnh + cấu hình navigation (fallback)
   app.js             # router + render các trang + gọi API
-  dashboard-standalone.html  # bản gộp 1 file (cho GitHub Pages / mở offline)
 webapp/              # backend
   api.py             # JSON API /api/biz/* (business thật) + /api/chat
   business.py        # logic nghiệp vụ (research, strategy, messaging, rhythm, calendar…)
