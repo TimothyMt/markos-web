@@ -38,11 +38,11 @@ Intake → Research T1-T3 → 🚪 GATE (chọn wedge + USP trên data thật, D
 
 | Tầng | Khối chính | TT | Nợ mở (map notes/decisions) |
 |---|---|---|---|
-| ① Tâm lý / Nghiên cứu | Research T1-T3 web-owned (`research_web`) | ✅? | **Lô F chưa verify Railway (R-1)** · **N-12 (cắt output — CHƯA)** |
+| ① Tâm lý / Nghiên cứu | Research T1-T3 web-owned (`research_web`) | ✅? | **Lô F chưa verify Railway (R-1)** *(N-12 ✅)* |
 | ② Chiến lược | Gate wedge/USP · Synthesis T4 · Playbook T5 · Thông điệp · Đặt cược 5 nhóm | ✅ | N-07b · N-08 · **✗ Keyword/Demand** *(N-16 ✅)* |
 | ③ Sáng tạo | 6 dạng nội dung · Occasion M1.1 · Retention M2.1 · Repurpose | ⚠️ | N-18 (trang #occasion rối) · N-17b (bài đọc playbook) |
 | ④ Phân phối & Đo | Nhịp nền · Lịch 2-track M1.2 · Cảnh báo brand/đơn | ⚠️ | **✗ auto-pull đo-học (Lô I+)** · S-22 kéo-thả · ✗ A/B |
-| ⑤ Nền tảng & UX (cross-cut) | Render output · Doc-reader · Trạng thái task | ⚠️ | **N-19 · N-04b · N-02** · D-042 *(N-01/05/06/09/10/13 ✅ · standalone đã khai tử D-047)* |
+| ⑤ Nền tảng & UX (cross-cut) | Render output · Doc-reader · Trạng thái task | ⚠️ | **N-02** · D-042 *(N-01/05/06/09/10/13/19/04b ✅ · standalone khai tử D-047)* |
 
 > ✅ **R-0 ĐÃ CHẠY (đối chiếu code, 2026-07-08).** Header notes-todo phần lớn ĐÚNG, trừ **N-12 khai xong
 > nhưng CHƯA** + phát hiện **standalone lệch bản**. Chi tiết ở bảng "Kết quả R-0" ngay dưới.
@@ -61,9 +61,9 @@ Intake → Research T1-T3 → 🚪 GATE (chọn wedge + USP trên data thật, D
 | N-14 patch fallback | ✅ | `business.py:3834` PATCH_ASK → `_revise_full_doc` |
 | N-16 đặt cược sắc hơn | ✅ | `business.py:1621` OPS_BRIEF + SAVE + archetype + grounded (bỏ tier mini) |
 | Lô F research web-owned | ✅ code / ⚠️ chưa verify | `research_web` `business.py:761` + `_RW_ANTIFAB` `:617`; **CẦN R-1 chạy thật** |
-| **N-12 cắt output** | ❌ **CHƯA** (header khai nhầm) | `_calc_thinking_budget` **KHÔNG đổi**; research `mx=16000` → thinking `min(8000,40%)=6400` → output ~9600 vẫn cụt. Chỉ SWOT (`mx=22000`) an toàn |
-| **N-19 `<br>` raw** | ❌ CHƯA | `inline()` `app.js:181` thiếu un-escape `&lt;br&gt;` |
-| **N-04b JSON posmap trong `<p>`** | ❌ CHƯA (N-04 `<pre>` xong) | `enhancePosMaps` `app.js:364` chỉ quét `pre`, không quét `<p>` |
+| N-12 cắt output | ✅ **ĐÃ XONG** *(R-0 đọc nhầm docstring)* | Code `llm_router.py:297` **đã** `min(4000,25%)` → research `mx=16000` thinking 4000 → output ~12000. Chỉ docstring lệch → đã sửa 2026-07-08 |
+| N-19 `<br>` raw | ✅ **ĐÃ XONG** (2026-07-08) | `inline()` `app.js:182` un-escape `&lt;br&gt;`→`<br>`; test node pass |
+| N-04b JSON posmap trong `<p>` | ✅ **ĐÃ XONG** (2026-07-08) | đoạn văn JSON pos-map không fence → route sang `<pre>` cho `enhancePosMaps` (render/gỡ); test node pass |
 | N-02 UI bóp khi re-run | ❓ chưa verify được tĩnh | CSS/layout — cần soi bằng mắt trên Railway |
 | Standalone lệch bản | ✅ ĐÃ XỬ (D-047) | Phát hiện lệch → **xoá hẳn** `dashboard-standalone.html` + `build_standalone.py`; FE về 1 nguồn |
 
@@ -81,11 +81,9 @@ T2 cắt scope) / D-036 (research bỏ roadmap) cũng đã sửa prompt.
 1. **🔴 R-1 — VERIFY Lô F trên Railway.** Đây là mục đích cả nhánh `feature/research-scrub`. Chạy thật 1
    business ngách → kiểm: competitor không độn ICP/JTBD, research không đẻ Quick-win/Medium/Long, số đều
    có nguồn/"(ước tính)", thiếu data ghi "_chưa đủ_". *(chặn mọi việc tầng dưới — garbage-in.)*
-2. **🔴 N-12 — output research bị CẮT giữa câu** (R-0 xác nhận **CHƯA fix**). `_calc_thinking_budget` không
-   đổi → 4 skill research `mx=16000` bị thinking ăn 40% (`min(8000,40%)=6400`) → chữ thấy ~9600 vẫn cụt.
-   Fix: giảm cap dải 5K–20K (vd `min(4000,25%)`) HOẶC nâng research `mx≥20000`. Verify chung R-1.
-
-*(✅ đã xong ở tầng này: N-11 tiếng Việt tự nhiên `business.py:1562` · N-14 patch fallback `business.py:3834`.)*
+*(✅ đã xong ở tầng này: N-11 tiếng Việt `business.py:1562` · N-14 patch fallback `business.py:3834` ·
+N-12 thinking budget `llm_router.py:297` `min(4000,25%)` → output ~12000, hết cụt (R-0 báo nhầm là chưa —
+thực ra code đã sửa, chỉ docstring lệch; đã sửa docstring 2026-07-08).)*
 
 ---
 
@@ -141,11 +139,11 @@ pillars + gen bài slot thật) · Cảnh báo cân bằng brand/đơn 60-40 (Bi
 > **R-0 (làm NGAY, trước khi lên lịch): đối chiếu code chốt thật-giả** cho N-01/02/04b/05/06/09/10/13/19 —
 > `notes-todo` khai xong nhưng chưa chắc. Đọc `app.js`/`business.py` xác nhận từng cái rồi tick.
 
-**Render output** (dùng chung `renderAIContent` — fix 1 lần áp mọi trang):
-- ✅ **N-09** heading `####` lồng trong bullet — ĐÃ nâng thành heading (`app.js:192`).
-- ✅ **N-13** bảng rộng — ĐÃ bọc `.tbl-wrap` cuộn ngang (`app.js:211/380`).
-- ⬜ **N-19** `<br>` hiện raw trong ô bảng → un-escape `&lt;br&gt;` sau `esc()` (`inline()` `app.js:181`). *(còn mở)*
-- ⬜ **N-04b** khối JSON pos-map KHÔNG fence → gom vào `<p>` lòi JSON thô. `enhancePosMaps` mới quét `<pre>`; thêm nhánh quét `<p>` match `{…"yTop"/"items"…}` → gỡ. *(còn mở)*
+**Render output** (dùng chung `renderAIContent` — fix 1 lần áp mọi trang) — ✅ **HẾT NỢ:**
+- ✅ **N-09** heading `####` lồng trong bullet — nâng thành heading (`app.js:192`).
+- ✅ **N-13** bảng rộng — bọc `.tbl-wrap` cuộn ngang (`app.js:211/380`).
+- ✅ **N-19** `<br>` raw trong ô bảng — un-escape `&lt;br&gt;`→`<br>` (`inline()` `app.js:182`, 2026-07-08).
+- ✅ **N-04b** JSON pos-map không fence — route sang `<pre>` cho `enhancePosMaps` xử (`app.js`, 2026-07-08).
 
 **Doc-reader UX:**
 - ✅ **N-01** repoint version — ĐÃ đúng (`business.py:584`, không đẻ row mới).
@@ -164,19 +162,16 @@ pillars + gen bài slot thật) · Cảnh báo cân bằng brand/đơn 60-40 (Bi
 ## Thứ tự thực thi đề xuất (top-down)
 
 0. ✅ **R-0 XONG** (đối chiếu code 2026-07-08 — xem "Kết quả R-0" ở tầng ⑤).
-1. **🔴 R-1** — verify Lô F research trên Railway (chạy thật 1 business ngách). *Chặn mọi việc tầng dưới.*
-2. **Tầng ①** — **N-12 (cắt output — chưa fix)** cùng lượt R-1. Nghiệm thu research đủ-sâu.
-3. **Tầng ⑤ render** — **N-19 + N-04b** (2 cái còn mở, nhanh; N-09/N-13 đã xong).
-4. **Tầng ②** — **N-07b badge** → N-08 (chất lượng, sau khi research đủ).
-5. **Tầng ③** — N-18 (redesign #occasion) + N-17b (bài đọc playbook). *Việc lớn nhất của M1.*
-6. **N-02** (soi mắt trên Railway) — verify layout re-run.
-7. **Tầng ④** — auto-pull đo-học (Lô I+) khi M0+M1 đã vững → S-22 kéo-thả.
-8. *(ngoài đợt)* Keyword/Demand (②) · A/B (④) · **Auth + Billing (M4)**.
+1. **🔴 R-1** — verify Lô F research trên Railway (chạy thật 1 business ngách). *Chặn mọi việc tầng dưới.* **← việc kế tiếp (thủ công, founder bấm nút).**
+2. ✅ **Tầng ① render** — N-12 (thực ra đã xong, sửa docstring) · **Tầng ⑤ render N-19 + N-04b XONG** (2026-07-08).
+3. **Tầng ②** — **N-07b badge** → N-08 (chất lượng, sau khi research đủ). ← *code kế tiếp sau khi R-1 pass.*
+4. **Tầng ③** — N-18 (redesign #occasion) + N-17b (bài đọc playbook). *Việc lớn nhất của M1.*
+5. **N-02** (soi mắt trên Railway) — verify layout re-run.
+6. **Tầng ④** — auto-pull đo-học (Lô I+) khi M0+M1 đã vững → S-22 kéo-thả.
+7. *(ngoài đợt)* Keyword/Demand (②) · A/B (④) · **Auth + Billing (M4)**.
 
 ## ❓ Câu hỏi mở (chờ founder chốt)
-- **N-12:** giảm cap `_calc_thinking_budget` (ảnh hưởng dải giữa toàn hệ) hay chỉ nâng `mx` của 4 skill research lên ≥20K (khoanh vùng, an toàn hơn)?
-
-*(✅ Đã chốt: standalone khai tử — D-047.)*
+*(Trống — standalone đã chốt khai tử D-047; N-12 đã xong.)*
 
 ## 🧪 Quy tắc TEST (founder chốt 2026-06-25)
 - **Test theo slice, không dồn:** xong 1 slice → deploy Railway test ngay.

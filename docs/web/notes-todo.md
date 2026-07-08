@@ -4,9 +4,9 @@
 > mỗi N-xx đã được map vào 1 tầng trong roadmap v2. Sửa xong 1 note → tick ở đây + cập nhật trạng thái tầng.
 >
 > ✅ **R-0 (đối chiếu code 2026-07-08) — đính chính header "đã làm N-01…N-17":**
-> - **XÁC NHẬN XONG:** N-01, N-05, N-06, N-09, N-10, N-11, N-13, N-14, N-16 (+ N-07 một phần: regen có, badge chưa).
-> - ❌ **N-12 khai xong nhưng CHƯA** — `_calc_thinking_budget` không đổi, research `mx=16000` vẫn bị cắt.
-> - ❌ **N-19, N-04b còn mở** (N-04 bản `<pre>` đã xong; N-19 `<br>`, N-04b `<p>` chưa).
+> - **XÁC NHẬN XONG:** N-01, N-05, N-06, N-09, N-10, N-11, N-12, N-13, N-14, N-16 (+ N-07 một phần: regen có, badge chưa).
+> - ✅ **N-12** — R-0 thoạt báo nhầm "chưa" (đọc docstring lệch); code `llm_router.py:297` **đã** `min(4000,25%)` → output ~12000. Đã sửa docstring cho khớp.
+> - ✅ **N-19 + N-04b ĐÃ FIX (2026-07-08)** — un-escape `<br>` trong ô bảng; JSON pos-map không fence → route `<pre>`. Test node pass.
 > - ❓ **N-02** chưa verify được tĩnh (CSS/layout) — cần soi mắt trên Railway.
 > - ✅ **Standalone đã KHAI TỬ (D-047)** — xoá `dashboard-standalone.html` + `build_standalone.py`; FE 1 nguồn, hết mirror.
 
