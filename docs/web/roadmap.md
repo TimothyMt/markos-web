@@ -102,10 +102,17 @@ mạch tích hợp cascade Playing-to-Win + USP/SAVE (D-038B) · Tactical Playbo
 tab riêng (D-038A) · 🏛️ Messaging House · SWOT+TOWS đúng tầng, hết cụt (D-037b) · TAM/SAM/SOM số thật (D-034#2).
 
 **Còn nợ (thứ tự):**
-1. **✗ Keyword / Demand (search intent)** — **gap DUY NHẤT còn thiếu ở tầng 2** (product-journey). Thêm 1
-   bước demand/search-intent feed vào Strategy. *(tính năng mới, không phải bug.)*
+1. **✗ Bản đồ Cầu & Sự chú ý (đa nguồn)** — mở rộng "Keyword/Demand (search intent)" mà product-journey ghi.
+   Ở VN cầu sống trên social > Google → không chỉ search; gồm 4 bề mặt: Google · TikTok · FB Ad Library
+   (đối thủ) · Comment/review. **Nguồn data thật = ScrapeCreators** (1 key, đã tra full endpoint →
+   `references/scrapecreators-api.md`). Kiến trúc: ScrapeCreators (mắt) → LLM (não) → bám SỐ THẬT, bớt
+   "(ước tính)". v1 = TikTok + FB Ad Library; v2 = Google volume (DataForSEO). *(tính năng mới; nên viết spec + D-xxx trước.)*
+   - **Đồng thời nâng grounding T1-T3:** audit đã map chỗ "khát" data đối thủ → endpoint (xem
+     `references/scrapecreators-api.md` §4). Competitor (T1) là nơi tiêu thụ chính — bơm kết quả vào block
+     "DỮ LIỆU GROUNDED" của prompt (không phải sửa prompt). Market/customer/pricing hưởng lợi thêm.
 2. **N-08 — chất lượng Playbook "hơi kém".** Rà: (a) prompt `_TAC_SYSTEM` chung chung? (b) upstream research
    mỏng → garbage-in. Làm SAU R-1 (research đủ trước rồi mới phán prompt). *(đánh giá, không phải bug binary.)*
+   → **ScrapeCreators grounding (mục 1) trực tiếp trị (b)**: research dày lên bằng data thật → playbook bớt mỏng.
 
 *(✅ đã xong: N-16 đặt cược sắc (`business.py:1621`) · **N-07/N-07b** badge+regen Playbook đầy đủ (`business.py:252/3539`, `app.js:1083`).)*
 
