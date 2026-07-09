@@ -212,6 +212,20 @@
   → Fix sau (1 regex, an toàn): trong `inline()`, SAU esc thêm `.replace(/&lt;br\s*\/?&gt;/gi, '<br>')`
   → chuyển `<br>` đã-escape về xuống dòng thật. (cùng họ render N-09/N-13) [FE 1 nguồn — hết mirror]
 
+- **[N-20] (nghi — chờ R-1 xác nhận) Token budget Synthesis/Playbook có vẻ bị BÓP → nghi gốc thật của N-08.**
+  Đọc code (2026-07-08): `strategize_web` synthesis truyền `max_tokens=3200` (`business.py:3418`),
+  playbook `max_tokens=4000` (`business.py:3533`). Nghịch lý: research web-owned dùng 16.000-22.000
+  (D-037b còn NÂNG SWOT lên 22K để hết cụt), nhưng:
+    - **Synthesis** route `SYNTHESIS_LONG_CONTEXT` → **Gemini Pro** (thinking tính VÀO output):
+      `_calc_thinking_budget(3200)=30%=960` → chữ thấy được chỉ **≈2.240 token** cho **8 mục** chiến
+      lược (USP+3 variant+SAVE+JTBD+wedge+roadmap+KPI+rủi ro+tóm tắt) ≈ 280 token/mục — rất hẹp.
+    - **Playbook** route `OPS_BRIEF` → GPT-5 primary (fallback Gemini) `max_tokens=4000` cho playbook
+      ĐA-TỆP × 3 tầng phễu + copy mẫu — cũng hẹp; nếu rớt xuống Gemini còn ~2.800.
+  → **CHƯA khẳng định bug** (không chạy được LLM trong sandbox — "bao nhiêu đủ" phải chạy thật mới
+    biết cụt/nén). **Việc: khi làm R-1, soi mắt synthesis + playbook có bị nén/cụt không.** Nếu CÓ →
+    fix rẻ 2 dòng: nâng `max_tokens` (đề xuất synthesis 3200→6000, tactical 4000→7000; cả hai <20K nên
+    KHÔNG đụng dải ≥20K). ĐỪNG sửa mù trước khi thấy mắt R-1. (Độc lập với N-08(b) research mỏng / D-048.)
+
 ## ✅ Đã làm (lưu vết)
 - Enter ở ô intake = nút Tiếp (fcbb3e3)
 - Báo "agent đang chạy" đúng + bỏ "90 ngày" hardcode intake (04f9a9a)

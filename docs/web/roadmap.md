@@ -112,7 +112,11 @@ tab riêng (D-038A) · 🏛️ Messaging House · SWOT+TOWS đúng tầng, hết
      "DỮ LIỆU GROUNDED" của prompt (không phải sửa prompt). Market/customer/pricing hưởng lợi thêm.
 2. **N-08 — chất lượng Playbook "hơi kém".** Rà: (a) prompt `_TAC_SYSTEM` chung chung? (b) upstream research
    mỏng → garbage-in. Làm SAU R-1 (research đủ trước rồi mới phán prompt). *(đánh giá, không phải bug binary.)*
-   → **ScrapeCreators grounding (mục 1) trực tiếp trị (b)**: research dày lên bằng data thật → playbook bớt mỏng.
+   → (a) **đã vá cứng** trong prompt (`_TAC_SYSTEM` rule 8b nói thẳng N-08: cấm placeholder, kênh đích danh,
+   ngưỡng test so sánh được). → (b) **ScrapeCreators grounding (mục 1) trực tiếp trị**: research dày → playbook bớt mỏng.
+3. **🆕 N-20 (nghi, chờ R-1) — token budget Synthesis=3200/Playbook=4000 có vẻ BÓP** (research dùng 16-22K).
+   Synthesis→Gemini Pro (thinking ăn vào output) chỉ ~2.240 token cho 8 mục. **Nghi gốc thật của N-08 độc lập
+   với research.** Soi mắt khi R-1; nếu cụt/nén → fix rẻ nâng max_tokens (3200→6000 / 4000→7000). ĐỪNG sửa mù.
 
 *(✅ đã xong: N-16 đặt cược sắc (`business.py:1621`) · **N-07/N-07b** badge+regen Playbook đầy đủ (`business.py:252/3539`, `app.js:1083`).)*
 
