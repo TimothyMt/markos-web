@@ -106,7 +106,7 @@ tab riêng (D-038A) · 🏛️ Messaging House · SWOT+TOWS đúng tầng, hết
    Ở VN cầu sống trên social > Google → không chỉ search; gồm 4 bề mặt: Google · TikTok · FB Ad Library
    (đối thủ) · Comment/review. **Nguồn data thật = ScrapeCreators** (1 key, đã tra full endpoint →
    `references/scrapecreators-api.md`). Kiến trúc: ScrapeCreators (mắt) → LLM (não) → bám SỐ THẬT, bớt
-   "(ước tính)". v1 = TikTok + FB Ad Library; v2 = Google volume (DataForSEO). *(tính năng mới; nên viết spec + D-xxx trước.)*
+   "(ước tính)". v1 = TikTok + FB Ad Library; v2 = Google volume (DataForSEO). 📝 **spec `slices/S2-demand-map.md` + D-048** (2026-07-08, chờ founder chốt 4 câu hỏi mở: độ sâu v1 · cap credit · comment v1/v1.1 · đếm credit).
    - **Đồng thời nâng grounding T1-T3:** audit đã map chỗ "khát" data đối thủ → endpoint (xem
      `references/scrapecreators-api.md` §4). Competitor (T1) là nơi tiêu thụ chính — bơm kết quả vào block
      "DỮ LIỆU GROUNDED" của prompt (không phải sửa prompt). Market/customer/pricing hưởng lợi thêm.
