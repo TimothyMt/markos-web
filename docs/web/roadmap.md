@@ -12,6 +12,12 @@
 > **Ký hiệu:** ✅ xong & tin chạy · ✅? khai xong **cần VERIFY** (mâu thuẫn tài liệu / chưa test Railway) ·
 > ⚠️ một phần · ⬜ chưa · ⏸️ cất theo Vision A · ✗ thiếu hẳn.
 
+> 🔀 **CHUYỂN KHUNG (D-049, 2026-07-09 — CEO chốt từ hội đồng persona):** khung sản phẩm đang chuyển từ
+> **"4 tầng nội dung"** (file này) sang **"6 miền CMO"** (`docs/cmo/`, nhánh `feature/ai-cmo-core` = TRỤC CHÍNH mới).
+> 4 tầng = triển khai **D4 Content + chạm D6**; **bước Nghiên cứu KHÔNG mất** (thành lớp grounding nuôi Strategy Spine).
+> Việc nhánh này (R-1 verify · N-xx · D-048 ScrapeCreators) sẽ **rã/vá vào `ai-cmo-core`**. Chi tiết 7 quyết định:
+> `DECISIONS.md D-049` + `product-reconcile-2026-07-09.md`. ⏳ Plan merge chưa thực thi.
+
 ---
 
 ## North-star & phạm vi đợt này
