@@ -34,6 +34,7 @@ python3 -c "import webapp.business, webapp.api"
 | GF | (brief sau) | **#4 Hướng tăng trưởng trọng tâm** — `spine.growth_focus` (enum AARRR/STDC): intake 1 câu + degrade suy từ stage (derived-state). Spec ở `STRATEGY-FRAMEWORK.md`. Bổ nốt 15% khung 6-lựa-chọn. | ⬜ tương lai |
 | **D1-F1** | `D1-positioning.md` | `_framework_anchor` nối vault → mục Định vị synthesis (**K3 gộp vào đây**) | ✅ xong (1959edb) — *code bởi Orchestrator, Tester độc lập = R-1* |
 | **D1-F2** | `D1-F2-messaging-seam.md` | nối Spine + vault vào `gen_messaging` (định vị→Messaging House) | ⬜ brief xong, **chờ Cline** |
-| … | (D1-F3+ QC rubric · D2/D3/D6 lấp card→brief→wire · chốt sau R-1) | | |
+| **INTAKE-USP** | `intake-usp-sharpen.md` | F1 bỏ nhồi-2-ý+giọng buộc tội · F2 thêm alternative→intake_extra.answers · F3 competitor onliness/white-space · F4 usp_stance missing→white-space | ⬜ brief xong, **chờ Cline** |
+| … | (F5 nháp-xác-nhận UX · D1-F3 QC rubric · D2/D3/D6 lấp card→brief→wire · chốt sau R-1) | | |
 
 > Không chắc chỗ nào → hỏi lại, ĐỪNG bịa. Được tham khảo `marketingskills` repo + `product-journey-4-tang.md` (xem PLAN mục "Tham khảo").
