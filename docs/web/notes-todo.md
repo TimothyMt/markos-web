@@ -1,7 +1,7 @@
 # NOTES-TODO (web) — ghi chú chờ làm theo lô
 
-> 📍 **Nguồn "làm gì tiếp" = `roadmap.md` (v2, theo 4 tầng).** File này chỉ còn là **backlog bug lẻ**:
-> mỗi N-xx đã được map vào 1 tầng trong roadmap v2. Sửa xong 1 note → tick ở đây + cập nhật trạng thái tầng.
+> 📍 **Nguồn "làm gì tiếp" = `roadmap.md`** (backlog D4 Content + Nghiên cứu trong khung 6 miền — `docs/cmo/00-PLAN.md`).
+> File này chỉ còn là **backlog bug lẻ**: mỗi N-xx đã map vào 1 tầng trong roadmap. Sửa xong 1 note → tick ở đây + cập nhật trạng thái.
 >
 > ✅ **R-0 re-audit (2026-07-08, đọc IMPLEMENTATION thật) — backlog N-xx GẦN NHƯ SẠCH:**
 > - **XONG:** N-01, N-05, N-06, **N-07/N-07b**, N-09, N-10, N-11, **N-12**, N-13, N-14, N-16, **N-17b**,

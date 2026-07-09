@@ -37,10 +37,13 @@ Kiểm backend: `python3 -c "import webapp.business, webapp.api"`.
 - Cấu hình mới → thêm key vào `intake_extra`, KHÔNG thêm cột/bảng.
 - Ví dụ đã có trong `intake_extra`: `bet_choices`, `messaging` (cốt lõi+trụ+giọng+focus), `content_rhythm` (6 dạng × tần suất), `funnel_map`, `calendar_posts`.
 
-## Mô hình sản phẩm (4 tầng Content Marketing)
+## Mô hình sản phẩm — KHUNG CHỦ = 6 MIỀN CMO (D-049⑥)
+Khung chính thức: **6 miền CMO** — D1 Positioning · D2 Pricing · D3 Channel/Budget · D4 Content · D5 Retention · D6 Measurement. Chi tiết + Strategy Spine: **`docs/cmo/00-PLAN.md`** (trục). Thứ tự: **Nghiên cứu (grounding) → Spine → 6 miền**.
+
+**"4 tầng nội dung" = cách triển khai D4 Content + lớp Nghiên cứu-grounding** (KHÔNG phải toàn bộ sản phẩm):
 ① Nghiên cứu (T1-T5) → ② Chiến lược (Đặt cược → Synthesis+Playbook → 🏛️ Thông điệp) →
 ③ Sáng tạo (6 dạng nội dung · 🎛️ Nhịp nền) → ④ Phân phối & Đo (Lịch: nền móng + đợt spike).
-Chi tiết: `docs/web/product-journey-4-tang.md`. Mọi bài **tự bám Thông điệp** (cốt lõi+giọng) để nhất quán.
+Chi tiết 4 tầng: `docs/web/product-journey-4-tang.md`. Mọi bài **tự bám Thông điệp** (cốt lõi+giọng) để nhất quán.
 
 ## Khi thêm route/tính năng
 1. `business.py`: viết hàm `async def` (lazy import deps).

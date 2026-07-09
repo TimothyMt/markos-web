@@ -7,16 +7,17 @@
 > - `roadmap.md` (file này) = **làm gì tiếp** — trạng thái theo tầng, thứ tự ưu tiên.
 > - `DECISIONS.md` = **vì sao** — nhật ký ADR (D-xxx), không xoá, chỉ tra cứu lý do.
 > - `notes-todo.md` = **backlog bug lẻ** (N-xx) — mỗi mục đã map vào 1 tầng bên dưới; khi làm xong tick ở đây.
-> - `product-journey-4-tang.md` = **khung sản phẩm** (bất biến) — 4 tầng + triết lý.
+> - `docs/cmo/00-PLAN.md` = **khung chủ** (6 miền CMO + Strategy Spine) — nguồn khung chính thức.
+> - `product-journey-4-tang.md` = **chi tiết triển khai D4 Content + lớp Nghiên cứu** (KHÔNG phải khung tổng).
 >
 > **Ký hiệu:** ✅ xong & tin chạy · ✅? khai xong **cần VERIFY** (mâu thuẫn tài liệu / chưa test Railway) ·
 > ⚠️ một phần · ⬜ chưa · ⏸️ cất theo Vision A · ✗ thiếu hẳn.
 
-> 🔀 **CHUYỂN KHUNG (D-049, 2026-07-09 — CEO chốt từ hội đồng persona):** khung sản phẩm đang chuyển từ
-> **"4 tầng nội dung"** (file này) sang **"6 miền CMO"** (`docs/cmo/`, nhánh `feature/ai-cmo-core` = TRỤC CHÍNH mới).
-> 4 tầng = triển khai **D4 Content + chạm D6**; **bước Nghiên cứu KHÔNG mất** (thành lớp grounding nuôi Strategy Spine).
-> Việc nhánh này (R-1 verify · N-xx · D-048 ScrapeCreators) đã **rã/vá vào trục** — file này giờ nằm CÙNG
-> `docs/cmo/` trên nhánh hợp nhất `feature/consolidate`. **Khung chủ = 6 miền CMO (`docs/cmo/00-PLAN.md`)**;
+> 🔀 **CHUYỂN KHUNG (D-049/D-050, 2026-07-09):** khung sản phẩm đã chốt **"6 miền CMO"** (`docs/cmo/00-PLAN.md`)
+> làm **KHUNG CHỦ**, thay "4 tầng nội dung". 4 tầng (file này) = triển khai **D4 Content + chạm D6**;
+> **bước Nghiên cứu KHÔNG mất** (thành lớp grounding nuôi Strategy Spine).
+> **Đã HỢP NHẤT (D-050):** 2 luồng gộp về **1 cây duy nhất** (nhánh tích hợp `feature/consolidate`, sau merge = `main`)
+> — file này nằm CÙNG `docs/cmo/`. Việc R-1 verify · N-xx · D-048 ScrapeCreators đã rã vào khung 6 miền.
 > roadmap này = backlog thực thi **D4 Content + lớp Nghiên cứu-grounding** trong khung đó. Chi tiết 7 quyết định:
 > `DECISIONS.md D-049` + `product-reconcile-2026-07-09.md`. ✅ Hợp nhất 2 nhánh đã thực thi (2026-07-09).
 

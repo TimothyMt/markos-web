@@ -26,7 +26,9 @@ python run_web.py             # → http://localhost:8000
 
 ---
 
-## Hệ thống 4 tầng (Content Marketing)
+## Khung sản phẩm — 6 miền CMO (khung chủ) · 4 tầng = triển khai D4
+
+> **Khung chính thức = 6 miền CMO** (D1 Positioning · D2 Pricing · D3 Channel/Budget · D4 Content · D5 Retention · D6 Measurement) — xem `docs/cmo/00-PLAN.md`. Bảng "4 tầng" dưới đây = **cách triển khai D4 Content + lớp Nghiên cứu-grounding** nuôi Strategy Spine (D-049⑥), không phải toàn bộ Max.
 
 Max làm hộ founder **3 tầng hay bị bỏ** (Tâm lý · Chiến lược · Phân phối-đo), không chỉ "viết bài đẹp":
 

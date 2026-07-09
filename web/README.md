@@ -1,7 +1,8 @@
 # Marketing OS — Web Dashboard (Max, AI CMO)
 
-Giao diện web đặt **Max (CMO ảo)** làm trung tâm. Người dùng đi theo **hành trình
-4 tầng Content Marketing**, sidebar tổ chức theo tầng (bắt đầu từ **Hồ sơ doanh
+Giao diện web đặt **Max (CMO ảo)** làm trung tâm. Khung chủ = **6 miền CMO**
+(`docs/cmo/00-PLAN.md`); UI hiện triển khai **D4 Content + lớp Nghiên cứu** theo
+**hành trình 4 tầng**, sidebar tổ chức theo tầng (bắt đầu từ **Hồ sơ doanh
 nghiệp**, không phải khung chat):
 
 **① Nghiên cứu** (Thị trường · Đối thủ · Customer · Tâm lý-Giá · SWOT) →

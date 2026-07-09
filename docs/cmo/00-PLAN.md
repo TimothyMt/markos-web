@@ -3,7 +3,7 @@
 > **Đích sản phẩm:** Max = **AI CMO** cho founder/SME Việt — sở hữu **chiến lược marketing tích hợp** (định vị · giá · kênh · nội dung · giữ khách · đo lường) lái bởi **Strategy Spine** của business.
 > **Nhãn hiện tại (không overclaim):** *"CMO = đích, đang ở giai đoạn content-first execution."* Tầng **chiến lược** làm CMO-grade ngay; tầng **thực thi** hoàn thiện dần, bắt đầu từ nội dung.
 > **Mức tự chủ đã chốt:** "Chủ động đề xuất" — Max tự quét timing + hiệu suất, chủ động nhắc **1 việc nên làm bây giờ**; user chốt.
-> **Branch:** `feature/ai-cmo-core` (worktree `D:/MarkOS/wt-cmo`, base = `main`).
+> **Branch:** đã HỢP NHẤT về 1 cây (D-050) — làm trên nhánh tích hợp hiện hành (`feature/consolidate`, sau merge = `main`); base = `main`. *(Các brief cũ ghi `feature/ai-cmo-core` = lịch sử trước hợp nhất.)*
 
 ## Vì sao kiến trúc này (đã validate, không phán solo)
 Bản plan cũ coi "4 tầng nội dung" là toàn bộ Max. Core-validation (có nguồn, 2026-07) chỉ ra: đó là **content marketing lifecycle** — đúng, nhưng chỉ ~40% việc CMO. CMO thật sở hữu thêm **định giá, product-marketing, kênh/GTM, phân bổ ngân sách, giữ khách, đo lường xuyên miền** ([AMA](https://www.ama.org/marketing-news/the-role-of-the-cmo/), [Deloitte](https://www.deloitte.com/us/en/programs/chief-marketing-officer/articles/roles-of-the-cmo.html)). Và CMO **về bản chất là vai chiến lược/quyết định**; sản xuất là việc specialist.

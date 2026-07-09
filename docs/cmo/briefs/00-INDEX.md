@@ -6,7 +6,7 @@
 > 3. `docs/cmo/EVAL.md` — **standard** đánh giá trường/tính năng (3 test · 5 lớp · 3 archetype).
 > 4. `docs/cmo/KNOWLEDGE.md` — **standard** bộ não/vault (ontology · frontmatter routing · loader · governance). Đọc khi làm slice **K***.
 > 5. `docs/cmo/WIRING.md` — **cổng kiểm mối nối** (seam check): linter `brain/_check.py` (Lớp 1) + sổ hợp đồng khoá xuyên component (Lớp 2). CTO chạy mỗi slice để bắt "consumer không có producer" TRƯỚC runtime.
-> **Branch:** `feature/ai-cmo-core` (worktree `D:/MarkOS/wt-cmo`).
+> **Branch:** đã HỢP NHẤT về 1 cây (D-050) — làm trên nhánh tích hợp hiện hành (`feature/consolidate`, sau merge = `main`). *(Brief cũ ghi `feature/ai-cmo-core` = trước hợp nhất.)*
 
 ## Luật mỗi function-task (rút gọn từ WORKFLOW)
 1. Đọc ĐÚNG brief của function + **grep tên hàm** (đừng tin số dòng, đừng đọc cả `business.py`). Brief mơ hồ → **HỎI, không đoán**.
