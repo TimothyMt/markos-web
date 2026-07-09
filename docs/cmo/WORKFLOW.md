@@ -13,7 +13,7 @@
 
 ## Đơn vị việc = 1 FUNCTION (phiên Cline ngắn)
 Cline có phiên ngắn → **KHÔNG ôm cả slice**. Mỗi brief chẻ thành các **function-task** (F1, F2…). Một phiên = **1 function** = 1 commit = 1 lần review.
-- Ngoại lệ **mirror FE**: sửa `app.js` + mirror `dashboard-standalone.html` phải nằm **cùng 1 commit** (không để repo lệch giữa 2 bản). Coi cặp này là *một* function-task.
+- FE = 1 nguồn duy nhất: sửa thẳng `web/app.js` · `styles.css` · `index.html` (không còn standalone để mirror — D-047).
 - Function tí hon (vd expose 1 key trong `biz_data`) có thể gộp commit với function liền kề — nêu rõ trong message.
 
 ### Hợp đồng executor — robustness (model-agnostic)
@@ -38,7 +38,7 @@ GOAL (human, 1 lần — khoá trong 00-PLAN)
 1 DISCOVERY  — đọc ĐÚNG brief của function + grep tên hàm liên quan (đừng đọc cả business.py).
    │            Kể lại ý định 1–2 câu + nêu ẩn số.  Brief mơ hồ → HỎI, KHÔNG đoán.
    ▼
-2 PLAN       — liệt kê edit cụ thể: file · hàm · key intake_extra · điểm mirror FE.
+2 PLAN       — liệt kê edit cụ thể: file · hàm · key intake_extra · điểm chạm FE.
    ▼
 3 EXECUTE    — sửa TỐI THIỂU, đúng ràng buộc (không đổi schema, tái dùng prompt agents/).
    ▼
@@ -58,7 +58,6 @@ GOAL (human, 1 lần — khoá trong 00-PLAN)
 ### Verify commands (STANDARD — chạy ở bước 4b)
 ```bash
 node --check web/app.js
-python3 -c "import re;h=open('web/dashboard-standalone.html').read();open('/tmp/s.js','w').write(max(re.findall(r'<script[^>]*>(.*?)</script>',h,re.S),key=len))" && node --check /tmp/s.js
 python3 -c "import webapp.business, webapp.api"
 ```
 

@@ -283,7 +283,8 @@ def _calc_thinking_budget(max_tokens: int) -> int:
     Rule:
     - max_tokens < 1500: thinking=0 (no thinking — short response)
     - max_tokens 1500-5000: thinking = 30% (mild reasoning)
-    - max_tokens 5000-20000: thinking = min(8000, 40%) — medium reasoning
+    - max_tokens 5000-20000: thinking = min(4000, 25%) — medium reasoning (N-12: giảm từ
+      min(8000,40%) để chừa output, tránh research/content cụt giữa câu)
     - max_tokens >= 20000: thinking = min(12000, 25%) — deep reasoning for
       synthesis 30-40K. Giữ output ≥75% budget cho narrative dày.
     """

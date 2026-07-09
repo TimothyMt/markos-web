@@ -64,9 +64,8 @@ markOSv2/
 │   ├── events.py        #   SSE realtime (watcher + Supabase Realtime)
 │   ├── store*.py        #   lớp lưu trữ (SQLite / Supabase)
 │   └── supabase_schema.sql
-├── web/                 # Frontend SPA
-│   ├── index.html · app.js · styles.css
-│   └── dashboard-standalone.html   # bản build gộp 1 file
+├── web/                 # Frontend SPA (1 nguồn duy nhất)
+│   └── index.html · app.js · styles.css · data.js
 ├── storage/             # Data layer (profiles, campaigns_v2, skill_runs…)
 ├── frameworks/          # industry_context · save_framework · kpi_library
 ├── tools/               # llm_router · token_tracker · fb_ads

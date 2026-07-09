@@ -58,8 +58,8 @@ jobs:
 
             Kiểm theo checklist, nêu vi phạm cụ thể (file:dòng), ngắn gọn, tiếng Việt:
             1. KHÔNG đổi schema DB — dữ liệu mới phải nằm trong intake_extra.
-            2. MIRROR FE: mọi thay đổi web/app.js phải mirror y hệt sang <script> trong
-               web/dashboard-standalone.html (và CSS). Diff lệch 2 bản = FAIL.
+            2. FE 1 nguồn duy nhất — sửa thẳng web/app.js · styles.css · index.html;
+               KHÔNG còn dashboard-standalone.html để mirror (khai tử D-047).
             3. Tái dùng prompt trong agents/ (lazy import), không tự chế prompt mỏng.
             4. Không bịa số trong output AI.
             5. Đúng phạm vi 1 function của brief, không mở rộng ngoài brief.

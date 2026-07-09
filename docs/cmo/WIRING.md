@@ -11,7 +11,7 @@
 2. **Khớp mối nối (4 câu truy ngược).** (a) producer tồn tại? (b) tên/slug/enum khớp CHÍNH XÁC 2 đầu? (c) kiểu khớp (object vs string, list vs scalar)? (d) producer chạy TRƯỚC consumer lúc runtime?
 3. **Đường degrade.** Input có thể thiếu/thô → định nghĩa fallback êm (vd family→slug tinh), không để vỡ.
 4. **Luật derived-state** (xem mục riêng) nếu function tự suy trạng thái user.
-5. **Kế thừa CLAUDE.md:** không đổi schema DB (khoá mới → `intake_extra`) · mirror FE ↔ standalone cùng commit · không bịa số · 1 function = 1 commit + self-verify.
+5. **Kế thừa CLAUDE.md:** không đổi schema DB (khoá mới → `intake_extra`) · FE 1 nguồn (sửa thẳng `web/`, không mirror standalone — D-047) · không bịa số · 1 function = 1 commit + self-verify.
 
 ## Hai tốc độ (chống overload — không boil-ocean)
 ```

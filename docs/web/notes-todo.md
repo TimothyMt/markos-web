@@ -1,5 +1,16 @@
 # NOTES-TODO (web) — ghi chú chờ làm theo lô
 
+> 📍 **Nguồn "làm gì tiếp" = `roadmap.md` (v2, theo 4 tầng).** File này chỉ còn là **backlog bug lẻ**:
+> mỗi N-xx đã được map vào 1 tầng trong roadmap v2. Sửa xong 1 note → tick ở đây + cập nhật trạng thái tầng.
+>
+> ✅ **R-0 re-audit (2026-07-08, đọc IMPLEMENTATION thật) — backlog N-xx GẦN NHƯ SẠCH:**
+> - **XONG:** N-01, N-05, N-06, **N-07/N-07b**, N-09, N-10, N-11, **N-12**, N-13, N-14, N-16, **N-17b**,
+>   **N-18** (phần lớn), + **N-19, N-04b** (fix 2026-07-08).
+> - ⚠️ **Vòng R-0 đầu báo NHẦM** N-12/N-07b/N-17b/N-18 là "mở" do đọc comment/docstring thay vì thân hàm.
+>   Re-audit đọc code → chúng đã xong. **ĐỪNG đi fix lại.**
+> - ❓ **Còn lại:** N-02 (CSS layout — soi mắt Railway) · N-08 (chất lượng Playbook — đánh giá, chờ R-1).
+> - ✅ **Standalone đã KHAI TỬ (D-047)** — FE 1 nguồn, hết mirror.
+
 > Quy ước: "note" = chỉ ghi vào đây, KHÔNG tự sửa/push code. Chỉ code khi founder nói "làm các note".
 
 ## ✅ TRẠNG THÁI (dọn 2026-06-26 — founder "làm các note")
@@ -93,7 +104,7 @@
     2. Thêm 1 pass chuẩn hoá chung: mọi run `#` không phải heading-đầu-dòng-hợp-lệ → hoặc nâng thành
        tiểu mục, hoặc strip. (Phủ hết các biến thể `####`/`#####` rải rác.)
     3. Bỏ luôn dấu `:` cuối heading cho đồng nhất; thêm CSS `.md-subh` cho gọn-đẹp.
-  - Mirror app.js ↔ standalone. (Cùng họ trình bày output: cân nhắc gộp với N-04 posmap khi làm.)
+  - (Cùng họ trình bày output: cân nhắc gộp với N-04 posmap khi làm.) [standalone đã khai tử — hết mirror]
 
 - **[N-10] Chuyển trang KHÔNG tự cuộn lên đầu.**
   Đọc 1 doc dài (vd competitor) cuộn xuống giữa, bấm sang trang khác → trang mới vẫn ở vị trí cuộn
@@ -199,7 +210,21 @@
   Ô bảng có "…bảo hành).`<br>`Điểm yếu:…" — LLM xuất `<br>` để xuống dòng trong cell (tách Điểm mạnh/
   Điểm yếu), nhưng `renderAIContent.inline()` chạy `esc()` escape `<` → `&lt;` ⇒ hiện chữ `<br>` thô.
   → Fix sau (1 regex, an toàn): trong `inline()`, SAU esc thêm `.replace(/&lt;br\s*\/?&gt;/gi, '<br>')`
-  → chuyển `<br>` đã-escape về xuống dòng thật. Mirror app.js ↔ standalone. (cùng họ render N-09/N-13)
+  → chuyển `<br>` đã-escape về xuống dòng thật. (cùng họ render N-09/N-13) [FE 1 nguồn — hết mirror]
+
+- **[N-20] (nghi — chờ R-1 xác nhận) Token budget Synthesis/Playbook có vẻ bị BÓP → nghi gốc thật của N-08.**
+  Đọc code (2026-07-08): `strategize_web` synthesis truyền `max_tokens=3200` (`business.py:3418`),
+  playbook `max_tokens=4000` (`business.py:3533`). Nghịch lý: research web-owned dùng 16.000-22.000
+  (D-037b còn NÂNG SWOT lên 22K để hết cụt), nhưng:
+    - **Synthesis** route `SYNTHESIS_LONG_CONTEXT` → **Gemini Pro** (thinking tính VÀO output):
+      `_calc_thinking_budget(3200)=30%=960` → chữ thấy được chỉ **≈2.240 token** cho **8 mục** chiến
+      lược (USP+3 variant+SAVE+JTBD+wedge+roadmap+KPI+rủi ro+tóm tắt) ≈ 280 token/mục — rất hẹp.
+    - **Playbook** route `OPS_BRIEF` → GPT-5 primary (fallback Gemini) `max_tokens=4000` cho playbook
+      ĐA-TỆP × 3 tầng phễu + copy mẫu — cũng hẹp; nếu rớt xuống Gemini còn ~2.800.
+  → **CHƯA khẳng định bug** (không chạy được LLM trong sandbox — "bao nhiêu đủ" phải chạy thật mới
+    biết cụt/nén). **Việc: khi làm R-1, soi mắt synthesis + playbook có bị nén/cụt không.** Nếu CÓ →
+    fix rẻ 2 dòng: nâng `max_tokens` (đề xuất synthesis 3200→6000, tactical 4000→7000; cả hai <20K nên
+    KHÔNG đụng dải ≥20K). ĐỪNG sửa mù trước khi thấy mắt R-1. (Độc lập với N-08(b) research mỏng / D-048.)
 
 ## ✅ Đã làm (lưu vết)
 - Enter ở ô intake = nút Tiếp (fcbb3e3)

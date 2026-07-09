@@ -63,7 +63,7 @@ Bạn viết slice (thô cũng được)
 
 ## 5. RÀNG BUỘC cố định của dự án này (tôi luôn tự tuân — bạn không cần nhắc)
 - **Web-owned**: chỉ sửa `webapp/` + `web/`. **KHÔNG sửa `agents/`** (chỉ tham khảo).
-- **Mirror**: mọi thay đổi FE phải đồng bộ `web/app.js` ↔ `web/dashboard-standalone.html` (+ CSS).
+- **FE 1 nguồn duy nhất**: sửa thẳng `web/app.js` · `styles.css` · `index.html` — KHÔNG còn standalone để mirror (D-047).
 - **Tiếng Việt** cho mọi output; **KHÔNG bịa số** (gắn "(ước tính)"); KPI = đo-gì không-target.
 - **Spec-first** cho việc lớn; **note-only** khi bạn nói "note".
 - Sandbox không có Supabase/LLM/browser → tôi verify **tĩnh**; **test thật bạn làm trên Railway**.

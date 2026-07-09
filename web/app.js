@@ -179,6 +179,7 @@
     if (raw.startsWith('<')) return raw;          // skill xuất HTML → render trực tiếp
     const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const inline = s => esc(s)
+      .replace(/&lt;br\s*\/?&gt;/gi, '<br>')   // N-19: LLM xuất <br> xuống dòng trong ô bảng → trả về xuống dòng thật (đừng lòi chữ <br>)
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a class="md-link" href="$2" target="_blank" rel="noopener">$1</a>')   // [tên](url) → hyperlink nguồn
       .replace(/(^|[\s(])(https?:\/\/[^\s)<]+)/g, '$1<a class="md-link" href="$2" target="_blank" rel="noopener">$2</a>')        // URL trần → tự link
       .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
@@ -251,6 +252,13 @@
              && !/^#{1,6}\s/.test(lines[i]) && !/^\s*[-*]\s/.test(lines[i])
              && !/^\s*\d+\.\s/.test(lines[i]) && !/^\s*---+\s*$/.test(lines[i])) {
         buf.push(lines[i]); i++;
+      }
+      // N-04b: đoạn thực chất là JSON pos-map KHÔNG có fence ``` → đẩy sang <pre> để enhancePosMaps
+      // xử (render visual nếu có items, hoặc gỡ) — đừng để lòi JSON thô ra <p>.
+      const jt = buf.join('\n').trim();
+      if (jt.startsWith('{') && /"(yTop|yBottom|xLeft|xRight|q[1-4])"\s*:/.test(jt)) {
+        out.push('<pre class="ai-pre">' + esc(jt) + '</pre>');
+        continue;
       }
       out.push('<p>' + buf.map(inline).join('<br>') + '</p>');
     }

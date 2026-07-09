@@ -11,14 +11,13 @@
 ## Luật mỗi function-task (rút gọn từ WORKFLOW)
 1. Đọc ĐÚNG brief của function + **grep tên hàm** (đừng tin số dòng, đừng đọc cả `business.py`). Brief mơ hồ → **HỎI, không đoán**.
 2. **KHÔNG đổi schema DB** → dữ liệu mới vào `profile.intake_extra`.
-3. **MIRROR FE cùng 1 commit:** `web/app.js` ↔ `<script>` standalone; `web/styles.css` ↔ `<style>` standalone.
+3. **FE 1 nguồn duy nhất:** sửa thẳng `web/app.js` · `styles.css` · `index.html` — KHÔNG còn standalone để mirror (D-047).
 4. **Self-verify TRƯỚC khi gọi review** (verify commands dưới) + dán self-review report vào commit.
 5. **Cổng mối nối (WIRING.md):** làm mục "Phân tích mối nối" trong brief — mọi khoá đọc/ghi có producer + khớp tên/slug/kiểu; nếu tự suy trạng thái user → luật derived-state. Đụng `brain/` → `py brain/_check.py`.
 6. 1 function = 1 commit. Push → auto-review chạy + báo Claude. **Chờ cổng PASS mới sang function sau. KHÔNG tự quyết keep/cut, KHÔNG tự merge.**
 
 ```bash
 node --check web/app.js
-python3 -c "import re;h=open('web/dashboard-standalone.html').read();open('/tmp/s.js','w').write(max(re.findall(r'<script[^>]*>(.*?)</script>',h,re.S),key=len))" && node --check /tmp/s.js
 python3 -c "import webapp.business, webapp.api"
 ```
 

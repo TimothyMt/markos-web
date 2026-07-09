@@ -11,15 +11,14 @@ python run_web.py            # → http://localhost:8000 (SQLite mặc định, 
 - Lưu trữ: SQLite (`webapp/markos_web.db`) mặc định; Supabase nếu set `SUPABASE_URL`+`SUPABASE_SERVICE_KEY` (chạy `webapp/supabase_schema.sql`).
 - LLM: cần ≥1 khoá `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GEMINI_API_KEY`.
 
-## ⚠️ BẪY QUAN TRỌNG NHẤT — mirror frontend
-`web/app.js` và `web/dashboard-standalone.html` chứa **cùng một mã JS** (standalone là bản gộp 1 file).
-**Mọi sửa đổi ở `web/app.js` PHẢI mirror y hệt sang `<script>` trong `dashboard-standalone.html`** (và CSS: `web/styles.css` ↔ `<style>` trong standalone). Quên là 2 bản lệch nhau.
+## Frontend — 1 nguồn duy nhất (không còn standalone)
+App chạy trên Railway, server phục vụ `web/` tĩnh (`web/index.html` load `app.js`/`styles.css`/`data.js` rời).
+**KHÔNG còn `dashboard-standalone.html` / `build_standalone.py`** — đã khai tử (2026-07-08, theo D-033/D-042).
+Sửa FE = sửa thẳng `web/app.js` · `web/styles.css` · `web/index.html`, **không phải mirror đi đâu cả**.
 
 Kiểm sau khi sửa FE:
 ```bash
 node --check web/app.js
-# trích script lớn nhất trong standalone rồi check cú pháp:
-python3 -c "import re;h=open('web/dashboard-standalone.html').read();open('/tmp/s.js','w').write(max(re.findall(r'<script[^>]*>(.*?)</script>',h,re.S),key=len))" && node --check /tmp/s.js
 ```
 Kiểm backend: `python3 -c "import webapp.business, webapp.api"`.
 
@@ -47,7 +46,7 @@ Chi tiết: `docs/web/product-journey-4-tang.md`. Mọi bài **tự bám Thông 
 1. `business.py`: viết hàm `async def` (lazy import deps).
 2. `api.py`: thêm handler + `Route(...)` trong `api_routes()`.
 3. `business.py biz_data()`: expose dữ liệu ra key `bizXxx` cho FE.
-4. FE `app.js`: render + handler trong `handleAction()`; **mirror sang standalone**.
+4. FE `app.js`: render + handler trong `handleAction()` (sửa thẳng, 1 nguồn — không mirror).
 5. **Cổng kiểm mối nối** (xem dưới) rồi verify (mục trên) rồi commit.
 
 ## ⚠️ Cổng kiểm mối nối (seam check) — LUẬT cho MỌI function
