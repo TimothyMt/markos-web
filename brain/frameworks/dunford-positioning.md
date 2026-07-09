@@ -42,7 +42,16 @@ Trục cốt lõi = **QUAN HỆ**: mọi khác biệt chỉ có nghĩa khi đặ
 - Kết quả (theo nguồn): doanh thu <2M → gần 80M USD trong 18 tháng, mua lại 1.3B USD.
 → Bài học: KHÔNG đổi 1 dòng code — chỉ đổi *alternative + tệp + category*. Định vị là đòn bẩy, không phải feature.
 
-*(Minh hoạ VN — dựng để dạy, KHÔNG phải case có thật, KHÔNG số liệu bịa):* spa da nhỏ đừng định vị "spa cao cấp" (so với mọi spa lớn ngân sách khủng → thua). Đổi alternative = "tự chăm da tại nhà + mỹ phẩm online", tệp = "dân văn phòng bận, da nhạy cảm sợ sai", category = "phục hồi da chuẩn y khoa gần văn phòng" → giá trị (an toàn, tiết kiệm thời gian) thành hiển nhiên.
+**Exemplar VN thật — TH true MILK** — nguồn: Nhân Dân, "TH true MILK: Từ đồng cỏ xanh đến ly sữa sạch" (special.nhandan.vn, truy cập 2026-07-09).
+- Alternative: thị trường sữa do **Vinamilk** thống trị + sữa hoàn nguyên/nhập — vào sau, đối đầu trực diện = thua.
+- Khác biệt: mô hình khép kín **"từ đồng cỏ tới ly sữa"**, tự chủ vùng nguyên liệu + đàn bò — đúng chỗ đối thủ dẫn đầu chưa tự chủ được.
+- Giá trị (so what): **"sữa tươi sạch, thật từ thiên nhiên"** → an tâm về độ sạch/thật (neo vào chữ "THẬT").
+- Tệp best-fit: người thành thị **sẵn sàng trả cao hơn ~10-20%** (giá skimming, theo nguồn) để đổi lấy độ sạch/an toàn.
+- Category: **nhấn/tạo phân khúc "sữa tươi sạch"** thay vì đấu ở "sữa nói chung".
+- Kết quả (theo nguồn): dẫn đầu sữa tươi khu vực thành thị **51,9% thị phần (2024)**.
+→ Bài học: cùng đòn Dunford — vào thị trường đã có ông lớn thì **đừng đấu cùng category**; đổi *alternative + category* để giá trị của mình thành hiển nhiên.
+
+*(Minh hoạ SME nhỏ — dựng để dạy, KHÔNG phải case có thật, KHÔNG số liệu bịa):* spa da nhỏ đừng định vị "spa cao cấp" (so với mọi spa lớn ngân sách khủng → thua). Đổi alternative = "tự chăm da tại nhà + mỹ phẩm online", tệp = "dân văn phòng bận, da nhạy cảm sợ sai", category = "phục hồi da chuẩn y khoa gần văn phòng" → giá trị (an toàn, tiết kiệm thời gian) thành hiển nhiên.
 
 ## Spec gen (nhiên liệu bơm vào prompt — đầu②)
 Khi gen mục Định vị, BẮT prompt tuân:
