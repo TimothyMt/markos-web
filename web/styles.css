@@ -1199,3 +1199,21 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
 /* Banner định hướng (la bàn) trên trang Chiến lược — D-030/B1 */
 .dir-banner { padding:12px 16px; font-size:13.5px; line-height:1.5; color:var(--txt-2);
   border-left:3px solid var(--primary); background:rgba(91,140,255,.08); }
+
+/* Chiến lược nền (Strategy Spine) — P0.1 F4 */
+.spine-band .spine-grid { display:flex; flex-direction:column; gap:18px; }
+.spine-band .spine-col { display:flex; flex-direction:column; gap:8px; }
+.spine-band .spine-lbl { font-size:13px; font-weight:600; color:var(--txt); }
+.spine-band .grid-2 { grid-template-columns:repeat(2,1fr); }
+.spine-band .grid-3 { grid-template-columns:repeat(3,1fr); }
+.spine-band .fld textarea { background:var(--panel); border:1px solid var(--stroke); border-radius:10px;
+  padding:8px 10px; font:inherit; font-size:13px; color:var(--txt); resize:vertical; min-height:44px; }
+.spine-band .fld textarea:focus { border-color:var(--primary); outline:none; }
+.spine-band .input-row { display:flex; gap:6px; }
+.spine-band .input-row input { min-width:0; flex:1; }
+.spine-band .radio-group { display:flex; flex-direction:column; gap:6px; }
+.spine-band .radio-opt { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--txt);
+  cursor:pointer; padding:6px 8px; border:1px solid var(--stroke); border-radius:8px; }
+.spine-band .radio-opt:has(input:checked) { border-color:var(--primary); background:rgba(91,140,255,.08); }
+.spine-band .radio-opt input { accent-color:var(--primary); }
+@media (max-width:760px) { .spine-band .grid-2, .spine-band .grid-3 { grid-template-columns:1fr; } }

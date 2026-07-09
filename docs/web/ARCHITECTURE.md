@@ -54,8 +54,8 @@ tiến độ agent đẩy live mà không nện DB.
 ## Frontend
 - SPA 1 IIFE trong `app.js`; pages trong object `P`; router theo `location.hash`.
 - `body.chat-mode` cho trang Max (ẩn rail, bố cục hội thoại).
-- Build 1-file: `python webapp/build_standalone.py` → `web/dashboard-standalone.html`
-  + `index.html` (GitHub Pages).
+- Server phục vụ `web/` tĩnh (`index.html` load `app.js`/`styles.css`/`data.js` rời). KHÔNG còn build 1-file
+  standalone (khai tử 2026-07-08, D-033/D-042) — sửa FE là sửa thẳng, không mirror.
 
 ## Nợ kỹ thuật đã biết (cần trả)
 - Chưa có **auth** → chưa được public với dữ liệu thật đa user (D-002).

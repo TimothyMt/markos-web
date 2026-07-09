@@ -63,7 +63,7 @@ Một slice chỉ được coi là xong khi **tất cả**:
 - [ ] **Không nút giả** (mọi control đều có tác dụng hoặc bị gỡ)
 - [ ] Có smoke test tự động HOẶC kịch bản kiểm thử ghi rõ trong PR
 - [ ] Cập nhật `docs/web/` liên quan + thêm dòng vào `DECISIONS.md` nếu có quyết định
-- [ ] Deploy được (build standalone OK / server boot OK)
+- [ ] Deploy được (server boot OK)
 - [ ] Founder đã nghiệm thu luồng vàng
 
 ---
@@ -100,8 +100,7 @@ Một slice chỉ được coi là xong khi **tất cả**:
 
 - **Branch**: `claude/<feature>`; không push thẳng default.
 - **Commit**: thì hiện tại, mô tả "tại sao", không chỉ "cái gì".
-- **Frontend**: sửa `web/*.{js,css,html}` → luôn chạy `python webapp/build_standalone.py`
-  để cập nhật bản 1-file + `index.html` (GitHub Pages).
+- **Frontend**: sửa thẳng `web/*.{js,css,html}` (1 nguồn duy nhất) — KHÔNG còn bước build standalone.
 - **Backend**: giữ hợp đồng JSON ổn định; thay đổi breaking phải ghi DECISIONS.
 - **Tự kiểm trước khi báo xong**: `node --check web/app.js`, `python -c "ast.parse"`,
   smoke `python run_web.py` + curl.
