@@ -2880,6 +2880,48 @@ def _messaging_anchor_from(extra) -> str:
             + "\n".join(lines))
 
 
+def _framework_anchor(industry: str = "", goal_type: str = "positioning", limit: int = 3) -> str:
+    """D1: lôi craft card khung (Spec gen + Mạch) từ vault brain/ → block bơm vào prompt Synthesis.
+    Chỉ lấy phần 'nhiên liệu gen' (Spec gen + dòng Mạch), KHÔNG lấy exemplar/rubric (chống parrot
+    — tránh LLM chép tên khung/case ra output founder).
+    Degrade: vault trống / import lỗi / select() raise → "" (KHÔNG raise ra ngoài)."""
+    try:
+        from webapp import brain
+        notes = brain.select(industry=industry or None, goal_type=goal_type or None)
+    except Exception:
+        return ""
+    if not notes:
+        return ""
+    blocks = []
+    for n in notes[:limit]:
+        body = n.get("body") or ""
+        title = n.get("title") or n.get("slug") or ""
+        mach = ""
+        spec = []
+        in_spec = False
+        for line in body.splitlines():
+            s = line.strip()
+            if s.startswith("> Mạch") or s.startswith("Mạch:"):
+                mach = s.lstrip("> ").strip()
+            if s.startswith("## "):
+                in_spec = s.startswith("## Spec gen")
+                continue
+            if in_spec and s:
+                spec.append(s)
+        if not spec and not mach:
+            continue
+        part = f"### {title}\n"
+        if mach:
+            part += f"{mach}\n"
+        if spec:
+            part += "\n".join(spec) + "\n"
+        blocks.append(part.strip())
+    if not blocks:
+        return ""
+    return ("\n\n# KHUNG ĐỊNH VỊ (nội bộ — bám các luật này khi viết mục Định vị; "
+            "ĐỪNG nhắc tên khung/ví dụ ra output cho founder)\n\n" + "\n\n".join(blocks) + "\n")
+
+
 def _spine_anchor(extra) -> str:
     """P0.2 F1: text SPINE bơm vào prompt gen kế hoạch — truy ngược về xương sống chiến lược.
 
@@ -3674,8 +3716,10 @@ async def strategize_web(user_id=None, progress=None) -> dict:
             + _VN_NATURAL_RULE + "\n"
             "🔴 Viết TOÀN BỘ bằng TIẾNG VIỆT."
         )
+        fw_anchor = _framework_anchor(industry=industry, goal_type="positioning")
         syn_user = (
-            f"# Ngành\n{industry}\n{ictx}\n\n"
+            f"# Ngành\n{industry}\n{ictx}\n"
+            f"{fw_anchor}\n"
             f"{bet_block}"
             f"{resource_block}"
             f"# Định hướng founder\n- Wedge (tệp ưu tiên): {wedge or '(chưa chọn — tự đề xuất theo research)'}\n"
