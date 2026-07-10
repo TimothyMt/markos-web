@@ -3716,7 +3716,9 @@ async def strategize_web(user_id=None, progress=None) -> dict:
             + _VN_NATURAL_RULE + "\n"
             "🔴 Viết TOÀN BỘ bằng TIẾNG VIỆT."
         )
-        fw_anchor = _framework_anchor(industry=industry, goal_type="positioning")
+        # A/B debug (D1-F1): intake_extra.debug.fw_anchor_off=true → tắt anchor để đo delta. Mặc định BẬT.
+        _fw_off = bool((extra.get("debug") if isinstance(extra.get("debug"), dict) else {}).get("fw_anchor_off"))
+        fw_anchor = "" if _fw_off else _framework_anchor(industry=industry, goal_type="positioning")
         syn_user = (
             f"# Ngành\n{industry}\n{ictx}\n"
             f"{fw_anchor}\n"
