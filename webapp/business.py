@@ -3694,8 +3694,10 @@ async def strategize_web(user_id=None, progress=None) -> dict:
             "[đòn bẩy]'. Mỗi mệnh đề bám 1 phát hiện research THẬT (DÙNG research làm lý do, đừng liệt kê lại).\n"
             "## 3. Định vị (BỀN — ít đổi theo thời gian)\n"
             "Là KẾT TINH của mạch lập luận (suy ra, không áp đặt):\n"
-            "#### USP chính: 1 câu — '[Tính từ] [sản phẩm] cho [audience cụ thể] mà [khác biệt vs đối thủ]'. "
-            "Kèm lý do work + 3 variants A/B (góc khác nhau: cảm xúc / thực dụng / bằng chứng xã hội).\n"
+            "#### USP chính: 1 câu định vị theo QUAN HỆ — đặt sản phẩm CẠNH lựa chọn thay thế của khách "
+            "(khác gì + 'vì thế khách được gì'), cho tệp coi trọng giá trị đó nhất; KHÔNG để tính từ rỗng "
+            "đứng một mình. Bám KHUNG ĐỊNH VỊ ở đầu bài nếu có (craft chi tiết ở đó). Kèm lý do work + "
+            "3 variants A/B (cảm xúc / thực dụng / bằng chứng xã hội).\n"
             "#### SAVE: Solution (giải vấn đề gì) · Access (cách khách tiếp cận) · Value (tổng giá trị) · "
             "Educate (dạy gì để khách tin). #### JTBD: khách 'thuê' sản phẩm để làm gì. (LA BÀN, KHÔNG gắn mốc.)\n"
             "## 4. Mũi nhọn (Wedge) — đánh ở đâu TRƯỚC\n"
@@ -3716,9 +3718,7 @@ async def strategize_web(user_id=None, progress=None) -> dict:
             + _VN_NATURAL_RULE + "\n"
             "🔴 Viết TOÀN BỘ bằng TIẾNG VIỆT."
         )
-        # A/B debug (D1-F1): intake_extra.debug.fw_anchor_off=true → tắt anchor để đo delta. Mặc định BẬT.
-        _fw_off = bool((extra.get("debug") if isinstance(extra.get("debug"), dict) else {}).get("fw_anchor_off"))
-        fw_anchor = "" if _fw_off else _framework_anchor(industry=industry, goal_type="positioning")
+        fw_anchor = _framework_anchor(industry=industry, goal_type="positioning")
         syn_user = (
             f"# Ngành\n{industry}\n{ictx}\n"
             f"{fw_anchor}\n"
