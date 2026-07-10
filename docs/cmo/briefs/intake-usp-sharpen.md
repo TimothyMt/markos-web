@@ -30,12 +30,17 @@
 - **Verify:** chạy drive intake → check profile 990xxx có `intake_extra.answers.competitive_alternative`.
 
 ## F3 — Competitor T2: onliness test + white-space (làm USP có kiểm định)
-**Vì sao:** hiện T2 phân tích đối thủ chung chung; thiếu bước **đối chiếu USP/khác biệt founder ĐẦU-NHAU với từng đối thủ** → tìm chỗ trống chưa ai chiếm.
-- **Grep** prompt skill `competitor` trong `research_web` (`business.py`) — đừng tin số dòng.
-- Thêm vào prompt competitor 2 yêu cầu (block "so-what", không phá cấu trúc cũ):
-  1. **Onliness test:** với USP/khác biệt founder khai (nếu có), soi từng đối thủ: *ai đã claim điều tương tự? Nếu đối thủ nói được y câu đó → khác biệt này KHÔNG phòng thủ được.*
-  2. **White-space:** chỉ ra **khoảng trống định vị chưa ai đứng** trong ngành (bám đối thủ THẬT, có nguồn — theo luật chống bịa `_RW_ANTIFAB`).
-- Giữ nguyên anti-fab (kèm nguồn / "(ước tính)").
+**Vì sao:** hiện T2 phân tích đối thủ + đẻ "bản đồ định vị JSON" nhưng **thiếu bước đối chiếu USP/khác biệt founder ĐẦU-NHAU với từng đối thủ** → tìm chỗ trống chưa ai chiếm.
+
+**Hạ tầng ĐÃ đủ (đã soi code — KHÔNG phải LLM đoán):**
+- Skill `competitor` chạy `tt=COMPETITOR_RESEARCH` → **`GEMINI_PRO_GROUNDED`** (Gemini + Google Search), có **citations** từ `grounding_metadata`. Đối thủ founder nêu được **bơm ưu tiên tra** (`business.py:970`). → onliness/white-space là **lớp phân tích trên data đã grounded**, không bịa.
+
+**Việc F3:**
+- **Grep** spec skill `competitor` trong `_rw_specs()` + `COMPETITOR_SYSTEM` (reuse từ `agents/`) — đừng tin số dòng. Thêm YÊU CẦU vào prompt (không phá cấu trúc "3 nhóm đối thủ + bản đồ định vị JSON" đang có):
+  1. **Onliness test:** với USP/khác biệt founder khai (từ `intake_extra.answers` — F2), soi từng đối thủ **grounded**: *ai đã claim điều tương tự?* Mỗi khẳng định "đối thủ X claim Y" **PHẢI kèm citation** (URL grounding). Nếu đối thủ nói được y câu → khác biệt KHÔNG phòng thủ.
+  2. **White-space:** từ bản đồ định vị, chỉ **khoảng trống chưa ai đứng** (bám claim công khai THẬT + nguồn).
+- **Giới hạn PHẢI ghi trong output** (chống overclaim): onliness/white-space chỉ tính **claim CÔNG KHAI** (web/PR/bài báo) — **KHÔNG** phủ messaging trong AD đối thủ (đó là **D-048 ScrapeCreators**, nợ sau). Đối thủ web mỏng → `_RW_ANTIFAB` bắt "(ước tính)"/"chưa đủ dữ liệu", KHÔNG bịa claim.
+- Giữ nguyên `_RW_GUARD` (khoá scope, không lấn ICP/JTBD) + anti-fab.
 
 ## F4 — usp_stance='missing' đứng vào white-space (nhỏ)
 **File:** `strategize_web` `usp_rule` (~3627-3632).
