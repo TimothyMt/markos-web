@@ -35,7 +35,8 @@ python3 -c "import webapp.business, webapp.api"
 | **D1-F1** | `D1-positioning.md` | `_framework_anchor` nối vault → mục Định vị synthesis (**K3 gộp vào đây**) | ✅ xong (1959edb) — *code bởi Orchestrator, Tester độc lập = R-1* |
 | **D1-F2** | `D1-F2-messaging-seam.md` | nối Spine + vault vào `gen_messaging` (định vị→Messaging House) | ⬜ brief xong, **chờ Cline** |
 | **INTAKE-USP** | `intake-usp-sharpen.md` | F1 bỏ nhồi-2-ý+giọng buộc tội · F2 thêm alternative→intake_extra.answers · F3 competitor onliness/white-space · F4 usp_stance missing→white-space | ⬜ brief xong, **chờ Cline** |
-| **PB-WIRE** | `playbook-artifact-wiring.md` (+ `PB-WIRE-tasks.md` = cắt nhỏ T1–T6/3 PR) | W0 hạ độ cao `_TAC_SYSTEM` (góc đánh, không hook) + emit JSON `playbook_struct` · W1 nối territory/kênh→gen_calendar_post (hook tự viết bám Messaging) · W2 cut+KPI có khoá cho D6 | ⬜ brief CHỐT, **chờ Cline** |
+| **PB-WIRE** | `playbook-artifact-wiring.md` (+ `PB-WIRE-tasks.md` = cắt nhỏ T1–T6/3 PR) | W0 hạ độ cao `_TAC_SYSTEM` (góc đánh, không hook) + emit JSON `playbook_struct` · W1 nối territory/kênh→gen_calendar_post (hook tự viết bám Messaging) · W2 cut+KPI có khoá cho D6 | 🔶 PR-A code xong (nợ Q-A/B/C trong tasks) · **PR-B ⛔ dừng theo CHAIN-V2** |
+| **CHAIN-V2** | `CHAIN-V2-KIENTRUC.md` (+ `SESSION-HANDOFF-20260711.md` = ngữ cảnh phiên chốt) | Kiến trúc chuỗi nội dung mới: **Key Idea (1 ý/đợt) → funnel map per idea → calendar thẻ-chứa-post → đo cuối đợt**; hợp nhất 2-track; bộ luật T3 (cốt lõi 1 ý + kẻ thù · 3 trụ · proof-núm-vặn) | ⬜ kiến trúc CHỐT — task B1→B4, **kế tiếp: B1 brief T3** |
 | … | (F5 nháp-xác-nhận UX · D1-F3 QC rubric · D2/D3/D6 lấp card→brief→wire · chốt sau R-1) | | |
 
 > Không chắc chỗ nào → hỏi lại, ĐỪNG bịa. Được tham khảo `marketingskills` repo + `product-journey-4-tang.md` (xem PLAN mục "Tham khảo").

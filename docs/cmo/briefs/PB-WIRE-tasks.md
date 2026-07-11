@@ -76,6 +76,10 @@
 
 ## PR-B — Nối góc đánh xuống sản xuất bài (`webapp/business.py`)
 
+> ⛔ **TẠM DỪNG (founder chốt 2026-07-11) — KHÔNG code T4/T5 dưới đây.**
+> Kiến trúc mới `CHAIN-V2-KIENTRUC.md` thay mối nối này: bài sinh từ THẺ calendar, thẻ sinh từ
+> funnel-map-của-key-idea vốn đã mang góc đánh. PR-A (T1–T3) vẫn giữ nguyên giá trị.
+
 ### T4 — Helper map slot → (tier, is_wedge) ⚠️ SEAM KHÓ — HỎI nếu mơ hồ
 - `gen_calendar_post` (`business.py:3142`, gọi từ `api.py:186`) **không nhận tầng phễu tường minh**.
   Gần nhất: `track_role` (Khai sáng/Tin cậy/Chuyển hoá/Lan toả) · `phase` · `objective` · `funnel_map`.
