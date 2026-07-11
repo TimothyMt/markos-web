@@ -3836,6 +3836,79 @@ _TAC_SYSTEM = (
             "- `example`: 1 VÍ DỤ minh hoạ cho góc đánh — KHÔNG phải khoá downstream bám; có thể rỗng string. "
             "NẾU CÓ NỘI DUNG → BẮT BUỘC BẮT ĐẦU BẰNG: \"ví dụ cho dễ hình dung — KHÔNG phải bản chính thức: \"."
         )
+
+
+def _extract_trailing_json_object(text: str):
+    """T3: tách khối JSON `playbook_struct` ở CUỐI bài markdown bằng quét CÂN BẰNG NGOẶC
+    (string-aware — bỏ qua '{'/'}' nằm trong chuỗi). Trả (json_str, start, end) hoặc None.
+    Bền hơn regex: model lỡ thêm chữ/dấu sau '}' cũng vẫn tách được khối ôm `"segments"`."""
+    if not text:
+        return None
+    starts = [i for i, ch in enumerate(text) if ch == "{"]
+    for start in reversed(starts):          # từ phải sang: object root (ôm "segments") gặp trước các '{' thân bài
+        depth = 0
+        in_str = False
+        esc = False
+        end = None
+        for j in range(start, len(text)):
+            ch = text[j]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = j
+                    break
+        if end is not None:
+            candidate = text[start:end + 1]
+            if '"segments"' in candidate:
+                return candidate, start, end + 1
+    return None
+
+
+_PB_TIER_KEYS = ("tofu", "mofu", "bofu")
+_PB_HUONG_REQ = ("huong", "territory", "channels", "cut", "kpis")
+
+
+def _validate_playbook_struct(d) -> bool:
+    """T3: validate 2 mức — NGHIÊM với segment wedge (đủ 3 tầng, mỗi Hướng đủ khoá downstream cần),
+    LỎNG với tệp phụ (thiếu tầng/khoá vẫn giữ, không vứt cả struct). False = bỏ struct (degrade)."""
+    if not isinstance(d, dict):
+        return False
+    segs = d.get("segments")
+    if not isinstance(segs, list) or not segs:
+        return False
+    for s in segs:
+        if not isinstance(s, dict) or not isinstance(s.get("tiers"), dict):
+            return False
+    for s in segs:
+        if not s.get("is_wedge"):
+            continue                        # tệp phụ: LỎNG — không ép
+        tiers = s.get("tiers") or {}
+        for tk in _PB_TIER_KEYS:
+            arr = tiers.get(tk)
+            if not isinstance(arr, list) or not arr:
+                return False
+            for h in arr:
+                if not isinstance(h, dict):
+                    return False
+                for rk in _PB_HUONG_REQ:
+                    v = h.get(rk)
+                    if v is None or (isinstance(v, (str, list)) and len(v) == 0):
+                        return False
+    return True
+
+
 async def _gen_playbook(uid: int, synthesis: str, progress=None) -> dict:
     """N-07b: sinh Tactical Playbook từ synthesis + research (tách khỏi strategize_web để REGEN lại
     được khi synthesis đổi). Dùng _TAC_SYSTEM. Lưu skill_run + fingerprint synthesis đã dựa vào."""
@@ -3892,42 +3965,38 @@ async def _gen_playbook(uid: int, synthesis: str, progress=None) -> dict:
         f"# Customer Insight (hiểu tệp + insight)\n{(research.get('customer_insight') or '(chưa có)')[:1800]}\n\n"
         f"# Đối thủ (cho đoạn 'không copy được')\n{(research.get('competitor') or '(chưa có)')[:1500]}"
     )
-    tac_res = await router_call(task_type=TaskType.OPS_BRIEF, system=_TAC_SYSTEM, user=tac_user, max_tokens=4000)
-    tactical = _strip_preamble((tac_res or {}).get("output", "").strip())
-    if not tactical:
+    # max_tokens rộng (10000): playbook phủ mọi tệp × 3 tầng RỒI mới in khối JSON ở CUỐI — trần hẹp
+    # cắt đúng JSON (thứ chết đầu tiên khi cạn token). Prompt vẫn dặn rút gọn markdown để không phình.
+    tac_res = await router_call(task_type=TaskType.OPS_BRIEF, system=_TAC_SYSTEM, user=tac_user, max_tokens=10000)
+    tactical_raw = _strip_preamble((tac_res or {}).get("output", "").strip())
+    if not tactical_raw:
         logger.warning("_gen_playbook: tactical rỗng (uid=%s)", uid)
         return {"error": "Playbook trống — thử lại."}
-    tac_run = await skill_runs.insert_skill_run(uid, "tactical_playbook", tactical, model_used="web-strategize")
 
-    # ── T2/T3: Parse JSON struct từ cuối bài playbook, lưu intake_extra.playbook_struct + versioning ──
+    # ── T2/T3: tách khối JSON `playbook_struct` ở cuối bài. LÀM SẠCH MARKDOWN ≠ VALIDATE:
+    # strip khối JSON-đuôi khỏi markdown TRƯỚC khi lưu (kể cả khi parse fail) — user KHÔNG bao giờ
+    # thấy JSON thô trên UI. Parse từ raw; struct chỉ lưu khi validate 2 mức đạt.
     playbook_struct = None
-    try:
-        # Tìm khối JSON cuối cùng (pattern: ```json ... ``` hoặc { ... } cuối bài)
-        import json as _json
-        # Pattern 1: code block ```json ... ```
-        m = re.search(r'```json\s*(\{.*?\})\s*```', tactical, re.DOTALL | re.IGNORECASE)
-        if m:
-            raw_json = m.group(1).strip()
-        else:
-            # Pattern 2: object JSON cuối cùng trong text (greedy match cuối cùng)
-            m2 = re.search(r'(\{.*"segments"\s*:\s*\[.*?\]\s*\})\s*$', tactical, re.DOTALL)
-            if m2:
-                raw_json = m2.group(1).strip()
+    tactical = tactical_raw
+    _ex = _extract_trailing_json_object(tactical_raw)
+    if _ex:
+        raw_json, _js_start, _js_end = _ex
+        # markdown sạch = phần trước khối JSON, bỏ nốt fence ``` / ```json còn sót ở đuôi (dù parse fail)
+        tactical = re.sub(r"\s*`{3,}\s*json?\s*$", "", tactical_raw[:_js_start],
+                          flags=re.IGNORECASE).rstrip()
+        try:
+            import json as _json
+            _cand = _json.loads(raw_json)
+            if _validate_playbook_struct(_cand):
+                playbook_struct = _cand
             else:
-                raw_json = None
-        if raw_json:
-            playbook_struct = _json.loads(raw_json)
-            # Validate minimal schema: segments array, each with name, tiers.tofu/mofu/bofu
-            if (isinstance(playbook_struct, dict) and isinstance(playbook_struct.get("segments"), list)
-                    and all(isinstance(s, dict) and "tiers" in s for s in playbook_struct["segments"])):
-                # Valid struct
-                pass
-            else:
-                logger.warning("_gen_playbook: playbook_struct schema không hợp lệ, bỏ qua")
-                playbook_struct = None
-    except Exception as e:
-        logger.warning("_gen_playbook: parse playbook_struct thất bại: %s", e)
-        playbook_struct = None
+                logger.warning("_gen_playbook: playbook_struct không đạt validate (wedge thiếu tầng/khoá), bỏ qua")
+        except Exception as e:
+            logger.warning("_gen_playbook: parse playbook_struct thất bại: %s", e)
+    else:
+        logger.warning("_gen_playbook: không tìm thấy khối JSON playbook_struct ở cuối bài (uid=%s)", uid)
+
+    tac_run = await skill_runs.insert_skill_run(uid, "tactical_playbook", tactical, model_used="web-strategize")
 
     # N-07b: ghi synthesis run id mà playbook này bám → FE so lệch để hiện badge "cập nhật?".
     syn = await skill_runs.get_latest_skill_run(uid, "synthesis")
