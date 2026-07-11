@@ -2626,9 +2626,21 @@ def _messaging_anchor_from(extra) -> str:
     lines = []
     if m.get("core"):
         lines.append(f"Thông điệp cốt lõi: {m['core']}")
-    ps = " · ".join(p.get("territory", "") for p in (m.get("pillars") or [])[:5] if p.get("territory"))
-    if ps:
-        lines.append(f"Trụ thông điệp (lãnh địa nói): {ps}")
+    # B1①: mỗi trụ nhả kèm góc nói + trạng thái proof → máy viết VẶN GIỌNG theo bằng chứng.
+    prows = []
+    for p in (m.get("pillars") or [])[:5]:
+        terr = (p.get("territory") or "").strip()
+        if not terr:
+            continue
+        ang = (p.get("angle") or "").strip()
+        prf = (p.get("proof") or "").strip()
+        head = f"• {terr}" + (f" — {ang}" if ang else "")
+        if prf:
+            prows.append(f"{head}\n  [CÓ BẰNG CHỨNG: {prf}] → giọng KHẲNG ĐỊNH, được lồng bằng chứng này vào bài.")
+        else:
+            prows.append(f"{head}\n  [CHƯA CÓ bằng chứng] → giọng QUAN ĐIỂM/kể chuyện; CẤM claim/khẳng định điều chưa chứng minh.")
+    if prows:
+        lines.append("Trụ thông điệp (lãnh địa + góc nói + cách vặn giọng theo bằng chứng):\n" + "\n".join(prows))
     if m.get("focus"):
         lines.append(f"ĐANG ĐẨY trọng tâm kỳ này: {m['focus']} — ưu tiên nghiêng góc/lãnh địa này.")
     v = m.get("voice") or {}
@@ -2638,7 +2650,8 @@ def _messaging_anchor_from(extra) -> str:
         lines.append("Giọng TRÁNH: " + "; ".join(v["dont"][:4]))
     if not lines:
         return ""
-    return ("\n\n# THÔNG ĐIỆP (bám NGẦM — mọi bài cùng 1 cốt lõi/giọng; ƯU TIÊN hơn định vị thô)\n"
+    return ("\n\n# THÔNG ĐIỆP (bám NGẦM — mọi bài cùng 1 cốt lõi/giọng, VẶN GIỌNG theo bằng chứng từng trụ; "
+            "ƯU TIÊN hơn định vị thô)\n"
             + "\n".join(lines))
 
 
