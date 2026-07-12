@@ -1681,7 +1681,19 @@
           : '');
     },
     render: () => `<div id="msgWrap">${msgInner()}</div>`,
-    mount: () => {},
+    mount: () => {
+      const w = document.getElementById('msgWrap'); if (!w || w._proofBound) return;
+      w._proofBound = true;   // uỷ quyền: chip proof cập nhật live khi gõ (sống qua rerenderMsg)
+      w.addEventListener('input', (e) => {
+        const el = e.target; if (!el.classList || !el.classList.contains('msg-proof')) return;
+        const body = el.closest('.msg-pillar-body'); if (!body) return;
+        const has = !!el.value.trim();
+        const chip = body.querySelector('.msg-proofchip');
+        if (chip) { chip.classList.toggle('on', has); chip.textContent = has ? '✓ có bằng chứng' : '✍️ viết kiểu quan điểm'; }
+        const hint = body.querySelector('.msg-proofhint');
+        if (hint) hint.style.display = has ? 'none' : '';
+      });
+    },
   };
   function msgInner() {
     const E = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1702,16 +1714,25 @@
     const S = msgState();
     const tagline = (S.taglines || []).length
       ? `<div class="msg-taglines">${S.taglines.map(t => `<span class="msg-tag">“${E(t)}”</span>`).join('')}</div>` : '';
-    const pillars = (S.pillars || []).map((p, i) => `
+    const pillars = (S.pillars || []).map((p, i) => {
+      const hasProof = !!(p.proof || '').trim();
+      const chip = hasProof
+        ? `<span class="msg-proofchip on" title="Trụ có bằng chứng → bài viết giọng khẳng định, lồng bằng chứng vào">✓ có bằng chứng</span>`
+        : `<span class="msg-proofchip" title="Trụ chưa có bằng chứng → bài viết giọng quan điểm/kể chuyện, không khẳng định điều chưa chứng minh">✍️ viết kiểu quan điểm</span>`;
+      return `
       <div class="msg-pillar">
         <input class="msg-ic" data-msgp="icon" data-idx="${i}" value="${E(p.icon)}" maxlength="3" title="emoji">
         <div class="msg-pillar-body">
           <input class="msg-terr" data-msgp="territory" data-idx="${i}" value="${E(p.territory)}" placeholder="Lãnh địa (vd: Sống đẹp nhà nhỏ)">
           <input class="msg-angle" data-msgp="angle" data-idx="${i}" value="${E(p.angle)}" placeholder="Góc nói / quan điểm trong lãnh địa này">
-          <input class="msg-proof" data-msgp="proof" data-idx="${i}" value="${E(p.proof)}" placeholder="Proof — chỉ khi có thật (để trống nếu không)">
+          <div class="msg-proofrow">
+            <input class="msg-proof" data-msgp="proof" data-idx="${i}" value="${E(p.proof)}" placeholder="Proof — chỉ khi có thật (để trống nếu không)">
+            ${chip}
+          </div>
+          <div class="msg-proofhint" style="${hasProof ? 'display:none' : ''}">💡 Chưa có bằng chứng? Tạo cái rẻ nhất trong 7 ngày: bắt đầu ghi sổ kết quả thật, hoặc công khai một cam kết chịu trách nhiệm — rồi điền vào đây.</div>
         </div>
         <button class="msg-rm" data-act="msg-pillar-remove" data-idx="${i}" title="Bớt trụ">✕</button>
-      </div>`).join('');
+      </div>`; }).join('');
     return `
       <div class="dir-banner" style="margin-bottom:14px">🏛️ Max nháp từ Chiến lược → bạn chỉnh từng ô cho "ra chất mình" → <b>Chốt</b>. Mọi bài (móng + đợt) sẽ tự bám cốt lõi + giọng này.</div>
       <section class="card msg-card">

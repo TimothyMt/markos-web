@@ -1038,6 +1038,13 @@ body.chat-mode #view { height: calc(100vh - 64px); }
   background:var(--panel); color:var(--text); font-size:13px; }
 .msg-terr { font-weight:600; }
 .msg-proof { font-size:12.5px !important; color:var(--muted); }
+.msg-proofrow { display:flex; align-items:center; gap:8px; }
+.msg-proofrow .msg-proof { flex:1 1 auto; width:auto; }
+.msg-proofchip { flex:0 0 auto; white-space:nowrap; font-size:11.5px; padding:3px 10px; border-radius:999px;
+  border:1px solid var(--stroke); background:var(--panel); color:var(--muted); cursor:default; user-select:none; }
+.msg-proofchip.on { border-color:color-mix(in srgb, #16a34a 45%, var(--stroke));
+  background:color-mix(in srgb, #16a34a 12%, transparent); color:#16a34a; }
+.msg-proofhint { font-size:11.5px; color:var(--muted); line-height:1.45; padding:0 2px; }
 .msg-rm { flex:0 0 auto; width:28px; height:28px; border-radius:7px; border:1px solid var(--stroke);
   background:var(--panel); color:var(--muted); cursor:pointer; font-size:13px; }
 .msg-rm:hover { border-color:#d8694a; color:#d8694a; }
