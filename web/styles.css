@@ -1224,3 +1224,44 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
 .spine-band .radio-opt:has(input:checked) { border-color:var(--primary); background:rgba(91,140,255,.08); }
 .spine-band .radio-opt input { accent-color:var(--primary); }
 @media (max-width:760px) { .spine-band .grid-2, .spine-band .grid-3 { grid-template-columns:1fr; } }
+
+/* ════ Ý lớn theo đợt (CHAIN-V2 T4+T5) — key idea → funnel map ════ */
+.ki-sugg .card-head { display:flex; align-items:center; justify-content:space-between; }
+.ki-sugg-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; margin-top:12px; }
+.ki-sugg-card { border:1px solid var(--stroke); border-radius:12px; padding:12px; background:var(--panel-2); display:flex; flex-direction:column; gap:6px; }
+.ki-sugg-t { font-weight:700; font-size:13.5px; }
+.ki-sugg-a { font-size:12px; line-height:1.4; }
+.ki-sugg-card .chip-btn { margin-top:auto; align-self:flex-start; }
+.ki-meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.ki-ref { font-size:11px; color:var(--muted); }
+.ki-form .ki-form-row { display:flex; flex-wrap:wrap; gap:12px; margin:4px 0 12px; }
+.ki-fld { display:flex; flex-direction:column; gap:4px; }
+.ki-fld > span { font-size:11.5px; color:var(--txt-2); font-weight:600; }
+.occ-inp.sm { padding:6px 10px; font-size:12.5px; max-width:180px; }
+.ki-form-act { display:flex; gap:8px; align-items:center; }
+.ki-card { display:flex; flex-direction:column; gap:8px; }
+.ki-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.ki-card-title { font-size:15px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.ki-angle { font-size:13px; line-height:1.45; }
+.ki-sub { font-size:12px; }
+.ki-goal { font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; border:1px solid var(--stroke-2); }
+.ki-goal.g-awareness { color:var(--cyan); border-color:color-mix(in srgb,var(--cyan) 45%,var(--stroke)); }
+.ki-goal.g-consideration { color:var(--amber); border-color:color-mix(in srgb,var(--amber) 45%,var(--stroke)); }
+.ki-goal.g-conversion { color:var(--green); border-color:color-mix(in srgb,var(--green) 45%,var(--stroke)); }
+.ki-goal.g-retention { color:var(--primary-2); border-color:color-mix(in srgb,var(--primary-2) 50%,var(--stroke)); }
+.ki-goal.g-none { color:var(--muted); }
+.ki-status { font-size:11px; padding:2px 9px; border-radius:999px; background:var(--panel-2); color:var(--txt-2); border:1px solid var(--stroke); }
+.ki-status.s-active { color:var(--green); border-color:color-mix(in srgb,var(--green) 40%,var(--stroke)); }
+.ki-status.s-done { color:var(--muted); }
+.ki-editor { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:12px; border:1px dashed var(--stroke-2); border-radius:12px; background:var(--panel-2); }
+.ki-funnel-empty { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:8px 0 2px; }
+.ki-funnel { border-top:1px solid var(--stroke); padding-top:10px; margin-top:2px; }
+.ki-funnel-head { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
+.ki-ratio { font-size:12.5px; font-weight:700; color:var(--txt); }
+.ki-tier { margin-bottom:10px; }
+.ki-tier-h { font-size:11.5px; font-weight:700; letter-spacing:.3px; color:var(--txt-2); margin-bottom:6px; }
+.ki-post { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; padding:6px 10px; border:1px solid var(--stroke); border-radius:9px; background:var(--panel-2); margin-bottom:5px; }
+.ki-post-ch { font-size:11.5px; font-weight:700; color:var(--primary); flex:0 0 auto; }
+.ki-post-role { font-size:12.5px; }
+.ki-post-note { font-size:11px; }
+.ki-funnel-foot { font-size:11.5px; margin-top:6px; }

@@ -9,6 +9,7 @@ window.MOCK = {
       { id: 'tactical',   label: 'Tactical Playbook',     icon: '🔨' },
     ]},
     { group: '③ Sản xuất', items: [
+      { id: 'keyidea',  label: 'Ý lớn theo đợt',     icon: '💡' },
       { id: 'occasion', label: 'Lập chiến dịch',     icon: '🎯' },
       { id: 'calendar', label: 'Lịch nội dung',      icon: '🗓️' },
       { id: 'adscopy',  label: 'Quảng cáo (copy)',   icon: '🧲' },

@@ -1962,6 +1962,110 @@
     return `<a class="msg-band clickable" href="#message">🏛️ <b>Đang nói:</b> "${E(m.core || '—')}"${ps ? ` · <span class="muted">${ps}</span>` : ''}${foc} <span class="msg-band-edit">✎ chỉnh</span></a>`;
   }
 
+  /* ════════ Ý LỚN THEO ĐỢT (CHAIN-V2 T4+T5) — key idea → funnel map → danh sách bài dự kiến ════════ */
+  let _kiSuggest = [];   // đệm đề xuất Max (chưa lưu, non-binding)
+  let _kiAdd = false;    // mở form tự thêm ý
+  let _kiEdit = {};      // {id: true} = card đang mở editor mục tiêu/kỳ hạn
+  const KI_GOALS = { awareness: 'Nhận biết', consideration: 'Cân nhắc', conversion: 'Chốt / Xả', retention: 'Giữ chân' };
+  const KI_STATUS = { draft: 'nháp', active: 'đang chạy', done: 'xong' };
+  const KI_TIERS = [['tofu', 'TOFU · Khơi nhận biết'], ['mofu', 'MOFU · Nuôi thuyết phục'], ['bofu', 'BOFU · Chốt']];
+  function kiList() { return (window.MOCK && M.bizKeyIdeas) || []; }
+  function kiHasMsg() { const m = (window.MOCK && M.bizMessaging) || {}; return !!(m.core || (m.pillars || []).length); }
+  const _kiE = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  function rerenderKI() { const w = document.getElementById('kiWrap'); if (w) w.innerHTML = kiInner(); }
+
+  P.keyidea = {
+    title: 'Ý lớn theo đợt',
+    sub: 'Mỗi ý lớn = 1 đợt nội dung. Max đề xuất từ kho góc đánh (bám Thông điệp) — bạn chọn/thêm, đặt mục tiêu + kỳ hạn, rồi dựng danh sách bài dự kiến.',
+    get actions() {
+      return `<a class="ghost-line" href="#message">← Thông điệp</a>`
+        + (kiHasMsg()
+          ? ` <button class="ghost-line" data-act="ki-suggest">💡 Để Max đề xuất ý lớn</button> <button class="primary-btn" data-act="ki-add-toggle">＋ Tự thêm ý</button> <a class="ghost-line" href="#calendar">→ Lịch</a>`
+          : '');
+    },
+    render: () => `<div id="kiWrap">${kiInner()}</div>`,
+  };
+
+  function kiGoalOpts(sel) {
+    return `<option value="">— (Max tự suy) —</option>`
+      + Object.keys(KI_GOALS).map(g => `<option value="${g}" ${sel === g ? 'selected' : ''}>${KI_GOALS[g]}</option>`).join('');
+  }
+  function kiFunnel(posts, ratio, id) {
+    const groups = KI_TIERS.map(([tk, label]) => {
+      const ps = posts.filter(p => p.tier === tk);
+      if (!ps.length) return '';
+      return `<div class="ki-tier"><div class="ki-tier-h">${label} <span class="muted">(${ps.length})</span></div>
+        ${ps.map(p => `<div class="ki-post"><span class="ki-post-ch">${_kiE(p.channel)}</span><span class="ki-post-role">${_kiE(p.role)}</span>${p.note ? `<span class="ki-post-note muted">${_kiE(p.note)}</span>` : ''}</div>`).join('')}</div>`;
+    }).join('');
+    return `<div class="ki-funnel">
+      <div class="ki-funnel-head"><span class="ki-ratio">⚖️ Tỉ lệ phễu ${_kiE(ratio || '—')}</span> <span class="muted">${posts.length} bài dự kiến</span>
+        <button class="ghost-line sm" data-act="ki-funnel" data-id="${id}" style="margin-left:auto">↻ Dựng lại</button></div>
+      ${groups}
+      <div class="ki-funnel-foot muted">📅 Danh sách bài dự kiến — bước sau đổ thành thẻ trên <a href="#calendar">Lịch</a> (sinh câu chữ khi bấm thẻ).</div>
+    </div>`;
+  }
+  function kiCard(k) {
+    const posts = ((k.funnel_map || {}).posts) || [];
+    const ratio = (k.funnel_map || {}).ratio || '';
+    const goalBadge = k.goal ? `<span class="ki-goal g-${k.goal}">${KI_GOALS[k.goal] || k.goal}</span>`
+      : `<span class="ki-goal g-none">chưa đặt mục tiêu</span>`;
+    const win = (k.window_start || k.window_end)
+      ? `🗓️ ${_kiE(k.window_start || '?')} → ${_kiE(k.window_end || '?')}` : '🗓️ chưa đặt kỳ hạn';
+    const statusBadge = `<span class="ki-status s-${k.status || 'draft'}">${KI_STATUS[k.status] || 'nháp'}</span>`;
+    const editor = _kiEdit[k.id] ? `<div class="ki-editor">
+        <div class="ki-fld"><span>Mục tiêu đợt</span><select class="occ-inp sm" data-kif="goal" data-id="${k.id}">${kiGoalOpts(k.goal)}</select></div>
+        <div class="ki-fld"><span>Bắt đầu</span><input class="occ-inp sm" data-kif="window_start" data-id="${k.id}" value="${_kiE(k.window_start || '')}" placeholder="vd 2026-08-01"></div>
+        <div class="ki-fld"><span>Kết thúc</span><input class="occ-inp sm" data-kif="window_end" data-id="${k.id}" value="${_kiE(k.window_end || '')}" placeholder="vd 2026-08-15"></div>
+        <div class="ki-fld"><span>Trạng thái</span><select class="occ-inp sm" data-kif="status" data-id="${k.id}">${Object.keys(KI_STATUS).map(s => `<option value="${s}" ${(k.status || 'draft') === s ? 'selected' : ''}>${KI_STATUS[s]}</option>`).join('')}</select></div>
+        <div class="ki-form-act"><button class="primary-btn sm" data-act="ki-save" data-id="${k.id}">✅ Lưu</button> <button class="ghost-line sm" data-act="ki-edit-toggle" data-id="${k.id}">Huỷ</button></div>
+      </div>` : '';
+    const funnel = posts.length ? kiFunnel(posts, ratio, k.id)
+      : `<div class="ki-funnel-empty"><button class="primary-btn sm" data-act="ki-funnel" data-id="${k.id}">📊 Dựng danh sách bài dự kiến</button>
+          <span class="muted" style="font-size:12px">Max phân bổ bài theo phễu, uốn theo mục tiêu đợt.</span></div>`;
+    return `<section class="card ki-card">
+      <div class="ki-card-head">
+        <div class="ki-card-title"><b>${_kiE(k.title)}</b> ${goalBadge} ${statusBadge}</div>
+        <button class="icon-btn" data-act="ki-edit-toggle" data-id="${k.id}" title="Chỉnh mục tiêu / kỳ hạn">✎</button>
+      </div>
+      ${k.angle ? `<div class="ki-angle muted">${_kiE(k.angle)}</div>` : ''}
+      <div class="ki-sub muted">${win}${k.source_ref ? ` · 📍 ${_kiE(k.source_ref)}` : ''}${k.source === 'max' ? ' · 🤖 Max gợi ý' : ''}</div>
+      ${editor}${funnel}
+    </section>`;
+  }
+  function kiInner() {
+    if (M.bizEnabled && !kiHasMsg()) {
+      return `<section class="card"><div class="empty-cta"><div class="empty-ic">🏛️</div>
+        <h3>Cần có Thông điệp trước</h3>
+        <p class="muted">Ý lớn của mỗi đợt bám vào <b>cốt lõi</b> + <b>kho góc đánh</b> của Thông điệp. Hãy dựng + chốt Thông điệp trước.</p>
+        <div class="empty-actions"><a class="primary-btn" href="#message">🏛️ Tới bước Thông điệp</a></div></div></section>`;
+    }
+    const ideas = kiList();
+    const sugg = _kiSuggest.length ? `<section class="card ki-sugg">
+      <div class="card-head"><h3>💡 Max đề xuất — chọn ý để thêm vào đợt</h3><button class="icon-btn" data-act="ki-suggest-clear" title="Ẩn">✕</button></div>
+      <div class="ki-sugg-grid">${_kiSuggest.map((s, i) => `
+        <div class="ki-sugg-card">
+          <div class="ki-sugg-t">${_kiE(s.title)}</div>
+          <div class="ki-sugg-a muted">${_kiE(s.angle)}</div>
+          <div class="ki-meta">${s.goal ? `<span class="ki-goal g-${s.goal}">${KI_GOALS[s.goal] || s.goal}</span>` : ''}${s.source_ref ? `<span class="ki-ref">📍 ${_kiE(s.source_ref)}</span>` : ''}</div>
+          <button class="chip-btn sm" data-act="ki-adopt" data-idx="${i}">＋ Thêm vào đợt</button>
+        </div>`).join('')}</div></section>` : '';
+    const addForm = _kiAdd ? `<section class="card ki-form">
+      <label class="msg-lbl">＋ Tự thêm 1 ý lớn cho đợt</label>
+      <input class="occ-inp" data-kinew="title" placeholder="Ý lớn (vd: Tháng hiểu làn da)" style="margin-bottom:8px;max-width:520px">
+      <input class="occ-inp" data-kinew="angle" placeholder="Góc / thế đối lập (1 câu)" style="margin-bottom:8px;max-width:520px">
+      <div class="ki-form-row">
+        <div class="ki-fld"><span>Mục tiêu đợt</span><select class="occ-inp sm" data-kinew="goal">${kiGoalOpts('')}</select></div>
+        <div class="ki-fld"><span>Bắt đầu</span><input class="occ-inp sm" data-kinew="window_start" placeholder="2026-08-01"></div>
+        <div class="ki-fld"><span>Kết thúc</span><input class="occ-inp sm" data-kinew="window_end" placeholder="2026-08-15"></div>
+      </div>
+      <div class="ki-form-act"><button class="primary-btn sm" data-act="ki-add-save">✅ Thêm ý</button> <button class="ghost-line sm" data-act="ki-add-toggle">Huỷ</button></div>
+    </section>` : '';
+    const cards = ideas.length ? ideas.map(kiCard).join('')
+      : `<section class="card"><p class="muted">Chưa có ý lớn nào. Bấm <b>💡 Để Max đề xuất</b> hoặc <b>＋ Tự thêm ý</b> ở trên.</p></section>`;
+    return `<div class="dir-banner" style="margin-bottom:14px">💡 Mỗi <b>ý lớn</b> gom 1 <b>đợt</b> (nhiều bài xoay quanh). Max xoay kho góc đánh để gợi ý; bạn đặt <b>mục tiêu</b> + <b>kỳ hạn</b>, rồi dựng <b>danh sách bài dự kiến</b> (Lịch sẽ đổ thành thẻ).</div>
+      ${sugg}${addForm}${cards}`;
+  }
+
   /* ---- Content generator ---- */
   // M3.1 (hybrid): "Trình tạo nội dung", "Kịch bản video", "UGC Brief" đã GỠ khỏi trang riêng.
   // Bài gốc tạo trong Lịch nội dung; video/UGC/đa-kênh là biến thể phái sinh ngay trên 1 bài
@@ -3579,6 +3683,71 @@
         toast('✅ Đã chốt Thông điệp — mọi bài sẽ bám theo');
         route();
       } catch (e) { toast('Lưu lỗi — thử lại'); el.disabled = false; el.textContent = _t; }
+      return;
+    }
+    if (act === 'ki-suggest') {   // T4: Max đề xuất ý lớn từ kho góc đánh
+      el.disabled = true; const _t = el.textContent; el.textContent = '⏳ Max đang xoay góc đánh…';
+      try {
+        const r = await API.post('api/biz/key-ideas/suggest', { user_id: _bizUserId });
+        el.disabled = false; el.textContent = _t;
+        if (r && r.error) { toast(r.error); return; }
+        _kiSuggest = (r && r.ideas) || [];
+        if (!_kiSuggest.length) toast('Chưa đề xuất được — thử lại'); else toast(`💡 Max gợi ý ${_kiSuggest.length} ý lớn`);
+        rerenderKI();
+      } catch (e) { toast('Chưa đề xuất được — thử lại'); el.disabled = false; el.textContent = _t; }
+      return;
+    }
+    if (act === 'ki-suggest-clear') { _kiSuggest = []; rerenderKI(); return; }
+    if (act === 'ki-add-toggle') { _kiAdd = !_kiAdd; rerenderKI(); return; }
+    if (act === 'ki-add-save') {   // T4: lưu ý lớn tự thêm
+      const g = f => ((document.querySelector(`[data-kinew="${f}"]`) || {}).value || '').trim();
+      const title = g('title');
+      if (!title) { toast('Nhập ý lớn trước'); return; }
+      el.disabled = true; const _t = el.textContent; el.textContent = '⏳ Đang lưu…';
+      try {
+        const r = await API.post('api/biz/key-idea/save', {
+          user_id: _bizUserId, title, angle: g('angle'), source: 'user',
+          goal: g('goal'), window_start: g('window_start'), window_end: g('window_end') });
+        if (r && r.error) { toast(r.error); el.disabled = false; el.textContent = _t; return; }
+        await refreshBiz(); _kiAdd = false; toast('✅ Đã thêm ý lớn'); rerenderKI();
+      } catch (e) { toast('Lưu lỗi — thử lại'); el.disabled = false; el.textContent = _t; }
+      return;
+    }
+    if (act === 'ki-adopt') {   // T4: nhận 1 đề xuất Max → lưu thành đợt
+      const s = _kiSuggest[+el.dataset.idx]; if (!s) return;
+      el.disabled = true; el.textContent = '⏳…';
+      try {
+        const r = await API.post('api/biz/key-idea/save', {
+          user_id: _bizUserId, title: s.title, angle: s.angle, source: 'max',
+          source_ref: s.source_ref || '', goal: s.goal || '' });
+        if (r && r.error) { toast(r.error); return; }
+        _kiSuggest.splice(+el.dataset.idx, 1);   // bỏ khỏi danh sách gợi ý sau khi thêm
+        await refreshBiz(); toast('✅ Đã thêm vào đợt'); rerenderKI();
+      } catch (e) { toast('Thêm lỗi — thử lại'); el.disabled = false; el.textContent = '＋ Thêm vào đợt'; }
+      return;
+    }
+    if (act === 'ki-edit-toggle') { const id = el.dataset.id; _kiEdit[id] = !_kiEdit[id]; rerenderKI(); return; }
+    if (act === 'ki-save') {   // T4: cập nhật mục tiêu / kỳ hạn / trạng thái 1 đợt (update theo id)
+      const id = el.dataset.id;
+      const g = f => ((document.querySelector(`[data-kif="${f}"][data-id="${id}"]`) || {}).value || '').trim();
+      el.disabled = true; const _t = el.textContent; el.textContent = '⏳…';
+      try {
+        const r = await API.post('api/biz/key-idea/save', {
+          user_id: _bizUserId, id, goal: g('goal'), status: g('status'),
+          window_start: g('window_start'), window_end: g('window_end') });
+        if (r && r.error) { toast(r.error); el.disabled = false; el.textContent = _t; return; }
+        await refreshBiz(); _kiEdit[id] = false; toast('✅ Đã lưu'); rerenderKI();
+      } catch (e) { toast('Lưu lỗi — thử lại'); el.disabled = false; el.textContent = _t; }
+      return;
+    }
+    if (act === 'ki-funnel') {   // T5: dựng danh sách bài dự kiến cho 1 đợt
+      const id = el.dataset.id;
+      el.disabled = true; const _t = el.textContent; el.textContent = '⏳ Max đang dựng danh sách bài…';
+      try {
+        const r = await API.post('api/biz/key-idea/funnel', { user_id: _bizUserId, id });
+        if (r && r.error) { toast(r.error); el.disabled = false; el.textContent = _t; return; }
+        await refreshBiz(); toast('📊 Đã dựng danh sách bài dự kiến'); rerenderKI();
+      } catch (e) { toast('Chưa dựng được — thử lại'); el.disabled = false; el.textContent = _t; }
       return;
     }
     if (act === 'spine-save') {   // P0.1 F4: Chiến lược nền — lưu spine
