@@ -1,7 +1,7 @@
 # Quy tắc bắt buộc cho Cline trong repo này
 
 ## Đọc trước khi code
-Luôn đọc `CLAUDE.md` ở root trước khi bắt đầu bất kỳ task nào — chứa kiến trúc, bẫy mirror frontend, quy ước dữ liệu.
+Luôn đọc `CLAUDE.md` ở root trước khi bắt đầu bất kỳ task nào — chứa kiến trúc, quy ước dữ liệu, cổng kiểm mối nối.
 
 ## Git workflow — bắt buộc, không ngoại lệ
 `main` đã bật branch protection (require PR + approval, chặn cả admin bypass) — nhưng vẫn phải tuân thủ đúng flow sau, không cố lách:
