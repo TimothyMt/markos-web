@@ -309,6 +309,12 @@ async def biz_data(user_id=None) -> dict:
         out["bizFunnelMap"] = (_ie7.get("funnel_map") if isinstance(_ie7, dict) else {}) or {}
     except Exception:
         out["bizFunnelMap"] = {}
+    # CHAIN-V2 T4/T5: key ideas theo đợt + funnel map per idea (danh sách bài dự kiến) → FE render.
+    try:
+        _ie8 = (out.get("bizProfile") or {}).get("intake_extra") or {}
+        out["bizKeyIdeas"] = (_ie8.get("key_ideas") if isinstance(_ie8, dict) else []) or []
+    except Exception:
+        out["bizKeyIdeas"] = []
     # N-07b: Playbook lệch chiến lược? (playbook bám synthesis_id cũ ≠ synthesis hiện hành) → FE badge.
     try:
         _ie6 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -3164,6 +3170,283 @@ async def save_messaging(user_id=None, messaging=None) -> dict:
         return {"ok": True, "messaging": msg}
     except Exception as e:
         logger.warning("biz.save_messaging failed: %s", e)
+        return {"error": str(e)}
+
+
+# ════ CHAIN-V2 T4+T5 — KEY IDEA theo đợt + FUNNEL MAP per idea → danh sách bài dự kiến (B2) ════
+# Additive: key mới intake_extra.key_ideas (list). KHÔNG đụng funnel_map/campaigns cũ (B4 dọn).
+_KI_TIERS = ("tofu", "mofu", "bofu")
+_KI_GOALS = ("awareness", "consideration", "conversion", "retention")
+# ratio phễu UỐN THEO mục tiêu đợt (khung gợi ý — LLM chỉnh ±; '' → 60/30/10 lưới cuối)
+_GOAL_RATIO = {
+    "awareness": "65/25/10",      # phủ nhận biết → nặng đầu phễu
+    "consideration": "25/50/25",  # nuôi/cân nhắc → nặng giữa
+    "conversion": "20/30/50",     # chốt/xả/sale → nặng đáy
+    "retention": "10/40/50",      # giữ chân → ít TOFU, xoay khách cũ
+}
+
+
+def _norm_goal(g) -> str:
+    g = str(g or "").strip().lower()
+    return g if g in _KI_GOALS else ""
+
+
+def _playbook_segments(extra: dict) -> list:
+    """Đọc segments từ playbook_struct đã lưu (producer _gen_playbook/PR-A). [] nếu thiếu/hỏng (degrade)."""
+    ps = extra.get("playbook_struct") if isinstance(extra, dict) else None
+    st = (ps or {}).get("struct") if isinstance(ps, dict) else None
+    segs = (st or {}).get("segments") if isinstance(st, dict) else None
+    return segs if isinstance(segs, list) else []
+
+
+async def suggest_key_ideas(user_id=None, n: int = 5) -> dict:
+    """T4: Max đề xuất N Ý LỚN cho các đợt sắp tới — xoay lần lượt các Hướng trong kho góc đánh
+    (playbook_struct/PR-A). Degrade: thiếu struct → messaging.pillars + synthesis. KHÔNG lưu (trả list
+    đề xuất non-binding để user chọn/sửa — không phải derived-state, không cần why-log)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        industry = prof.get("industry") or ""
+        synth = await _latest_content(uid, "synthesis")
+        msg = extra.get("messaging") if isinstance(extra.get("messaging"), dict) else {}
+        core = str((msg or {}).get("core") or "")
+        # gom kho góc đánh: territory + tows từ struct; degrade → messaging pillars
+        seeds = []
+        for s in _playbook_segments(extra):
+            sname = str((s or {}).get("name") or "")
+            for tk in _KI_TIERS:
+                for h in (((s.get("tiers") or {}) if isinstance(s, dict) else {}).get(tk) or []):
+                    terr = str((h or {}).get("territory") or "").strip()
+                    if terr:
+                        seeds.append(f"[{sname}·{tk}] {terr} (phục vụ {(h or {}).get('tows','')})")
+        if not seeds:
+            for p in ((msg or {}).get("pillars") or []):
+                terr = str((p or {}).get("territory") or "").strip()
+                ang = str((p or {}).get("angle") or "").strip()
+                if terr:
+                    seeds.append(f"[trụ] {terr}" + (f" — {ang}" if ang else ""))
+        if not (seeds or synth.strip()):
+            return {"error": "Chưa có kho góc đánh / chiến lược để đề xuất ý lớn."}
+        n = max(3, min(int(n or 5), 8))
+        from tools.llm_router import call as router_call, TaskType
+        import json as _json
+        system = (
+            "Bạn là Content Strategist. Từ KHO GÓC ĐÁNH + THÔNG ĐIỆP CỐT LÕI, đề xuất N Ý LỚN cho các ĐỢT "
+            "nội dung sắp tới. Mỗi ý lớn = 1 chủ đề bao trùm 1 đợt (nhiều bài xoay quanh), KHÁC nhau rõ, "
+            "xoay lần lượt qua các lãnh địa (đừng dồn 1 chỗ). Mỗi ý bám THẾ ĐỐI LẬP của cốt lõi.\n"
+            + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số/thành tích.\n"
+            'Output JSON DUY NHẤT: {"ideas":[{"title":"<ý lớn ≤14 từ>","angle":"<góc/thế đối lập 1 câu>",'
+            '"source_ref":"<lãnh địa gốc>","goal":"<awareness|consideration|conversion|retention — đoán hợp ý, '
+            'không chắc để rỗng>"}]}'
+        )
+        user = (f"# Ngành\n{industry}\n# Thông điệp cốt lõi\n{core or '(chưa có)'}\n"
+                "# Kho góc đánh (xoay lần lượt)\n" + "\n".join(f"- {x}" for x in seeds[:24])
+                + (f"\n# Chiến lược\n{synth[:1400]}" if synth.strip() else "")
+                + f"\n\nĐề xuất {n} ý lớn.")
+        res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=2000)
+        raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
+        try:
+            data = _json.loads(raw)
+        except Exception:
+            return {"ideas": []}
+        ideas = []
+        for it in (data.get("ideas") or [])[:n]:
+            if not isinstance(it, dict):
+                continue
+            title = str(it.get("title") or "").strip()[:140]
+            if not title:
+                continue
+            ideas.append({
+                "title": title,
+                "angle": str(it.get("angle") or "").strip()[:220],
+                "source": "max",
+                "source_ref": str(it.get("source_ref") or "").strip()[:160],
+                "goal": _norm_goal(it.get("goal")),
+            })
+        return {"ideas": ideas}
+    except Exception as e:
+        logger.warning("biz.suggest_key_ideas failed: %s", e)
+        return {"error": str(e)}
+
+
+async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str = "",
+                        source: str = "user", source_ref: str = "", goal: str = "",
+                        window_start: str = "", window_end: str = "", status: str = "") -> dict:
+    """T4: user chốt/sửa 1 key idea (từ đề xuất Max hoặc tự viết) + đặt kỳ hạn đợt.
+    Append/update intake_extra.key_ideas (dedupe theo id); window rỗng → status draft.
+    Additive — KHÔNG đụng funnel_map/campaigns cũ."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        title = str(title or "").strip()[:140]
+        if not title:
+            return {"error": "Ý lớn trống — cần tiêu đề."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        ideas = extra.get("key_ideas") if isinstance(extra.get("key_ideas"), list) else []
+        if not isinstance(ideas, list):
+            ideas = []
+        ws = str(window_start or "").strip()[:40]
+        we = str(window_end or "").strip()[:40]
+        st = str(status or "").strip().lower() or ("active" if (ws and we) else "draft")
+        if st not in ("draft", "active", "done"):
+            st = "draft"
+        now = time.time()
+        meta = {
+            "title": title,
+            "angle": str(angle or "").strip()[:220],
+            "source": ("max" if str(source).strip().lower() == "max" else "user"),
+            "source_ref": str(source_ref or "").strip()[:160],
+            "goal": _norm_goal(goal),
+            "window_start": ws, "window_end": we,
+            "status": st, "updated_at": now,
+        }
+        kid = str(id or "").strip()
+        found = next((it for it in ideas if isinstance(it, dict) and str(it.get("id")) == kid), None) if kid else None
+        if found is not None:
+            found.update(meta)            # giữ funnel_map + created_at cũ (chỉ đổi meta)
+            key_idea = found
+        else:
+            kid = kid or f"{int(now)}-{(re.sub(r'[^a-z0-9]+', '-', title.lower())[:24].strip('-') or 'idea')}"
+            key_idea = {"id": kid, **meta, "funnel_map": {"ratio": "", "posts": []}, "created_at": now}
+            ideas.append(key_idea)
+        extra["key_ideas"] = ideas
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "key_idea": key_idea}
+    except Exception as e:
+        logger.warning("biz.save_key_idea failed: %s", e)
+        return {"error": str(e)}
+
+
+async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
+    """T5: dựng funnel map + DANH SÁCH BÀI DỰ KIẾN cho 1 key idea. Ratio uốn theo goal đợt.
+    Đọc key_idea + playbook_struct (degrade messaging) + voice + synthesis + archetype.
+    Ghi key_ideas[i].funnel_map. CHỐNG lỗi funnel cũ: validate tier + posts KHÔNG rỗng (degrade tối thiểu).
+    Dừng ở danh-sách-bài — KHÔNG sinh câu chữ / thẻ calendar (B3)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        kid = str(id or "").strip()
+        if not kid:
+            return {"error": "Thiếu id key idea."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        ideas = extra.get("key_ideas") if isinstance(extra.get("key_ideas"), list) else []
+        idea = next((it for it in ideas if isinstance(it, dict) and str(it.get("id")) == kid), None)
+        if idea is None:
+            return {"error": "Không tìm thấy key idea."}
+        industry = prof.get("industry") or ""
+        cur_channels = prof.get("current_channels") or ""
+        synth = await _latest_content(uid, "synthesis")
+        msg = extra.get("messaging") if isinstance(extra.get("messaging"), dict) else {}
+        voice = (msg or {}).get("voice") if isinstance((msg or {}).get("voice"), dict) else {}
+        arche = ""
+        try:
+            from frameworks.industry_context import get_purchase_archetype, ARCHETYPE_LABEL
+            arche = ARCHETYPE_LABEL.get(get_purchase_archetype(industry) or "", "") or (get_purchase_archetype(industry) or "")
+        except Exception:
+            pass
+        # khung góc đánh từ struct (degrade → messaging pillars)
+        angle_ctx = []
+        for s in _playbook_segments(extra):
+            for tk in _KI_TIERS:
+                for h in (((s.get("tiers") or {}) if isinstance(s, dict) else {}).get(tk) or []):
+                    terr = str((h or {}).get("territory") or "")
+                    chs = ", ".join(str(x) for x in ((h or {}).get("channels") or [])[:3])
+                    if terr:
+                        angle_ctx.append(f"[{tk}] {terr}" + (f" · kênh: {chs}" if chs else ""))
+        if not angle_ctx:
+            for p in ((msg or {}).get("pillars") or []):
+                terr = str((p or {}).get("territory") or "")
+                if terr:
+                    angle_ctx.append(f"[trụ] {terr} — {(p or {}).get('angle','')}")
+        goal = _norm_goal(idea.get("goal"))
+        ratio_hint = _GOAL_RATIO.get(goal, "")
+        goal_line = (f"MỤC TIÊU đợt: {goal} → khung tỉ lệ phễu gợi ý {ratio_hint} (TOFU/MOFU/BOFU)"
+                     if ratio_hint else
+                     "MỤC TIÊU đợt: (chưa rõ) → TỰ SUY hình phễu từ ý lớn; không rõ dùng 60/30/10")
+        from tools.llm_router import call as router_call, TaskType
+        import json as _json
+        system = (
+            "Bạn là Content Strategist. Cho 1 Ý LỚN (đợt nội dung), dựng DANH SÁCH BÀI DỰ KIẾN theo phễu "
+            "TOFU (khơi/nhận biết) → MOFU (nuôi/thuyết phục) → BOFU (chốt), phân bổ theo MỤC TIÊU đợt. "
+            "Mỗi bài: tier (tofu/mofu/bofu) · kênh ĐÍCH DANH (vd 'Reels 15s') · vai trò (1 câu: bài này làm "
+            "gì trong phễu). Bám giọng thương hiệu. Số bài TỈNH TÁO theo độ dài đợt + nguồn lực — ưu tiên "
+            "đầu phễu ở đợt nhận biết, đáy phễu ở đợt chốt; ĐỪNG nhồi (team nhỏ).\n"
+            + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số. Ngưỡng tỉ lệ là gợi ý — chỉnh theo baseline thật.\n"
+            'Output JSON DUY NHẤT: {"ratio":"<vd 60/30/10>","posts":[{"tier":"tofu|mofu|bofu","channel":"",'
+            '"role":"","note":""}]}'
+        )
+        vdo = ", ".join(str(x) for x in (voice.get("do") or [])[:4])
+        user = (f"# Ngành\n{industry} — {arche}\n# Ý LỚN\n{idea.get('title','')}\n# Góc/thế đối lập\n{idea.get('angle','')}\n"
+                f"# {goal_line}\n# Kỳ hạn đợt\n{idea.get('window_start','') or '(chưa đặt)'} → {idea.get('window_end','') or '(chưa đặt)'}\n"
+                f"# Kênh đang dùng\n{cur_channels or '(đề xuất kênh hợp archetype)'}\n"
+                f"# Giọng NÊN\n{vdo or '(theo thương hiệu)'}\n"
+                "# Kho góc đánh liên quan\n" + ("\n".join(f"- {x}" for x in angle_ctx[:16]) or "(dùng ý lớn)")
+                + (f"\n# Chiến lược\n{synth[:1200]}" if synth.strip() else ""))
+        res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=2600)
+        raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
+        posts, ratio = [], ""
+        try:
+            data = _json.loads(raw)
+            ratio = str(data.get("ratio") or "")[:20]
+            for p in (data.get("posts") or []):
+                if not isinstance(p, dict):
+                    continue
+                tier = str(p.get("tier") or "").strip().lower()
+                if tier not in _KI_TIERS:          # lọc tier rác (lỗi funnel cũ: nhãn "TOFU|MOFU")
+                    continue
+                ch = str(p.get("channel") or "").strip()[:60]
+                role = str(p.get("role") or "").strip()[:160]
+                if not (ch and role):              # bỏ post thiếu khoá downstream cần
+                    continue
+                posts.append({"tier": tier, "channel": ch, "role": role,
+                              "note": str(p.get("note") or "").strip()[:160]})
+        except Exception as e:
+            logger.warning("gen_funnel_map_for_idea: parse thất bại: %s", e)
+        # CHỐNG cụt-im-lặng: posts rỗng sau validate → degrade tối thiểu từ messaging pillars
+        if not posts:
+            _ch0 = (cur_channels.split(",")[0].strip()[:60] if cur_channels else "") or "Facebook"
+            for p in ((msg or {}).get("pillars") or [])[:3]:
+                terr = str((p or {}).get("territory") or "").strip()
+                if terr:
+                    posts.append({"tier": "tofu", "channel": _ch0,
+                                  "role": f"Giới thiệu lãnh địa: {terr}", "note": "(degrade — chưa có đề xuất AI)"})
+            if not posts:
+                return {"error": "Chưa dựng được danh sách bài — thử lại."}
+        if not ratio:
+            ratio = ratio_hint or "60/30/10"
+        fmap = {"ratio": ratio, "posts": posts}
+        idea["funnel_map"] = fmap
+        idea["updated_at"] = time.time()
+        extra["key_ideas"] = ideas
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "funnel_map": fmap}
+    except Exception as e:
+        logger.warning("biz.gen_funnel_map_for_idea failed: %s", e)
         return {"error": str(e)}
 
 
