@@ -3759,9 +3759,10 @@ _TAC_SYSTEM = (
             "tệp phụ viết GỌN (mỗi tầng 1 mũi, bỏ đoạn 'lợi thế bền vững').\n"
             "2. Mỗi tệp MỞ ĐẦU bằng **🧠 Insight cốt lõi** (2-3 đoạn SẮC, dám contrarian nếu thị trường đang "
             "làm sai) — viết bằng NGÔN NGỮ FOUNDER, không quăng thuật ngữ trần.\n"
-            "3. Mỗi mũi tactic phải xuống thực thi: tên chiến thuật + góc/insight + **COPY MẪU** (câu quote "
-            "dùng được ngay) + **kênh cụ thể** + **khung thử nghiệm** (cấu trúc test + ngưỡng cut theo chỉ số "
-            "TƯƠNG ĐỐI CTR/ROAS/CVR + thời lượng) + **KPI cần theo dõi**.\n"
+            "3. Mỗi mũi tactic CHỈ định hướng **góc đánh (territory)** + **kênh cụ thể** + **khung thử nghiệm** "
+            "(cấu trúc test + ngưỡng cut theo chỉ số TƯƠNG ĐỐI CTR/ROAS/CVR + thời lượng) + **KPI cần theo dõi**. "
+            "CHỈ định hướng góc đánh/territory/kênh/khung test/KPI — KHÔNG xuống hook/caption/template. "
+            "Downstream TỰ viết hook/caption bám territory.\n"
             "4. Mỗi mũi gắn 1 tag NGẮN dẫn về nước cờ TOWS nó phục vụ, trích mã từ SWOT — vd '(phục vụ SO1)'. "
             "Tag là PHỤ, bỏ vẫn đọc hiểu; TUYỆT ĐỐI KHÔNG dựng lại khối SO/WO/WT làm cấu trúc.\n"
             "5. Tệp ƯU TIÊN có 1 đoạn **📊 Vì sao đối thủ không copy được ngay** (lợi thế bền vững, bám đối thủ thật).\n"
@@ -3775,11 +3776,13 @@ _TAC_SYSTEM = (
             "   Diễn đạt archetype theo cách founder hiểu (vd 'khách của sếp không tự nghĩ tới chuyện mua — phải "
             "khơi nhu cầu trước khi pitch'), KHÔNG nói trần 'archetype demand_gen là…'.\n"
             "7. PHỦ HẾT mọi tệp — TUYỆT ĐỐI KHÔNG cụt. Số tệp lấy đúng từ Synthesis; nếu sắp dài thì RÚT GỌN tệp "
-            "ưu tiên (vẫn giữ copy mẫu + khung test + KPI) để chừa đủ chỗ cho mọi tệp — thà mỗi tệp ngắn còn hơn cụt.\n"
+            "ưu tiên (vẫn giữ góc đánh + khung test + KPI) để chừa đủ chỗ cho mọi tệp — thà mỗi tệp ngắn còn hơn cụt.\n"
             "8. 🔴 KHÔNG ghi số tiền tuyệt đối (ngân sách thật chốt khi lập chiến dịch). KPI nêu ĐO GÌ, KHÔNG chốt target.\n"
-            "8b. 🔴 CỤ THỂ, KHÔNG CHUNG CHUNG (N-08): copy mẫu phải VIẾT ĐƯỢC NGAY (câu thật, hook thật — "
-            "KHÔNG placeholder kiểu '[chèn lợi ích]'); kênh nêu ĐÍCH DANH (tên nền tảng + định dạng, vd "
-            "'Reels 15s', 'bài dài Group FB'); khung test nêu NGƯỠNG so sánh được (vd 'CTR mục A > mục B').\n"
+            "8b. 🔴 CỤ THỂ, KHÔNG CHUNG CHUNG (N-08): kênh nêu ĐÍCH DANH (tên nền tảng + định dạng, vd "
+            "'Reels 15s', 'bài dài Group FB'); khung test nêu NGƯỠNG so sánh được (vd 'CTR mục A > mục B'). "
+            "Mỗi Hướng CÓ THỂ kèm 1 **ví dụ minh hoạ cho góc đánh** (option B). "
+            "Ví dụ BẮT BUỘC DÁN NHÃN: \"ví dụ cho dễ hình dung — KHÔNG phải bản chính thức\". "
+            "Ví dụ KHÔNG khoá downstream; downstream KHÔNG bám vào ví dụ.\n"
             "9. " + _VN_NATURAL_RULE + "Viết TOÀN BỘ bằng TIẾNG VIỆT. MARKDOWN.\n\n"
             "FORMAT mỗi tệp:\n"
             "# [TÊN TỆP — mô tả ngắn] (cách mua: <archetype diễn đạt tự nhiên>)\n"
@@ -3789,8 +3792,128 @@ _TAC_SYSTEM = (
             "## BOFU — Chốt\n### 🎯 Hướng 1 — [Tên] …\n"
             "### 📊 Vì sao đối thủ không copy được _(chỉ tệp ưu tiên)_\n\n"
             "Kết bằng **# BẢNG TỔNG HỢP**: cột Tệp | Tầng | Mũi chính | Phục vụ (TOWS) | Mức đầu tư (Thấp/Trung/Cao — "
-            "định tính, ghi chú số tiền cụ thể chốt khi lập chiến dịch)."
+            "định tính, ghi chú số tiền cụ thể chốt khi lập chiến dịch).\n\n"
+            "CUỐI BÀI, BẮT BUỘC IN RA 1 KHỐI JSON `playbook_struct` DUY NHẤT THEO SCHEMA SAU "
+            "(KHÔNG KÈM VĂN BẢN KHÁC, KHÔNG MARKDOWN FENCE, KHÔNG PRETTY-PRINT — IN DẠNG NÉN 1 DÒNG COMPACT):\n"
+            "🔴 KHỐI JSON LÀ BẮT BUỘC — nếu sắp hết token, RÚT GỌN markdown, TUYỆT ĐỐI KHÔNG cắt/bỏ khối JSON (nằm cuối "
+            "output, chết đầu tiên khi cạn token).\n"
+            "🔴 `territory` = mệnh đề MÔ TẢ lãnh địa/góc nội dung (nói VỀ nội dung), KHÔNG phải câu nói VỚI khách hàng "
+            "(hook). Downstream BÁM vào `territory`, KHÔNG bám hook/copy mẫu.\n"
+            "🔴 MỖI HƯỚNG BẮT BUỘC CÓ TRƯỜNG `example` (có thể rỗng). Nếu có ví dụ, BẮT BUỘC gán nhãn: "
+            "\"ví dụ cho dễ hình dung — KHÔNG phải bản chính thức\" (option B).\n"
+            "🔴 COMPLIANCE: mỗi mũi phải HỢP chính sách nền tảng (Meta/TikTok/Google…) + pháp lý ngành nhạy cảm "
+            "(y tế/mỹ phẩm/tài chính/thực phẩm chức năng). Seeding = khách THẬT hoặc CÓ disclose — TUYỆT ĐỐI không "
+            "dựng review giả / tài khoản ảo. Ngành nhạy cảm: cẩn trọng ảnh before-after + không hứa kết quả tuyệt đối.\n"
+            "{\n"
+            "  \"segments\": [\n"
+            "    {\n"
+            "      \"name\": \"\",\n"
+            "      \"archetype\": \"\",\n"
+            "      \"is_wedge\": true,\n"
+            "      \"insight\": \"\",\n"
+            "      \"tiers\": {\n"
+            "        \"tofu\": [\n"
+            "          {\n"
+            "            \"huong\": \"\",\n"
+            "            \"territory\": \"\",\n"
+            "            \"tows\": \"SO1\",\n"
+            "            \"channels\": [\"Reels 15s\"],\n"
+            "            \"test\": \"\",\n"
+            "            \"cut\": \"sau 7 ngày, biến thể thắng ≥1.5× CTR biến thể thua\",\n"
+            "            \"kpis\": [\"lượt xem\", \"xem hết\", \"share\"],\n"
+            "            \"example\": \"ví dụ cho dễ hình dung — KHÔNG phải bản chính thức: [nội dung ví dụ]\"\n"
+            "          }\n"
+            "        ],\n"
+            "        \"mofu\": [],\n"
+            "        \"bofu\": []\n"
+            "      }\n"
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "- `segments`: danh sách tệp khách (lấy từ synthesis). Mỗi tệp có `name`, `archetype`, `is_wedge`, `insight`.\n"
+            "- `insight`: 1-2 câu NÉN tinh thần tệp từ 🧠 Insight cốt lõi — phần HỒN của tệp (nỗi đau/khát khao/ngữ cảnh mua). Downstream bám để bài ĐÚNG TINH THẦN, không chỉ đúng góc.\n"
+            "- `tiers.tofu/mofu/bofu`: mảng Hướng. Mỗi Hướng BẮT BUỘC có `huong`, `territory`, `tows`, `channels[]`, `test`, `cut`, `kpis[]`, `example` (có thể rỗng, nhưng BẮT BUỘC có trường này).\n"
+            "- `territory`: lãnh địa/góc nội dung 1 câu — thứ downstream BÁM.\n"
+            "- `channels`: kênh + định dạng ĐÍCH DANH.\n"
+            "- `test`: cấu trúc test (vd '3 biến thể góc, cùng thân bài').\n"
+            "- `cut`: ngưỡng đọc tín hiệu go/kill — ƯU TIÊN dạng SO SÁNH TƯƠNG ĐỐI (biến thể thắng vs thua, so median chính kênh mình). Nếu buộc dùng SỐ TUYỆT ĐỐI → BẮT BUỘC dán nhãn \"ngưỡng giả định — chỉnh theo baseline thật\". KHÔNG bịa số ngành.\n"
+            "- `kpis`: list[str] chỉ số cần theo dõi.\n"
+            "- `example`: 1 VÍ DỤ minh hoạ cho góc đánh — KHÔNG phải khoá downstream bám; có thể rỗng string. "
+            "NẾU CÓ NỘI DUNG → BẮT BUỘC BẮT ĐẦU BẰNG: \"ví dụ cho dễ hình dung — KHÔNG phải bản chính thức: \"."
         )
+
+
+def _extract_trailing_json_object(text: str):
+    """T3: tách khối JSON `playbook_struct` ở CUỐI bài markdown bằng quét CÂN BẰNG NGOẶC
+    (string-aware — bỏ qua '{'/'}' nằm trong chuỗi). Trả (json_str, start, end) hoặc None.
+    Bền hơn regex: model lỡ thêm chữ/dấu sau '}' cũng vẫn tách được khối ôm `"segments"`."""
+    if not text:
+        return None
+    starts = [i for i, ch in enumerate(text) if ch == "{"]
+    for start in reversed(starts):          # từ phải sang: object root (ôm "segments") gặp trước các '{' thân bài
+        depth = 0
+        in_str = False
+        esc = False
+        end = None
+        for j in range(start, len(text)):
+            ch = text[j]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = j
+                    break
+        if end is not None:
+            candidate = text[start:end + 1]
+            if '"segments"' in candidate:
+                return candidate, start, end + 1
+    return None
+
+
+_PB_TIER_KEYS = ("tofu", "mofu", "bofu")
+_PB_HUONG_REQ = ("huong", "territory", "channels", "cut", "kpis")
+
+
+def _validate_playbook_struct(d) -> bool:
+    """T3: validate 2 mức — NGHIÊM với segment wedge (đủ 3 tầng, mỗi Hướng đủ khoá downstream cần),
+    LỎNG với tệp phụ (thiếu tầng/khoá vẫn giữ, không vứt cả struct). False = bỏ struct (degrade)."""
+    if not isinstance(d, dict):
+        return False
+    segs = d.get("segments")
+    if not isinstance(segs, list) or not segs:
+        return False
+    for s in segs:
+        if not isinstance(s, dict) or not isinstance(s.get("tiers"), dict):
+            return False
+    for s in segs:
+        if not s.get("is_wedge"):
+            continue                        # tệp phụ: LỎNG — không ép
+        tiers = s.get("tiers") or {}
+        for tk in _PB_TIER_KEYS:
+            arr = tiers.get(tk)
+            if not isinstance(arr, list) or not arr:
+                return False
+            for h in arr:
+                if not isinstance(h, dict):
+                    return False
+                for rk in _PB_HUONG_REQ:
+                    v = h.get(rk)
+                    if v is None or (isinstance(v, (str, list)) and len(v) == 0):
+                        return False
+    return True
+
+
 async def _gen_playbook(uid: int, synthesis: str, progress=None) -> dict:
     """N-07b: sinh Tactical Playbook từ synthesis + research (tách khỏi strategize_web để REGEN lại
     được khi synthesis đổi). Dùng _TAC_SYSTEM. Lưu skill_run + fingerprint synthesis đã dựa vào."""
@@ -3847,15 +3970,51 @@ async def _gen_playbook(uid: int, synthesis: str, progress=None) -> dict:
         f"# Customer Insight (hiểu tệp + insight)\n{(research.get('customer_insight') or '(chưa có)')[:1800]}\n\n"
         f"# Đối thủ (cho đoạn 'không copy được')\n{(research.get('competitor') or '(chưa có)')[:1500]}"
     )
-    tac_res = await router_call(task_type=TaskType.OPS_BRIEF, system=_TAC_SYSTEM, user=tac_user, max_tokens=4000)
-    tactical = _strip_preamble((tac_res or {}).get("output", "").strip())
-    if not tactical:
+    # max_tokens rộng (10000): playbook phủ mọi tệp × 3 tầng RỒI mới in khối JSON ở CUỐI — trần hẹp
+    # cắt đúng JSON (thứ chết đầu tiên khi cạn token). Prompt vẫn dặn rút gọn markdown để không phình.
+    tac_res = await router_call(task_type=TaskType.OPS_BRIEF, system=_TAC_SYSTEM, user=tac_user, max_tokens=10000)
+    tactical_raw = _strip_preamble((tac_res or {}).get("output", "").strip())
+    if not tactical_raw:
         logger.warning("_gen_playbook: tactical rỗng (uid=%s)", uid)
         return {"error": "Playbook trống — thử lại."}
+
+    # ── T2/T3: tách khối JSON `playbook_struct` ở cuối bài. LÀM SẠCH MARKDOWN ≠ VALIDATE:
+    # strip khối JSON-đuôi khỏi markdown TRƯỚC khi lưu (kể cả khi parse fail) — user KHÔNG bao giờ
+    # thấy JSON thô trên UI. Parse từ raw; struct chỉ lưu khi validate 2 mức đạt.
+    playbook_struct = None
+    tactical = tactical_raw
+    _ex = _extract_trailing_json_object(tactical_raw)
+    if _ex:
+        raw_json, _js_start, _js_end = _ex
+        # markdown sạch = phần trước khối JSON, bỏ nốt fence ``` / ```json còn sót ở đuôi (dù parse fail)
+        tactical = re.sub(r"\s*`{3,}\s*json?\s*$", "", tactical_raw[:_js_start],
+                          flags=re.IGNORECASE).rstrip()
+        try:
+            import json as _json
+            _cand = _json.loads(raw_json)
+            if _validate_playbook_struct(_cand):
+                playbook_struct = _cand
+            else:
+                logger.warning("_gen_playbook: playbook_struct không đạt validate (wedge thiếu tầng/khoá), bỏ qua")
+        except Exception as e:
+            logger.warning("_gen_playbook: parse playbook_struct thất bại: %s", e)
+    else:
+        logger.warning("_gen_playbook: không tìm thấy khối JSON playbook_struct ở cuối bài (uid=%s)", uid)
+
     tac_run = await skill_runs.insert_skill_run(uid, "tactical_playbook", tactical, model_used="web-strategize")
+
     # N-07b: ghi synthesis run id mà playbook này bám → FE so lệch để hiện badge "cập nhật?".
     syn = await skill_runs.get_latest_skill_run(uid, "synthesis")
-    extra["playbook_synth_id"] = str((syn or {}).get("id") or "")
+    synth_id = str((syn or {}).get("id") or "")
+    extra["playbook_synth_id"] = synth_id
+    if playbook_struct is not None:
+        # Lưu kèm version để D6 sau này truy vết cut/kpis theo version
+        extra["playbook_struct"] = {
+            "version": (tac_run or {}).get("version"),
+            "synthesis_id": synth_id,
+            "struct": playbook_struct,
+            "updated_at": time.time(),
+        }
     await profiles.upsert_profile(uid, intake_extra=extra)
     return {"ok": True, "tactical_run_id": (tac_run or {}).get("id")}
 
