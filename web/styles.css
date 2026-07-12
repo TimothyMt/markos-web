@@ -1226,42 +1226,59 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
 @media (max-width:760px) { .spine-band .grid-2, .spine-band .grid-3 { grid-template-columns:1fr; } }
 
 /* ════ Ý lớn theo đợt (CHAIN-V2 T4+T5) — key idea → funnel map ════ */
-.ki-sugg .card-head { display:flex; align-items:center; justify-content:space-between; }
-.ki-sugg-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; margin-top:12px; }
-.ki-sugg-card { border:1px solid var(--stroke); border-radius:12px; padding:12px; background:var(--panel-2); display:flex; flex-direction:column; gap:6px; }
-.ki-sugg-t { font-weight:700; font-size:13.5px; }
-.ki-sugg-a { font-size:12px; line-height:1.4; }
-.ki-sugg-card .chip-btn { margin-top:auto; align-self:flex-start; }
-.ki-meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-.ki-ref { font-size:11px; color:var(--muted); }
-.ki-form .ki-form-row { display:flex; flex-wrap:wrap; gap:12px; margin:4px 0 12px; }
-.ki-fld { display:flex; flex-direction:column; gap:4px; }
-.ki-fld > span { font-size:11.5px; color:var(--txt-2); font-weight:600; }
-.occ-inp.sm { padding:6px 10px; font-size:12.5px; max-width:180px; }
-.ki-form-act { display:flex; gap:8px; align-items:center; }
+/* Ô soạn ý lớn — 1 nơi tạo duy nhất (gộp Max gợi ý + tự viết) */
+.ki-composer { display:flex; flex-direction:column; gap:10px; }
+.ki-composer .ki-c-title, .ki-composer .ki-c-angle {
+  width:100%; background:var(--panel-2); border:1px solid var(--stroke); color:var(--txt);
+  border-radius:10px; padding:10px 12px; font-size:14px; }
+.ki-composer .ki-c-title { font-weight:600; }
+.ki-composer .ki-c-title:focus, .ki-composer .ki-c-angle:focus { outline:none; border-color:var(--primary); }
+.ki-c-row { display:flex; flex-wrap:wrap; gap:8px; }
+.ki-c-row .occ-inp { flex:1 1 140px; min-width:120px; }
+.ki-c-suggest { display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-height:20px; }
+.ki-chips-lbl { font-size:12px; color:var(--muted); }
+.ki-chip { background:var(--panel-2); border:1px dashed var(--stroke-2); color:var(--txt-2);
+  border-radius:999px; padding:5px 12px; font-size:12.5px; cursor:pointer; transition:.15s; }
+.ki-chip:hover { border-style:solid; border-color:var(--primary); color:var(--primary); }
+.ki-linky { background:none; border:none; color:var(--primary); cursor:pointer; font-size:13px; padding:2px 0; }
+.ki-linky:hover { text-decoration:underline; }
+.ki-c-act { display:flex; gap:8px; }
+
+/* Thẻ đợt — gọn: 1 hàng tiêu đề + badge, 1 hàng meta, phễu */
 .ki-card { display:flex; flex-direction:column; gap:8px; }
 .ki-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-.ki-card-title { font-size:15px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-.ki-angle { font-size:13px; line-height:1.45; }
+.ki-card-title { font-size:15.5px; font-weight:600; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.ki-angle { font-size:13px; color:var(--txt-2); line-height:1.45; }
 .ki-sub { font-size:12px; }
-.ki-goal { font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; border:1px solid var(--stroke-2); }
+.ki-goal { font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; border:1px solid var(--stroke-2); }
 .ki-goal.g-awareness { color:var(--cyan); border-color:color-mix(in srgb,var(--cyan) 45%,var(--stroke)); }
 .ki-goal.g-consideration { color:var(--amber); border-color:color-mix(in srgb,var(--amber) 45%,var(--stroke)); }
 .ki-goal.g-conversion { color:var(--green); border-color:color-mix(in srgb,var(--green) 45%,var(--stroke)); }
 .ki-goal.g-retention { color:var(--primary-2); border-color:color-mix(in srgb,var(--primary-2) 50%,var(--stroke)); }
-.ki-goal.g-none { color:var(--muted); }
-.ki-status { font-size:11px; padding:2px 9px; border-radius:999px; background:var(--panel-2); color:var(--txt-2); border:1px solid var(--stroke); }
+.ki-status { font-size:11px; padding:2px 9px; border-radius:999px; background:var(--panel-2); color:var(--muted); border:1px solid var(--stroke); }
 .ki-status.s-active { color:var(--green); border-color:color-mix(in srgb,var(--green) 40%,var(--stroke)); }
-.ki-status.s-done { color:var(--muted); }
-.ki-editor { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:12px; border:1px dashed var(--stroke-2); border-radius:12px; background:var(--panel-2); }
-.ki-funnel-empty { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:8px 0 2px; }
+
+/* Editor inline (progressive) */
+.ki-editor { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; padding:12px;
+  border:1px dashed var(--stroke-2); border-radius:10px; background:var(--panel-2); }
+.ki-fld { display:flex; flex-direction:column; gap:4px; }
+.ki-fld > span { font-size:11px; color:var(--muted); font-weight:600; }
+.occ-inp.sm { padding:6px 10px; font-size:12.5px; max-width:170px; }
+
+/* Nút dựng + phễu */
+.ki-build { align-self:flex-start; }
 .ki-funnel { border-top:1px solid var(--stroke); padding-top:10px; margin-top:2px; }
-.ki-funnel-head { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
-.ki-ratio { font-size:12.5px; font-weight:700; color:var(--txt); }
-.ki-tier { margin-bottom:10px; }
-.ki-tier-h { font-size:11.5px; font-weight:700; letter-spacing:.3px; color:var(--txt-2); margin-bottom:6px; }
-.ki-post { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; padding:6px 10px; border:1px solid var(--stroke); border-radius:9px; background:var(--panel-2); margin-bottom:5px; }
-.ki-post-ch { font-size:11.5px; font-weight:700; color:var(--primary); flex:0 0 auto; }
+.ki-funnel-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.ki-ratio { font-size:12px; font-weight:700; color:var(--txt); background:var(--panel-2);
+  border:1px solid var(--stroke); border-radius:999px; padding:2px 10px; }
+.ki-regen { margin-left:auto; }
+.ki-tier { margin-bottom:9px; }
+.ki-tier-h { font-size:11.5px; color:var(--txt-2); margin-bottom:5px; }
+.ki-tier-h b { color:var(--muted); letter-spacing:.4px; font-size:10.5px; }
+.ki-post { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; padding:6px 10px;
+  border:1px solid var(--stroke); border-radius:8px; background:var(--panel-2); margin-bottom:4px; }
+.ki-post-ch { font-size:11px; font-weight:700; color:var(--primary); flex:0 0 auto; }
 .ki-post-role { font-size:12.5px; }
 .ki-post-note { font-size:11px; }
-.ki-funnel-foot { font-size:11.5px; margin-top:6px; }
+.ki-foot { margin-top:4px; font-size:12.5px; }
+.ki-foot a:hover { color:var(--primary); }
