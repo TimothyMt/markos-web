@@ -2811,7 +2811,11 @@ _MSG_ADAPT_CORE = (
     "\n\n════════ BẢN WEB — CHỈ DỰNG MÁI (CỐT LÕI) ════════\n"
     "Giữ tinh thần Messaging House (refine-không-bịa · truy vết USP/SAVE · tiếng Việt tự nhiên). "
     "Bước này CHỈ chốt 1 thông điệp CỐT LÕI (định vị ra tiếng khách) + vài tagline — CHƯA dựng trụ.\n"
-    'Xuất JSON DUY NHẤT: {"core":"<1 câu cốt lõi, ≤14 từ, điều bao trùm khách phải nhớ>",'
+    "🎯 CỐT LÕI = 1 Ý, có THẾ ĐỐI LẬP (nói rõ mình chống lại / khác điều gì — đừng trung tính vô thưởng "
+    "vô phạt). Chọn 'kẻ thù' 1 trong 4 dạng theo ngành + khẩu vị founder: (a) cách làm phổ biến của ngành · "
+    "(b) thói quen cũ của khách · (c) một lầm tưởng phổ biến · (d) chính vấn đề khách đang gặp. "
+    "Ngành nhạy cảm / luxury → ưu tiên (b)(c)(d), KHÔNG bắt buộc đối đầu đối thủ trực diện.\n"
+    'Xuất JSON DUY NHẤT: {"core":"<1 câu cốt lõi, ≤14 từ, có thế đối lập, điều bao trùm khách phải nhớ>",'
     '"taglines":["<2-3 tagline ≤8 từ, mài từ USP>"]}\n'
     "🔴 KHÔNG bịa. Cốt lõi truy vết được về USP/Chiến lược."
 )
@@ -2820,7 +2824,18 @@ _MSG_ADAPT_PILLARS = (
     "\n\n════════ BẢN WEB — DỰNG TRỤ THEO CỐT LÕI ĐÃ CHỐT ════════\n"
     "CỐT LÕI đã chốt (trong user msg) là MÁI — mọi trụ phải CHỐNG ĐỠ nó, KHÔNG đổi hướng cốt lõi.\n"
     "Dựng N TRỤ thông điệp (LÃNH ĐỊA nội dung thương hiệu đóng cọc để nói — rộng: có trụ DẠY, KỂ/cảm "
-    "xúc, CHỨNG MINH, GẮN KẾT; KHÔNG bó ở proof). Số trụ LINH HOẠT 2–5 theo khác biệt THẬT, không ép 3. "
+    "xúc, CHỨNG MINH, GẮN KẾT; KHÔNG bó ở proof). Số trụ LINH HOẠT 2–5 theo khác biệt THẬT, không ép 3.\n"
+    "🚪 MỖI TRỤ PHẢI QUA 2 CỬA:\n"
+    "  • Cửa 1 (bằng chứng-24h): tự hỏi 'Khách bảo chứng minh đi — mình đưa được CÁI GÌ cho họ XEM trong "
+    "24h?'. Có thứ đưa được → điền vào ô proof.\n"
+    "  • Cửa 2 (đẻ ≥10 bài): lãnh địa này viết đều mỗi tuần 2–3 tháng KHÔNG cạn ý (≥10 bài không lặp) mới "
+    "là TRỤ. Nếu rõ ràng cạn (nói 1–2 bài là hết) → đó là HYGIENE FACT (giá, vị trí, 'máy mới'…) → KHÔNG "
+    "lên trụ, chỉ là chi tiết rắc vào bài. (Nghi ngờ thì GIỮ — chỉ gạt xuống fact khi trụ RÕ RÀNG cạn, "
+    "đừng loại oan trụ tốt.)\n"
+    "🔎 TỰ ĐÀO PROOF từ context (synthesis / tactical / customer insight / USP / đặt cược): điền ô proof khi "
+    "tìm thấy bằng chứng THẬT. Ưu tiên theo 5 HẠNG (mạnh→yếu): số vận hành > giấy tờ/chứng nhận > bằng chứng "
+    "từ khách > quy trình nhìn thấy được > cam kết chịu rủi ro. Không thấy bằng chứng thật → để proof \"\" "
+    "(trụ RỖNG proof VẪN hợp lệ, ra bình thường, viết giọng quan điểm — proof rỗng KHÔNG phải lý do loại trụ).\n"
     "Mỗi trụ: icon (1 emoji) · territory (≤6 từ) · angle (góc nói/quan điểm, 1 câu) · proof (CHỈ khi có "
     "thật, không có để \"\"). Kèm bộ GIỌNG (do/don't).\n"
     'Xuất JSON DUY NHẤT: {"pillars":[{"icon":"","territory":"","angle":"","proof":""}],'
@@ -2864,9 +2879,21 @@ def _messaging_anchor_from(extra) -> str:
     lines = []
     if m.get("core"):
         lines.append(f"Thông điệp cốt lõi: {m['core']}")
-    ps = " · ".join(p.get("territory", "") for p in (m.get("pillars") or [])[:5] if p.get("territory"))
-    if ps:
-        lines.append(f"Trụ thông điệp (lãnh địa nói): {ps}")
+    # B1①: mỗi trụ nhả kèm góc nói + trạng thái proof → máy viết VẶN GIỌNG theo bằng chứng.
+    prows = []
+    for p in (m.get("pillars") or [])[:5]:
+        terr = (p.get("territory") or "").strip()
+        if not terr:
+            continue
+        ang = (p.get("angle") or "").strip()
+        prf = (p.get("proof") or "").strip()
+        head = f"• {terr}" + (f" — {ang}" if ang else "")
+        if prf:
+            prows.append(f"{head}\n  [CÓ BẰNG CHỨNG: {prf}] → giọng KHẲNG ĐỊNH, được lồng bằng chứng này vào bài.")
+        else:
+            prows.append(f"{head}\n  [CHƯA CÓ bằng chứng] → giọng QUAN ĐIỂM/kể chuyện; CẤM claim/khẳng định điều chưa chứng minh.")
+    if prows:
+        lines.append("Trụ thông điệp (lãnh địa + góc nói + cách vặn giọng theo bằng chứng):\n" + "\n".join(prows))
     if m.get("focus"):
         lines.append(f"ĐANG ĐẨY trọng tâm kỳ này: {m['focus']} — ưu tiên nghiêng góc/lãnh địa này.")
     v = m.get("voice") or {}
@@ -2876,7 +2903,8 @@ def _messaging_anchor_from(extra) -> str:
         lines.append("Giọng TRÁNH: " + "; ".join(v["dont"][:4]))
     if not lines:
         return ""
-    return ("\n\n# THÔNG ĐIỆP (bám NGẦM — mọi bài cùng 1 cốt lõi/giọng; ƯU TIÊN hơn định vị thô)\n"
+    return ("\n\n# THÔNG ĐIỆP (bám NGẦM — mọi bài cùng 1 cốt lõi/giọng, VẶN GIỌNG theo bằng chứng từng trụ; "
+            "ƯU TIÊN hơn định vị thô)\n"
             + "\n".join(lines))
 
 
