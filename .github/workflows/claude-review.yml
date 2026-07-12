@@ -1,0 +1,71 @@
+name: Claude auto-review (CMO)
+
+# Auto-review MỖI khi push vào PR (mở/đồng bộ) hoặc khi gọi @claude trong comment.
+# Cách vận hành: mở 1 draft PR sống lâu cho phase (feature/ai-cmo-core -> staging);
+# mỗi function-task Cline push lên -> action này review vào đúng PR đó.
+#
+# CẦN 1 LẦN SET TAY:
+#   1. Repo Settings > Secrets and variables > Actions > New secret:
+#        ANTHROPIC_API_KEY = <khoá Anthropic>
+#   2. Settings > Actions > General > Workflow permissions: Read and write.
+#   3. Tạo draft PR: gh pr create --draft --base staging --head feature/ai-cmo-core \
+#        --title "CMO phase P0" --body "Auto-review surface"
+#
+# Lưu ý: đây là 1 Claude instance RIÊNG trong CI, KHÔNG có context hội thoại orchestrator.
+# Nó chỉ biết những gì trong repo -> phải đọc docs/cmo/*. Nó là lớp gác cửa đầu tiên;
+# quyết định sản phẩm (keep/cut trường) vẫn ở cổng người (Human + Orchestrator).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  review:
+    # Chạy khi: PR event, HOẶC comment chứa "@claude" trên PR.
+    if: >
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Action chính thức của Anthropic. Nếu tên input đổi theo bản mới,
+      # đối chiếu README: https://github.com/anthropics/claude-code-action
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Bạn là lớp gác cửa auto-review cho dự án AI CMO (Max). Review diff của PR này.
+
+            ĐỌC CHUẨN TRONG REPO trước khi phán (đây là source of truth, KHÔNG tự chế):
+            - docs/cmo/00-PLAN.md      (6 nguyên tắc thiết kế + ràng buộc)
+            - docs/cmo/WORKFLOW.md     (đơn vị việc = 1 function; self-verify; ranh giới vai)
+            - docs/cmo/EVAL.md         (standard đánh giá trường: 3 test · 5 lớp · 3 archetype)
+            - CLAUDE.md                (ràng buộc bất di bất dịch)
+
+            Kiểm theo checklist, nêu vi phạm cụ thể (file:dòng), ngắn gọn, tiếng Việt:
+            1. KHÔNG đổi schema DB — dữ liệu mới phải nằm trong intake_extra.
+            2. FE 1 nguồn duy nhất — sửa thẳng web/app.js · styles.css · index.html;
+               KHÔNG còn dashboard-standalone.html để mirror (khai tử D-047).
+            3. Tái dùng prompt trong agents/ (lazy import), không tự chế prompt mỏng.
+            4. Không bịa số trong output AI.
+            5. Đúng phạm vi 1 function của brief, không mở rộng ngoài brief.
+            6. Nếu PR thêm/bỏ TRƯỜNG dữ liệu: có ghi lý do theo EVAL (3 test) chưa? Nếu chưa,
+               gắn cờ để cổng người quyết keep/cut — ĐỪNG tự chốt thay con người.
+
+            Kết luận: PASS / cần sửa (liệt kê). Với điểm cần con người quyết, ghi rõ
+            "→ để cổng Human+Orchestrator", không tự quyết.
+          claude_args: "--model claude-opus-4-8"

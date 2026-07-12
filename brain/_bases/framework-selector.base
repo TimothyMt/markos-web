@@ -1,0 +1,26 @@
+filters:
+  and:
+    - 'type == "framework"'
+
+views:
+  - type: table
+    name: All frameworks
+    order:
+      - title
+      - goal_type
+      - applies_to
+      - stage
+      - updated
+
+  - type: table
+    name: Route - health-beauty x launch
+    filters:
+      and:
+        - 'applies_to.containsAny("health-beauty", "all")'
+        - 'stage.contains("launch")'
+    order:
+      - title
+      - goal_type
+      - applies_to
+      - stage
+      - updated

@@ -1,5 +1,9 @@
-# HÀNH TRÌNH SẢN PHẨM Max — theo 4 tầng Content Marketing
+# HÀNH TRÌNH SẢN PHẨM Max — 4 tầng (triển khai D4 Content + lớp Nghiên cứu)
 
+> ⚠️ **Đây KHÔNG phải khung tổng.** Khung chủ chính thức = **6 miền CMO** (`docs/cmo/00-PLAN.md`, D-049⑥).
+> File này mô tả **cách triển khai D4 Content + lớp Nghiên cứu-grounding** nuôi Strategy Spine — tức "4 tầng
+> nội dung" (~D4 trải dài + chạm D6), không phủ toàn bộ 6 miền.
+>
 > Khung: **Content = HỆ THỐNG sống** (Tomorrow Marketers). 4 tầng:
 > Psychology → Strategy → Creation → Distribution — và Distribution **vòng lại** nuôi 3 tầng đầu.
 > Trạng thái: ✅ đã có · ⚠️ một phần / thiếu · ✗ chưa.

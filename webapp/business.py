@@ -27,6 +27,65 @@ def _short_uuid() -> str:
     return uuid.uuid4().hex[:8]
 
 
+def _parse_vn_number(text: str):
+    """
+    Parse số theo locale Việt Nam: ',' = thập phân, '.' = phân nhóm nghìn.
+    - Bỏ ký tự không phải [0-9.,-]; lấy cụm số đầu.
+    - Có cả '.' và ',': dấu cuối là thập phân, dấu trước là phân nhóm.
+    - Chỉ '.' → phân nhóm nghìn, bỏ hết (1.500→1500, 1.500.000→1500000).
+    - Chỉ ',' → thập phân (1,5→1.5).
+    - Fail → None; số thật (int/float) → float.
+    """
+    if text is None:
+        return None
+    if isinstance(text, (int, float)):
+        return float(text)
+    if not isinstance(text, str):
+        return None
+    s = text.strip()
+    if not s:
+        return None
+    # Bỏ ký tự không phải số/./,/-
+    cleaned = re.sub(r'[^0-9.,-]', '', s)
+    if not cleaned:
+        return None
+    # Lấy cụm số đầu (có thể có dấu - ở đầu)
+    m = re.match(r'-?[0-9][0-9.,]*', cleaned)
+    if not m:
+        return None
+    num = m.group(0)
+    has_dot = '.' in num
+    has_comma = ',' in num
+    if has_dot and has_comma:
+        # Dấu cuối là thập phân
+        last_dot = num.rfind('.')
+        last_comma = num.rfind(',')
+        if last_comma > last_dot:
+            # comma là thập phân → bỏ dot (phân nhóm), đổi comma → .
+            num = num.replace('.', '').replace(',', '.')
+        else:
+            # dot là thập phân → bỏ comma (phân nhóm)
+            num = num.replace(',', '')
+    elif has_dot:
+        # Chỉ có dot → phân nhóm nghìn, bỏ hết
+        num = num.replace('.', '')
+    elif has_comma:
+        # Chỉ có comma → thập phân
+        num = num.replace(',', '.')
+    try:
+        return float(num)
+    except Exception:
+        return None
+
+
+def _validate_stage(stage: str) -> str:
+    """Validate stage enum: chỉ nhận {'launch','growth','scale'} (lower+strip); khác/rỗng → ''."""
+    if not stage:
+        return ""
+    s = str(stage).strip().lower()
+    return s if s in ("launch", "growth", "scale") else ""
+
+
 # M-E2 (B): bộ góc khai thác (value lens) — KHỚP nhãn FE để slot pre-select đúng option.
 _VALUE_LENSES = ["Nỗi đau/Vấn đề", "Kết quả/Lợi ích", "Bằng chứng xã hội", "Khát vọng/Định vị",
                  "Xử lý phản đối", "Cơ chế/USP", "Khẩn cấp", "Uy tín chuyên môn"]
@@ -221,8 +280,9 @@ async def biz_data(user_id=None) -> dict:
         _ier = (out.get("bizProfile") or {}).get("intake_extra") or {}
         out["bizContentRhythm"] = content_rhythm_view(_ier.get("content_rhythm") if isinstance(_ier, dict) else None)
         out["bizMessaging"] = (_ier.get("messaging") if isinstance(_ier, dict) else None) or {}
+        out["bizSpine"] = (_ier.get("spine") if isinstance(_ier, dict) else None) or {}
     except Exception:
-        out["bizContentRhythm"] = content_rhythm_view(None); out["bizMessaging"] = {}
+        out["bizContentRhythm"] = content_rhythm_view(None); out["bizMessaging"] = {}; out["bizSpine"] = {}
     try:
         _ie2 = (out.get("bizProfile") or {}).get("intake_extra") or {}
         out["bizCampaignPortfolio"] = (_ie2.get("campaign_portfolio") if isinstance(_ie2, dict) else []) or []
@@ -377,6 +437,109 @@ async def save_pillars(user_id=None, pillars=None) -> dict:
         return {"ok": True, "locked": len(extra.get("pillars_locked") or []), "profile": row}
     except Exception as e:
         logger.warning("biz.save_pillars failed: %s", e)
+        return {"error": str(e)}
+
+
+async def save_spine(user_id=None, spine: dict = None) -> dict:
+    """P0.1 F1: lưu Strategy Spine (xương sống chiến lược) vào intake_extra.spine.
+
+    Cấu trúc:
+    - stage: "launch"|"growth"|"scale"|"" (enum khớp slug brain/stages/)
+    - objective: {outcome, metric, target:{value:number|null, unit, period}, baseline:{value:number|null, unit, period}, deadline}
+    - audience: {who, pain, where}
+    - positioning: {alternative, differentiator, statement}  (OBJECT — không phải chuỗi)
+    - constraint: {people, budget, capacity}
+
+    Mọi field cho phép trống (chuỗi rỗng / value: null). value ép số locale VN.
+    Strip text + cắt độ dài hợp lý. Trả {"ok": True}.
+    """
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        from storage.v2 import profiles
+        cur = await profiles.get_profile(uid) or {}
+        extra = cur.get("intake_extra") or {}
+        if not isinstance(extra, dict):
+            extra = {}
+
+        if spine and isinstance(spine, dict):
+            # Helper: strip + cắt độ dài
+            def _s(val, maxlen=500):
+                if val is None:
+                    return ""
+                s = str(val).strip()
+                return s[:maxlen]
+
+            def _s_short(val, maxlen=200):
+                if val is None:
+                    return ""
+                s = str(val).strip()
+                return s[:maxlen]
+
+            # stage: validate enum
+            stage = _validate_stage(spine.get("stage"))
+
+            # objective
+            obj_in = spine.get("objective") if isinstance(spine.get("objective"), dict) else {}
+            objective = {
+                "outcome":  _s_short(obj_in.get("outcome")),
+                "metric":   _s_short(obj_in.get("metric")),
+                "target":   {
+                    "value":  _parse_vn_number(obj_in.get("target", {}).get("value")) if isinstance(obj_in.get("target"), dict) else None,
+                    "unit":   _s_short(obj_in.get("target", {}).get("unit")) if isinstance(obj_in.get("target"), dict) else "",
+                    "period": _s_short(obj_in.get("target", {}).get("period")) if isinstance(obj_in.get("target"), dict) else "",
+                },
+                "baseline": {
+                    "value":  _parse_vn_number(obj_in.get("baseline", {}).get("value")) if isinstance(obj_in.get("baseline"), dict) else None,
+                    "unit":   _s_short(obj_in.get("baseline", {}).get("unit")) if isinstance(obj_in.get("baseline"), dict) else "",
+                    "period": _s_short(obj_in.get("baseline", {}).get("period")) if isinstance(obj_in.get("baseline"), dict) else "",
+                },
+                "deadline": _s_short(obj_in.get("deadline")),
+            }
+
+            # audience
+            aud_in = spine.get("audience") if isinstance(spine.get("audience"), dict) else {}
+            audience = {
+                "who":   _s(aud_in.get("who")),
+                "pain":  _s(aud_in.get("pain")),
+                "where": _s(aud_in.get("where")),
+            }
+
+            # positioning — OBJECT (không phải chuỗi)
+            pos_in = spine.get("positioning") if isinstance(spine.get("positioning"), dict) else {}
+            positioning = {
+                "alternative":   _s(pos_in.get("alternative")),
+                "differentiator": _s(pos_in.get("differentiator")),
+                "statement":     _s(pos_in.get("statement")),
+            }
+
+            # constraint
+            con_in = spine.get("constraint") if isinstance(spine.get("constraint"), dict) else {}
+            constraint = {
+                "people":   _s(con_in.get("people")),
+                "budget":   _s(con_in.get("budget")),
+                "capacity": _s(con_in.get("capacity")),
+            }
+
+            extra["spine"] = {
+                "stage": stage,
+                "objective": objective,
+                "audience": audience,
+                "positioning": positioning,
+                "constraint": constraint,
+            }
+        else:
+            # spine là None hoặc không phải dict → xoá spine
+            extra.pop("spine", None)
+
+        row = await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "profile": row}
+    except Exception as e:
+        logger.warning("biz.save_spine failed: %s", e)
         return {"error": str(e)}
 
 
@@ -637,6 +800,76 @@ def _strip_preamble(text: str) -> str:
     return text.strip()
 
 
+# ════ R-1: soát tất định output research TRƯỚC khi lưu (N-03b + N-15) ════
+# Chặn ở ĐẦU RA bằng code — không phụ thuộc LLM có nghe guard hay không.
+# 5 skill research thuần (swot ĐƯỢC phép Cơ hội/Thách thức + TOWS — regex dưới đủ hẹp để KHÔNG đụng).
+_RESEARCH_SKILLS = {"market_research", "competitor", "customer_insight", "psychology_pricing", "swot"}
+
+# Heading báo hiệu LỘ TRÌNH/ROADMAP theo thời gian — thuộc Synthesis T4/Playbook T5, KHÔNG thuộc research.
+# Giữ HẸP: chỉ khớp từ khoá timeline/action rõ ràng, KHÔNG khớp "Chiến lược SO/WO" (TOWS) hay "Cơ hội".
+_ROADMAP_HEAD_RE = re.compile(
+    r'(quick[\s\-]?win|short[\s\-]?term|medium[\s\-]?term|long[\s\-]?term|'
+    r'ngắn hạn|trung hạn|dài hạn|lộ trình|roadmap|action plan|kế hoạch hành động|'
+    r'strategic implication|hàm ý chiến lược|next step|bước tiếp theo|đề xuất hành động)',
+    re.IGNORECASE)
+
+# Con số cần nguồn: %, tiền (triệu/tỷ/nghìn/k/vnđ/đ), bội số (x/lần).
+_NUM_TOKEN_RE = re.compile(
+    r'\d[\d.,]*\s*(%|phần trăm|triệu|tỷ|nghìn|k\b|vnđ|vnd|đồng|₫|x\b|lần)', re.IGNORECASE)
+# Dấu hiệu con số ĐÃ gắn nguồn hoặc đã dán nhãn suy đoán (cùng dòng).
+_SOURCED_RE = re.compile(r'\]\(https?://|\(ước tính\)|ước tính|chưa đủ dữ liệu', re.IGNORECASE)
+
+
+def _heading_level(line: str) -> int:
+    """Cấp heading markdown (1-6) ở ĐẦU dòng; 0 nếu không phải heading."""
+    m = re.match(r'^(#{1,6})\s+\S', line)
+    return len(m.group(1)) if m else 0
+
+
+def _scrub_research(content: str, skill: str) -> tuple[str, list[str]]:
+    """Soát tất định output research trước khi lưu. KHÔNG gọi LLM.
+      1. Gỡ mục lộ trình/roadmap theo thời gian (N-03b — việc của Synthesis, không thuộc research).
+      2. Đếm dòng có SỐ chưa gắn nguồn/(ước tính) → CẢNH BÁO (N-15 — chỉ báo, không sửa số).
+    Trả (content_đã_gỡ_roadmap, warns). Skill ngoài research → trả nguyên, không đụng.
+    """
+    warns: list[str] = []
+    if not content or skill not in _RESEARCH_SKILLS:
+        return content, warns
+
+    lines = content.split("\n")
+    kept: list[str] = []
+    i = 0
+    removed_roadmap = False
+    while i < len(lines):
+        lvl = _heading_level(lines[i])
+        if lvl and _ROADMAP_HEAD_RE.search(lines[i]):
+            # gỡ từ heading này tới heading kế cùng-hoặc-cao-hơn cấp (hoặc hết bài)
+            j = i + 1
+            while j < len(lines):
+                nlvl = _heading_level(lines[j])
+                if nlvl and nlvl <= lvl:
+                    break
+                j += 1
+            removed_roadmap = True
+            i = j
+            continue
+        kept.append(lines[i])
+        i += 1
+
+    cleaned = "\n".join(kept).strip()
+    if removed_roadmap:
+        warns.append(f"{skill}: đã gỡ mục lộ trình/roadmap (thuộc Chiến lược, không thuộc research)")
+
+    unsourced = sum(
+        1 for ln in cleaned.split("\n")
+        if _NUM_TOKEN_RE.search(ln) and not _SOURCED_RE.search(ln)
+    )
+    if unsourced >= 3:
+        warns.append(f"{skill}: {unsourced} dòng có số chưa gắn nguồn [..](URL) hoặc '(ước tính)' — rà lại")
+
+    return cleaned, warns
+
+
 def _rw_specs():
     """Spec 5 skill research web-owned. DÙNG LẠI prompt GỐC GIÀU CHI TIẾT của bot (agents/prompts.py —
     chỉ ĐỌC, không sửa) để giữ độ sâu; chèn guard (khoá scope + sạch lời dẫn + hyperlink)."""
@@ -751,6 +984,8 @@ async def research_web(user_id=None, progress=None, skills=None) -> dict:
             if not content:
                 warns.append(f"{sk}: trống")
                 continue
+            content, scrub_warns = _scrub_research(content, sk)   # R-1: gỡ roadmap + soát số trước khi lưu
+            warns.extend(scrub_warns)
             await skill_runs.insert_skill_run(uid, sk, content, model_used="web-research")
             done.append(sk)
         # Research đổi → gợi ý đặt cược + gap cũ thành STALE → xoá để buộc gợi ý LẠI bám research mới.
@@ -857,6 +1092,7 @@ async def campaign_plan(user_id=None, steer: str = "") -> dict:
         user = (f"# Ngành\n{industry}\n{ictx}\n\n# Wedge (tệp ưu tiên đã chọn)\n{wedge or '(chưa chọn — tự suy)'}\n\n"
                 f"# Chiến lược (Synthesis)\n{synth[:3500]}\n\n# Tactical Playbook\n{(tact or '(chưa có)')[:2500]}"
                 f"{steer_block}")
+        user += _spine_anchor(_extra)   # P0.2: bơm Chiến lược nền (Spine) vào prompt
         res = await router_call(task_type=TaskType.INTAKE_JSON, system=system, user=user, max_tokens=1600)
         raw = (res or {}).get("output", "").strip()
         raw = re.sub(r'^```(?:json)?\s*', '', raw)
@@ -1203,6 +1439,7 @@ async def gen_campaign_portfolio(user_id=None) -> dict:
         user = (f"# Ngành\n{industry} — {arche}\n# USP\n{usp or '(chưa rõ)'}\n# Wedge\n{wedge or '(chưa chọn)'}\n"
                 f"# Horizon\n{weeks} tuần\n\n# Chiến lược (Synthesis — roadmap)\n{synth[:3200]}\n\n"
                 f"# Tactical Playbook\n{(tact or '(chưa có)')[:1500]}")
+        user += _spine_anchor(extra)   # P0.2: bơm Chiến lược nền (Spine) vào prompt
         res = await router_call(task_type=TaskType.INTAKE_JSON, system=system, user=user, max_tokens=1800)
         raw = (res or {}).get("output", "").strip()
         raw = re.sub(r'^```(?:json)?\s*', '', raw)
@@ -1693,6 +1930,7 @@ async def gen_master_plan(user_id=None, gap_kind: str = "", gap_title: str = "",
         user = (f"# Ngành\n{industry}\n# ĐẶT CƯỢC (các GAP cấu thành 1 chiến lược, ngang hàng)\n{gaps_txt}\n"
                 f"- Tệp ưu tiên (wedge): {wedge or '(theo synthesis)'}\n- USP: {usp or '(theo synthesis)'}\n\n"
                 f"# Chiến lược\n{synth[:1800]}")
+        user += _spine_anchor(extra)   # P0.2: bơm Chiến lược nền (Spine) vào prompt
         res = await router_call(task_type=TaskType.INTAKE_JSON, system=system, user=user, max_tokens=1000)
         raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
         subs = []
@@ -2670,6 +2908,152 @@ def _messaging_anchor_from(extra) -> str:
             + "\n".join(lines))
 
 
+def _framework_anchor(industry: str = "", goal_type: str = "positioning", limit: int = 3) -> str:
+    """D1: lôi craft card khung (Spec gen + Mạch) từ vault brain/ → block bơm vào prompt Synthesis.
+    Chỉ lấy phần 'nhiên liệu gen' (Spec gen + dòng Mạch), KHÔNG lấy exemplar/rubric (chống parrot
+    — tránh LLM chép tên khung/case ra output founder).
+    Degrade: vault trống / import lỗi / select() raise → "" (KHÔNG raise ra ngoài)."""
+    try:
+        from webapp import brain
+        notes = brain.select(industry=industry or None, goal_type=goal_type or None)
+    except Exception:
+        return ""
+    if not notes:
+        return ""
+    blocks = []
+    for n in notes[:limit]:
+        body = n.get("body") or ""
+        title = n.get("title") or n.get("slug") or ""
+        mach = ""
+        spec = []
+        in_spec = False
+        for line in body.splitlines():
+            s = line.strip()
+            if s.startswith("> Mạch") or s.startswith("Mạch:"):
+                mach = s.lstrip("> ").strip()
+            if s.startswith("## "):
+                in_spec = s.startswith("## Spec gen")
+                continue
+            if in_spec and s:
+                spec.append(s)
+        if not spec and not mach:
+            continue
+        part = f"### {title}\n"
+        if mach:
+            part += f"{mach}\n"
+        if spec:
+            part += "\n".join(spec) + "\n"
+        blocks.append(part.strip())
+    if not blocks:
+        return ""
+    return ("\n\n# KHUNG ĐỊNH VỊ (nội bộ — bám các luật này khi viết mục Định vị; "
+            "ĐỪNG nhắc tên khung/ví dụ ra output cho founder)\n\n" + "\n\n".join(blocks) + "\n")
+
+
+def _spine_anchor(extra) -> str:
+    """P0.2 F1: text SPINE bơm vào prompt gen kế hoạch — truy ngược về xương sống chiến lược.
+
+    Nhận extra=intake_extra (KHÔNG nhận uid/KHÔNG load DB).
+    Trả block prepend:\\n\\n# CHIẾN LƯỢC NỀN... hoặc "" nếu spine rỗng/không dict.
+    """
+    s = (extra.get("spine") if isinstance(extra, dict) else None) or {}
+    if not isinstance(s, dict) or not s:
+        return ""
+    lines = []
+    # Giai đoạn — chỉ khi có
+    stage = s.get("stage") or ""
+    if stage:
+        lines.append(f"Giai đoạn: {stage}")
+
+    # Mục tiêu
+    obj = s.get("objective") if isinstance(s.get("objective"), dict) else {}
+    outcome = (obj.get("outcome") or "").strip()
+    metric = (obj.get("metric") or "").strip()
+    tgt = obj.get("target") if isinstance(obj.get("target"), dict) else {}
+    bl = obj.get("baseline") if isinstance(obj.get("baseline"), dict) else {}
+    deadline = (obj.get("deadline") or "").strip()
+    tgt_val = tgt.get("value")
+    tgt_unit = (tgt.get("unit") or "").strip()
+    tgt_per = (tgt.get("period") or "").strip()
+    bl_val = bl.get("value")
+    bl_unit = (bl.get("unit") or "").strip()
+    bl_per = (bl.get("period") or "").strip()
+    if outcome:
+        parts = [f"Mục tiêu: {outcome}"]
+        if metric:
+            parts.append(f"đo bằng {metric}")
+        has_tgt = tgt_val is not None
+        has_bl = bl_val is not None
+        if has_tgt:
+            tgt_str = (f"đích {int(tgt_val) if isinstance(tgt_val, float) and tgt_val == int(tgt_val) else tgt_val}"
+                       + (f"{tgt_unit}/{tgt_per}" if tgt_unit else f"/{tgt_per}"))
+            if has_bl:
+                bl_str = (f"hiện {int(bl_val) if isinstance(bl_val, float) and bl_val == int(bl_val) else bl_val}"
+                          + (f"{bl_unit}/{bl_per}" if bl_unit else f"/{bl_per}"))
+                parts.append(f"{tgt_str} ({bl_str})")
+            else:
+                parts.append(tgt_str)
+        if deadline:
+            parts.append(f"mốc {deadline}")
+        lines.append(" — ".join(parts))
+
+    # Tệp khách
+    aud = s.get("audience") if isinstance(s.get("audience"), dict) else {}
+    who = (aud.get("who") or "").strip()
+    pain = (aud.get("pain") or "").strip()
+    where = (aud.get("where") or "").strip()
+    if who or pain or where:
+        parts = []
+        if who:
+            parts.append(f"Tệp khách: {who}")
+        if pain:
+            parts.append(f"nỗi đau: {pain}")
+        if where:
+            parts.append(f"thường ở: {where}")
+        lines.append(" — ".join(parts))
+
+    # Định vị
+    pos = s.get("positioning") if isinstance(s.get("positioning"), dict) else {}
+    alt = (pos.get("alternative") or "").strip()
+    diff = (pos.get("differentiator") or "").strip()
+    stmt = (pos.get("statement") or "").strip()
+    if alt or diff or stmt:
+        if stmt and not alt and not diff:
+            lines.append(f"Định vị: {stmt}")
+        else:
+            parts = []
+            if alt:
+                parts.append(f"khách thường {alt}")
+            if diff:
+                parts.append(f"mình khác ở {diff}")
+            if parts:
+                base = "Định vị: " + " — ".join(parts)
+                if stmt:
+                    lines.append(f"{base} — {stmt}")
+                else:
+                    lines.append(base)
+
+    # Năng lực (RÀNG BUỘC)
+    con = s.get("constraint") if isinstance(s.get("constraint"), dict) else {}
+    people = (con.get("people") or "").strip()
+    budget = (con.get("budget") or "").strip()
+    cap = (con.get("capacity") or "").strip()
+    if people or budget or cap:
+        parts = ["Năng lực (RÀNG BUỘC — ĐỪNG đề xuất vượt quá):", people]
+        if budget:
+            parts.append(f"ngân sách {budget}")
+        if cap:
+            parts.append(f"làm nổi {cap}")
+        lines.append(" ".join(p for p in parts if p))
+
+    if not lines:
+        return ""
+    return ("\n\n# CHIẾN LƯỢC NỀN — mọi đề xuất phải phục vụ khối này\n"
+            + "\n".join(lines)
+            + "\nƯu tiên đề xuất phục vụ mục tiêu trên, hợp tệp khách + định vị, "
+              + "KHÔNG vượt năng lực. Bài nào không phục vụ trực tiếp mục tiêu, nói rõ vai trò gián tiếp.")
+
+
 async def gen_messaging(user_id=None, steer: str = "", stage: str = "all", core: str = "") -> dict:
     """Sinh THÔNG ĐIỆP (Messaging House) web-owned. 2 bước (đúng message house: chốt MÁI trước, dựng CỘT sau):
     - stage='core': chỉ cốt lõi + tagline.
@@ -2885,6 +3269,7 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
         user = (f"# Ngành\n{industry}\n# Sản phẩm/dịch vụ\n{product or '(chưa rõ)'}\n"
                 f"# Khách mục tiêu\n{target or '(chưa rõ)'}\n# USP\n{usp or '(chưa rõ)'}{voice_ctx}\n\n"
                 f"# Bối cảnh slot\n{ctx}{msg_anchor}{strat_anchor}")
+        user += _spine_anchor(_pe)   # P0.2: bơm Chiến lược nền (Spine) vào prompt
         res = await router_call(task_type=TaskType.OPS_CONTENT_CREATIVE, system=system, user=user, max_tokens=900)
         content = (res or {}).get("output", "").strip()
         if not content:
@@ -3337,8 +3722,10 @@ async def strategize_web(user_id=None, progress=None) -> dict:
             "[đòn bẩy]'. Mỗi mệnh đề bám 1 phát hiện research THẬT (DÙNG research làm lý do, đừng liệt kê lại).\n"
             "## 3. Định vị (BỀN — ít đổi theo thời gian)\n"
             "Là KẾT TINH của mạch lập luận (suy ra, không áp đặt):\n"
-            "#### USP chính: 1 câu — '[Tính từ] [sản phẩm] cho [audience cụ thể] mà [khác biệt vs đối thủ]'. "
-            "Kèm lý do work + 3 variants A/B (góc khác nhau: cảm xúc / thực dụng / bằng chứng xã hội).\n"
+            "#### USP chính: 1 câu định vị theo QUAN HỆ — đặt sản phẩm CẠNH lựa chọn thay thế của khách "
+            "(khác gì + 'vì thế khách được gì'), cho tệp coi trọng giá trị đó nhất; KHÔNG để tính từ rỗng "
+            "đứng một mình. Bám KHUNG ĐỊNH VỊ ở đầu bài nếu có (craft chi tiết ở đó). Kèm lý do work + "
+            "3 variants A/B (cảm xúc / thực dụng / bằng chứng xã hội).\n"
             "#### SAVE: Solution (giải vấn đề gì) · Access (cách khách tiếp cận) · Value (tổng giá trị) · "
             "Educate (dạy gì để khách tin). #### JTBD: khách 'thuê' sản phẩm để làm gì. (LA BÀN, KHÔNG gắn mốc.)\n"
             "## 4. Mũi nhọn (Wedge) — đánh ở đâu TRƯỚC\n"
@@ -3359,8 +3746,10 @@ async def strategize_web(user_id=None, progress=None) -> dict:
             + _VN_NATURAL_RULE + "\n"
             "🔴 Viết TOÀN BỘ bằng TIẾNG VIỆT."
         )
+        fw_anchor = _framework_anchor(industry=industry, goal_type="positioning")
         syn_user = (
-            f"# Ngành\n{industry}\n{ictx}\n\n"
+            f"# Ngành\n{industry}\n{ictx}\n"
+            f"{fw_anchor}\n"
             f"{bet_block}"
             f"{resource_block}"
             f"# Định hướng founder\n- Wedge (tệp ưu tiên): {wedge or '(chưa chọn — tự đề xuất theo research)'}\n"
@@ -3398,9 +3787,10 @@ _TAC_SYSTEM = (
             "tệp phụ viết GỌN (mỗi tầng 1 mũi, bỏ đoạn 'lợi thế bền vững').\n"
             "2. Mỗi tệp MỞ ĐẦU bằng **🧠 Insight cốt lõi** (2-3 đoạn SẮC, dám contrarian nếu thị trường đang "
             "làm sai) — viết bằng NGÔN NGỮ FOUNDER, không quăng thuật ngữ trần.\n"
-            "3. Mỗi mũi tactic phải xuống thực thi: tên chiến thuật + góc/insight + **COPY MẪU** (câu quote "
-            "dùng được ngay) + **kênh cụ thể** + **khung thử nghiệm** (cấu trúc test + ngưỡng cut theo chỉ số "
-            "TƯƠNG ĐỐI CTR/ROAS/CVR + thời lượng) + **KPI cần theo dõi**.\n"
+            "3. Mỗi mũi tactic CHỈ định hướng **góc đánh (territory)** + **kênh cụ thể** + **khung thử nghiệm** "
+            "(cấu trúc test + ngưỡng cut theo chỉ số TƯƠNG ĐỐI CTR/ROAS/CVR + thời lượng) + **KPI cần theo dõi**. "
+            "CHỈ định hướng góc đánh/territory/kênh/khung test/KPI — KHÔNG xuống hook/caption/template. "
+            "Downstream TỰ viết hook/caption bám territory.\n"
             "4. Mỗi mũi gắn 1 tag NGẮN dẫn về nước cờ TOWS nó phục vụ, trích mã từ SWOT — vd '(phục vụ SO1)'. "
             "Tag là PHỤ, bỏ vẫn đọc hiểu; TUYỆT ĐỐI KHÔNG dựng lại khối SO/WO/WT làm cấu trúc.\n"
             "5. Tệp ƯU TIÊN có 1 đoạn **📊 Vì sao đối thủ không copy được ngay** (lợi thế bền vững, bám đối thủ thật).\n"
@@ -3414,11 +3804,13 @@ _TAC_SYSTEM = (
             "   Diễn đạt archetype theo cách founder hiểu (vd 'khách của sếp không tự nghĩ tới chuyện mua — phải "
             "khơi nhu cầu trước khi pitch'), KHÔNG nói trần 'archetype demand_gen là…'.\n"
             "7. PHỦ HẾT mọi tệp — TUYỆT ĐỐI KHÔNG cụt. Số tệp lấy đúng từ Synthesis; nếu sắp dài thì RÚT GỌN tệp "
-            "ưu tiên (vẫn giữ copy mẫu + khung test + KPI) để chừa đủ chỗ cho mọi tệp — thà mỗi tệp ngắn còn hơn cụt.\n"
+            "ưu tiên (vẫn giữ góc đánh + khung test + KPI) để chừa đủ chỗ cho mọi tệp — thà mỗi tệp ngắn còn hơn cụt.\n"
             "8. 🔴 KHÔNG ghi số tiền tuyệt đối (ngân sách thật chốt khi lập chiến dịch). KPI nêu ĐO GÌ, KHÔNG chốt target.\n"
-            "8b. 🔴 CỤ THỂ, KHÔNG CHUNG CHUNG (N-08): copy mẫu phải VIẾT ĐƯỢC NGAY (câu thật, hook thật — "
-            "KHÔNG placeholder kiểu '[chèn lợi ích]'); kênh nêu ĐÍCH DANH (tên nền tảng + định dạng, vd "
-            "'Reels 15s', 'bài dài Group FB'); khung test nêu NGƯỠNG so sánh được (vd 'CTR mục A > mục B').\n"
+            "8b. 🔴 CỤ THỂ, KHÔNG CHUNG CHUNG (N-08): kênh nêu ĐÍCH DANH (tên nền tảng + định dạng, vd "
+            "'Reels 15s', 'bài dài Group FB'); khung test nêu NGƯỠNG so sánh được (vd 'CTR mục A > mục B'). "
+            "Mỗi Hướng CÓ THỂ kèm 1 **ví dụ minh hoạ cho góc đánh** (option B). "
+            "Ví dụ BẮT BUỘC DÁN NHÃN: \"ví dụ cho dễ hình dung — KHÔNG phải bản chính thức\". "
+            "Ví dụ KHÔNG khoá downstream; downstream KHÔNG bám vào ví dụ.\n"
             "9. " + _VN_NATURAL_RULE + "Viết TOÀN BỘ bằng TIẾNG VIỆT. MARKDOWN.\n\n"
             "FORMAT mỗi tệp:\n"
             "# [TÊN TỆP — mô tả ngắn] (cách mua: <archetype diễn đạt tự nhiên>)\n"
@@ -3428,8 +3820,128 @@ _TAC_SYSTEM = (
             "## BOFU — Chốt\n### 🎯 Hướng 1 — [Tên] …\n"
             "### 📊 Vì sao đối thủ không copy được _(chỉ tệp ưu tiên)_\n\n"
             "Kết bằng **# BẢNG TỔNG HỢP**: cột Tệp | Tầng | Mũi chính | Phục vụ (TOWS) | Mức đầu tư (Thấp/Trung/Cao — "
-            "định tính, ghi chú số tiền cụ thể chốt khi lập chiến dịch)."
+            "định tính, ghi chú số tiền cụ thể chốt khi lập chiến dịch).\n\n"
+            "CUỐI BÀI, BẮT BUỘC IN RA 1 KHỐI JSON `playbook_struct` DUY NHẤT THEO SCHEMA SAU "
+            "(KHÔNG KÈM VĂN BẢN KHÁC, KHÔNG MARKDOWN FENCE, KHÔNG PRETTY-PRINT — IN DẠNG NÉN 1 DÒNG COMPACT):\n"
+            "🔴 KHỐI JSON LÀ BẮT BUỘC — nếu sắp hết token, RÚT GỌN markdown, TUYỆT ĐỐI KHÔNG cắt/bỏ khối JSON (nằm cuối "
+            "output, chết đầu tiên khi cạn token).\n"
+            "🔴 `territory` = mệnh đề MÔ TẢ lãnh địa/góc nội dung (nói VỀ nội dung), KHÔNG phải câu nói VỚI khách hàng "
+            "(hook). Downstream BÁM vào `territory`, KHÔNG bám hook/copy mẫu.\n"
+            "🔴 MỖI HƯỚNG BẮT BUỘC CÓ TRƯỜNG `example` (có thể rỗng). Nếu có ví dụ, BẮT BUỘC gán nhãn: "
+            "\"ví dụ cho dễ hình dung — KHÔNG phải bản chính thức\" (option B).\n"
+            "🔴 COMPLIANCE: mỗi mũi phải HỢP chính sách nền tảng (Meta/TikTok/Google…) + pháp lý ngành nhạy cảm "
+            "(y tế/mỹ phẩm/tài chính/thực phẩm chức năng). Seeding = khách THẬT hoặc CÓ disclose — TUYỆT ĐỐI không "
+            "dựng review giả / tài khoản ảo. Ngành nhạy cảm: cẩn trọng ảnh before-after + không hứa kết quả tuyệt đối.\n"
+            "{\n"
+            "  \"segments\": [\n"
+            "    {\n"
+            "      \"name\": \"\",\n"
+            "      \"archetype\": \"\",\n"
+            "      \"is_wedge\": true,\n"
+            "      \"insight\": \"\",\n"
+            "      \"tiers\": {\n"
+            "        \"tofu\": [\n"
+            "          {\n"
+            "            \"huong\": \"\",\n"
+            "            \"territory\": \"\",\n"
+            "            \"tows\": \"SO1\",\n"
+            "            \"channels\": [\"Reels 15s\"],\n"
+            "            \"test\": \"\",\n"
+            "            \"cut\": \"sau 7 ngày, biến thể thắng ≥1.5× CTR biến thể thua\",\n"
+            "            \"kpis\": [\"lượt xem\", \"xem hết\", \"share\"],\n"
+            "            \"example\": \"ví dụ cho dễ hình dung — KHÔNG phải bản chính thức: [nội dung ví dụ]\"\n"
+            "          }\n"
+            "        ],\n"
+            "        \"mofu\": [],\n"
+            "        \"bofu\": []\n"
+            "      }\n"
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "- `segments`: danh sách tệp khách (lấy từ synthesis). Mỗi tệp có `name`, `archetype`, `is_wedge`, `insight`.\n"
+            "- `insight`: 1-2 câu NÉN tinh thần tệp từ 🧠 Insight cốt lõi — phần HỒN của tệp (nỗi đau/khát khao/ngữ cảnh mua). Downstream bám để bài ĐÚNG TINH THẦN, không chỉ đúng góc.\n"
+            "- `tiers.tofu/mofu/bofu`: mảng Hướng. Mỗi Hướng BẮT BUỘC có `huong`, `territory`, `tows`, `channels[]`, `test`, `cut`, `kpis[]`, `example` (có thể rỗng, nhưng BẮT BUỘC có trường này).\n"
+            "- `territory`: lãnh địa/góc nội dung 1 câu — thứ downstream BÁM.\n"
+            "- `channels`: kênh + định dạng ĐÍCH DANH.\n"
+            "- `test`: cấu trúc test (vd '3 biến thể góc, cùng thân bài').\n"
+            "- `cut`: ngưỡng đọc tín hiệu go/kill — ƯU TIÊN dạng SO SÁNH TƯƠNG ĐỐI (biến thể thắng vs thua, so median chính kênh mình). Nếu buộc dùng SỐ TUYỆT ĐỐI → BẮT BUỘC dán nhãn \"ngưỡng giả định — chỉnh theo baseline thật\". KHÔNG bịa số ngành.\n"
+            "- `kpis`: list[str] chỉ số cần theo dõi.\n"
+            "- `example`: 1 VÍ DỤ minh hoạ cho góc đánh — KHÔNG phải khoá downstream bám; có thể rỗng string. "
+            "NẾU CÓ NỘI DUNG → BẮT BUỘC BẮT ĐẦU BẰNG: \"ví dụ cho dễ hình dung — KHÔNG phải bản chính thức: \"."
         )
+
+
+def _extract_trailing_json_object(text: str):
+    """T3: tách khối JSON `playbook_struct` ở CUỐI bài markdown bằng quét CÂN BẰNG NGOẶC
+    (string-aware — bỏ qua '{'/'}' nằm trong chuỗi). Trả (json_str, start, end) hoặc None.
+    Bền hơn regex: model lỡ thêm chữ/dấu sau '}' cũng vẫn tách được khối ôm `"segments"`."""
+    if not text:
+        return None
+    starts = [i for i, ch in enumerate(text) if ch == "{"]
+    for start in reversed(starts):          # từ phải sang: object root (ôm "segments") gặp trước các '{' thân bài
+        depth = 0
+        in_str = False
+        esc = False
+        end = None
+        for j in range(start, len(text)):
+            ch = text[j]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = j
+                    break
+        if end is not None:
+            candidate = text[start:end + 1]
+            if '"segments"' in candidate:
+                return candidate, start, end + 1
+    return None
+
+
+_PB_TIER_KEYS = ("tofu", "mofu", "bofu")
+_PB_HUONG_REQ = ("huong", "territory", "channels", "cut", "kpis")
+
+
+def _validate_playbook_struct(d) -> bool:
+    """T3: validate 2 mức — NGHIÊM với segment wedge (đủ 3 tầng, mỗi Hướng đủ khoá downstream cần),
+    LỎNG với tệp phụ (thiếu tầng/khoá vẫn giữ, không vứt cả struct). False = bỏ struct (degrade)."""
+    if not isinstance(d, dict):
+        return False
+    segs = d.get("segments")
+    if not isinstance(segs, list) or not segs:
+        return False
+    for s in segs:
+        if not isinstance(s, dict) or not isinstance(s.get("tiers"), dict):
+            return False
+    for s in segs:
+        if not s.get("is_wedge"):
+            continue                        # tệp phụ: LỎNG — không ép
+        tiers = s.get("tiers") or {}
+        for tk in _PB_TIER_KEYS:
+            arr = tiers.get(tk)
+            if not isinstance(arr, list) or not arr:
+                return False
+            for h in arr:
+                if not isinstance(h, dict):
+                    return False
+                for rk in _PB_HUONG_REQ:
+                    v = h.get(rk)
+                    if v is None or (isinstance(v, (str, list)) and len(v) == 0):
+                        return False
+    return True
+
+
 async def _gen_playbook(uid: int, synthesis: str, progress=None) -> dict:
     """N-07b: sinh Tactical Playbook từ synthesis + research (tách khỏi strategize_web để REGEN lại
     được khi synthesis đổi). Dùng _TAC_SYSTEM. Lưu skill_run + fingerprint synthesis đã dựa vào."""
@@ -3486,15 +3998,51 @@ async def _gen_playbook(uid: int, synthesis: str, progress=None) -> dict:
         f"# Customer Insight (hiểu tệp + insight)\n{(research.get('customer_insight') or '(chưa có)')[:1800]}\n\n"
         f"# Đối thủ (cho đoạn 'không copy được')\n{(research.get('competitor') or '(chưa có)')[:1500]}"
     )
-    tac_res = await router_call(task_type=TaskType.OPS_BRIEF, system=_TAC_SYSTEM, user=tac_user, max_tokens=4000)
-    tactical = _strip_preamble((tac_res or {}).get("output", "").strip())
-    if not tactical:
+    # max_tokens rộng (10000): playbook phủ mọi tệp × 3 tầng RỒI mới in khối JSON ở CUỐI — trần hẹp
+    # cắt đúng JSON (thứ chết đầu tiên khi cạn token). Prompt vẫn dặn rút gọn markdown để không phình.
+    tac_res = await router_call(task_type=TaskType.OPS_BRIEF, system=_TAC_SYSTEM, user=tac_user, max_tokens=10000)
+    tactical_raw = _strip_preamble((tac_res or {}).get("output", "").strip())
+    if not tactical_raw:
         logger.warning("_gen_playbook: tactical rỗng (uid=%s)", uid)
         return {"error": "Playbook trống — thử lại."}
+
+    # ── T2/T3: tách khối JSON `playbook_struct` ở cuối bài. LÀM SẠCH MARKDOWN ≠ VALIDATE:
+    # strip khối JSON-đuôi khỏi markdown TRƯỚC khi lưu (kể cả khi parse fail) — user KHÔNG bao giờ
+    # thấy JSON thô trên UI. Parse từ raw; struct chỉ lưu khi validate 2 mức đạt.
+    playbook_struct = None
+    tactical = tactical_raw
+    _ex = _extract_trailing_json_object(tactical_raw)
+    if _ex:
+        raw_json, _js_start, _js_end = _ex
+        # markdown sạch = phần trước khối JSON, bỏ nốt fence ``` / ```json còn sót ở đuôi (dù parse fail)
+        tactical = re.sub(r"\s*`{3,}\s*json?\s*$", "", tactical_raw[:_js_start],
+                          flags=re.IGNORECASE).rstrip()
+        try:
+            import json as _json
+            _cand = _json.loads(raw_json)
+            if _validate_playbook_struct(_cand):
+                playbook_struct = _cand
+            else:
+                logger.warning("_gen_playbook: playbook_struct không đạt validate (wedge thiếu tầng/khoá), bỏ qua")
+        except Exception as e:
+            logger.warning("_gen_playbook: parse playbook_struct thất bại: %s", e)
+    else:
+        logger.warning("_gen_playbook: không tìm thấy khối JSON playbook_struct ở cuối bài (uid=%s)", uid)
+
     tac_run = await skill_runs.insert_skill_run(uid, "tactical_playbook", tactical, model_used="web-strategize")
+
     # N-07b: ghi synthesis run id mà playbook này bám → FE so lệch để hiện badge "cập nhật?".
     syn = await skill_runs.get_latest_skill_run(uid, "synthesis")
-    extra["playbook_synth_id"] = str((syn or {}).get("id") or "")
+    synth_id = str((syn or {}).get("id") or "")
+    extra["playbook_synth_id"] = synth_id
+    if playbook_struct is not None:
+        # Lưu kèm version để D6 sau này truy vết cut/kpis theo version
+        extra["playbook_struct"] = {
+            "version": (tac_run or {}).get("version"),
+            "synthesis_id": synth_id,
+            "struct": playbook_struct,
+            "updated_at": time.time(),
+        }
     await profiles.upsert_profile(uid, intake_extra=extra)
     return {"ok": True, "tactical_run_id": (tac_run or {}).get("id")}
 

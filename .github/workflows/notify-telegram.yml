@@ -1,0 +1,68 @@
+name: Notify Telegram on push
+
+# Bắn 1 tin Telegram MỖI khi có push vào nhánh feature/* -> để bạn biết Cline đã xong
+# 1 function và vào chat với Claude (Orchestrator).
+#
+# Đây là NOTI HẠ TẦNG CI — KHÔNG phải phụ thuộc Telegram của sản phẩm Max,
+# không đụng app/ hay bot/. Chỉ là GitHub gọi Telegram Bot API.
+#
+# CẦN 1 LẦN SET TAY (xem hướng dẫn ở cuối file):
+#   Secrets (Repo Settings > Secrets and variables > Actions):
+#     TELEGRAM_BOT_TOKEN = token từ @BotFather
+#     TELEGRAM_CHAT_ID    = chat id của bạn (hoặc group)
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram message
+        # Truyền dữ liệu qua ENV (không nhét ${{ }} thẳng vào script) để tránh
+        # script-injection từ nội dung commit message.
+        env:
+          TG_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPO:      ${{ github.repository }}
+          BRANCH:    ${{ github.ref_name }}
+          CMSG:      ${{ github.event.head_commit.message }}
+          CAUTHOR:   ${{ github.event.head_commit.author.name }}
+          CLINK:     ${{ github.event.head_commit.url }}
+        run: |
+          TEXT="🚀 Push mới — ${REPO}
+          Nhánh: ${BRANCH}
+          Tác giả: ${CAUTHOR}
+          Commit: ${CMSG}
+          Xem: ${CLINK}
+
+          → Vào chat với Claude (Orchestrator) để review function này."
+          curl -sS -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=${TEXT}" \
+            -d disable_web_page_preview=true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CÁCH LẤY 2 SECRET (làm 1 lần):
+#
+# 1) TELEGRAM_BOT_TOKEN
+#    - Mở Telegram, chat với @BotFather -> /newbot -> đặt tên -> nó trả 1 token
+#      dạng 123456789:ABCdef...  Copy token đó.
+#
+# 2) TELEGRAM_CHAT_ID (id để bot nhắn cho ĐÚNG bạn)
+#    - BẮT BUỘC: mở bot vừa tạo, bấm /start (để bot được phép nhắn cho bạn).
+#    - Lấy id: chat với @userinfobot -> nó trả "Id: 123456789" -> đó là chat_id.
+#      (Group thì thêm bot vào group, id group thường bắt đầu bằng dấu trừ.)
+#
+# 3) Vào GitHub repo > Settings > Secrets and variables > Actions > New secret:
+#      TELEGRAM_BOT_TOKEN = <token>
+#      TELEGRAM_CHAT_ID    = <id>
+#
+# Test nhanh (thay TOKEN/ID) — chạy trên máy để chắc bot nhắn được cho bạn:
+#   curl "https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<ID>&text=hi"
+# ─────────────────────────────────────────────────────────────────────────────
