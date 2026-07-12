@@ -275,6 +275,30 @@ async def biz_funnel_map(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+async def biz_key_ideas_suggest(request):
+    """CHAIN-V2 T4 — Max đề xuất ý lớn cho các đợt (từ kho góc đánh; degrade messaging)."""
+    d = await request.json()
+    res = await biz.suggest_key_ideas(d.get("user_id"), d.get("n", 5))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_key_idea_save(request):
+    """CHAIN-V2 T4 — user chốt/sửa 1 key idea + đặt mục tiêu + kỳ hạn đợt."""
+    d = await request.json()
+    res = await biz.save_key_idea(
+        d.get("user_id"), id=d.get("id", ""), title=d.get("title", ""), angle=d.get("angle", ""),
+        source=d.get("source", "user"), source_ref=d.get("source_ref", ""), goal=d.get("goal", ""),
+        window_start=d.get("window_start", ""), window_end=d.get("window_end", ""), status=d.get("status", ""))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_key_idea_funnel(request):
+    """CHAIN-V2 T5 — dựng funnel map + danh sách bài dự kiến cho 1 key idea (ratio uốn theo mục tiêu đợt)."""
+    d = await request.json()
+    res = await biz.gen_funnel_map_for_idea(d.get("user_id"), id=d.get("id", ""))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 async def biz_rhythm_save(request):
     """Tầng ③ — lưu nhịp nền (bảng điều khiển 6 tuyến chạy quanh năm)."""
     d = await request.json()
@@ -572,6 +596,9 @@ def api_routes() -> list:
         Route("/api/biz/bet/options",              biz_bet_options,    methods=["POST"]),
         Route("/api/biz/bet/save",                 biz_bet_save,       methods=["POST"]),
         Route("/api/biz/funnel-map",               biz_funnel_map,     methods=["POST"]),
+        Route("/api/biz/key-ideas/suggest",        biz_key_ideas_suggest, methods=["POST"]),
+        Route("/api/biz/key-idea/save",            biz_key_idea_save,  methods=["POST"]),
+        Route("/api/biz/key-idea/funnel",          biz_key_idea_funnel, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),
