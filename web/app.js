@@ -2818,9 +2818,12 @@
     const ov = document.getElementById('bizModal'); if (!ov || !_slotCtx) return;
     const E = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     _modalRun = { run: true, title: '', content, id: runId };
+    // B3.1: bài đang xem = BÀI GỐC để bung biến thể (repurpose) — post-derive dùng _postBase + _slotCtx (trụ/tầng).
+    _postBase = { title: _slotCtx.pillar || 'Bài', content };
+    const _sib = _slotCtx.sibling_group ? ` <span class="muted">· 🔁 có biến thể chị em (cùng nội dung, kênh khác)</span>` : '';
     ov.querySelector('h3').textContent = `${_slotWhen(_slotCtx)} — ${_slotCtx.pillar || 'Always-on'}${wasSaved ? ' · ✓ đã duyệt' : ''}`;
     ov.querySelector('.modal-body').innerHTML =
-      `<p class="muted" style="margin:0 0 8px">Sửa trực tiếp rồi <b>Lưu & Duyệt</b> — bài sẽ ghim tại ô này.</p>
+      `<p class="muted" style="margin:0 0 8px">Sửa trực tiếp rồi <b>Lưu & Duyệt</b> — bài sẽ ghim tại ô này.${_sib}</p>
        <textarea class="slot-edit" id="slotEditBox" rows="14">${E(content)}</textarea>`;
     const foot = ov.querySelector('.modal-foot'); foot.style.display = 'flex';
     foot.innerHTML = `
@@ -2828,6 +2831,12 @@
         <button class="ghost-line sm" data-act="slot-back">← Đổi chủ đề</button>
         <button class="ghost-line sm" data-act="slot-gen">↻ Tạo lại</button>
         ${wasSaved ? '<button class="ghost-line sm" data-act="slot-unsave">🗑 Bỏ bài</button>' : ''}
+      </div>
+      <div class="rate-group slot-repurpose" title="Bung biến thể từ bài này — giữ thông điệp, đổi form theo kênh">
+        <span class="muted" style="font-size:12px">🔁 Bung:</span>
+        <button class="ghost-line sm" data-act="post-derive" data-kind="video">🎬 Video</button>
+        <button class="ghost-line sm" data-act="post-derive" data-kind="channels">📱 Đa kênh</button>
+        <button class="ghost-line sm" data-act="post-derive" data-kind="ugc">📸 UGC</button>
       </div>
       <div class="modal-foot-r">
         <button class="ghost-line sm" data-act="slot-copy">📋 Copy</button>

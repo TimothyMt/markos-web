@@ -1082,6 +1082,8 @@ body.chat-mode #view { height: calc(100vh - 64px); }
   padding:12px 18px; border-top:1px solid var(--stroke); flex-wrap:wrap; }
 .rate-group { display:flex; align-items:center; gap:8px; }
 .modal-foot-r { display:flex; align-items:center; gap:8px; }
+/* B3.1: nhóm bung biến thể (repurpose) trong modal bài — tách nhẹ cho dễ nhận */
+.slot-repurpose { padding:3px 10px; border:1px dashed var(--stroke-2); border-radius:8px; }
 .rate-btn { background:var(--panel-2); border:1px solid var(--stroke); border-radius:8px; cursor:pointer;
   font-size:15px; padding:4px 10px; line-height:1; transition:.15s; }
 .rate-btn:hover { border-color:var(--primary); }
