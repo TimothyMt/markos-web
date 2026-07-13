@@ -2507,8 +2507,159 @@ def _build_rhythm_always(rhythm, trus, max_week, idx_always, consumed, focus: st
     return out
 
 
+_KI_TIER_ICON = {"tofu": "🌱", "mofu": "🔥", "bofu": "🎯"}
+_KI_GOAL_VI = {"awareness": "Nhận biết", "consideration": "Cân nhắc",
+               "conversion": "Chốt / Xả", "retention": "Giữ chân"}
+
+
+def _parse_cadence(cadence, max_week: int) -> list:
+    """B2.2: parse MỜ chuỗi nhịp tự do ('1 bài/tuần', '2 bài/tháng', '1 bài/2 tuần'…) → danh sách TUẦN
+    (lặp = nhiều bài/tuần) trong horizon. Đa ngành: không khớp → nhịp thưa mặc định (mỗi 2 tuần).
+    Rỗng → [] (ô không cadence KHÔNG tự lên lịch, chỉ ở màn Ma trận)."""
+    s = str(cadence or "").strip().lower()
+    if not s:
+        return []
+    nums = re.findall(r'\d+(?:[.,]\d+)?', s)
+    n0 = float(nums[0].replace(",", ".")) if nums else 1.0
+    weeks = []
+    if ("tháng" in s or "thang" in s or "month" in s):          # N bài/tháng → mỗi ~4/N tuần
+        ev = max(1, round(4 / n0)) if n0 > 0 else 4
+        w = 1
+        while w <= max_week:
+            weeks.append(w); w += ev
+    elif re.search(r'/\s*\d+\s*(?:tuần|tuan|week)', s):          # 1 bài/N tuần → mỗi N tuần
+        m = re.search(r'/\s*(\d+)\s*(?:tuần|tuan|week)', s)
+        ev = max(1, int(m.group(1)) if m else 2)
+        w = 1
+        while w <= max_week:
+            weeks.append(w); w += ev
+    elif ("tuần" in s or "tuan" in s or "week" in s or "ngày" in s or "ngay" in s or "day" in s):
+        per = 7 if ("ngày" in s or "ngay" in s or "day" in s) else n0   # N bài/tuần
+        pw = max(1, min(int(round(per)), 7))
+        for w in range(1, max_week + 1):
+            cnt = pw
+            if per < 1:                                          # nửa nhịp (0.5) → tuần lẻ 1 bài
+                cnt = 1 if (w % 2 == 1) else 0
+            weeks.extend([w] * cnt)
+    else:                                                        # số trơ / lạ → nhịp thưa mặc định mỗi 2 tuần
+        w = 1
+        while w <= max_week:
+            weeks.append(w); w += 2
+    return weeks
+
+
+def _build_matrix_always(cells, max_week: int, idx_always: dict, consumed: set) -> list:
+    """B2.2: lịch NỀN dựng từ content_matrix (trụ × phễu × nền tảng) — THAY nguồn rhythm/pillars.
+    Mỗi ô rải theo cadence; slot mang trụ (pillar) + tầng phễu (tier) + kênh (platforms) + vai-trò-ô (role)."""
+    out = []
+    for c in (cells or []):
+        if not isinstance(c, dict):
+            continue
+        pillar = str(c.get("pillar") or "").strip()
+        tier = str(c.get("tier") or "").strip().lower()
+        role = str(c.get("role") or "").strip()
+        if not pillar or tier not in _KI_TIERS:
+            continue
+        weeks = _parse_cadence(c.get("cadence"), max_week)
+        if not weeks:
+            continue                                    # ô không cadence → không tự lên lịch
+        plats = [str(x).strip() for x in (c.get("platforms") or []) if str(x).strip()]
+        pid = "mx|" + (re.sub(r'[^a-z0-9]+', '', pillar.lower())[:14] or "tru") + "|" + tier
+        byweek = {}
+        for w in weeks:
+            byweek[w] = byweek.get(w, 0) + 1
+        for w, cnt in byweek.items():
+            days = _assign_days(cnt)
+            for i in range(cnt):
+                ch = plats[i % len(plats)] if plats else ""
+                key = f"aw|{pid}|{w}|{days[i]}"
+                slot = {"week": w, "day": days[i],
+                        "pillar": f"{_KI_TIER_ICON.get(tier, '•')} {pillar}", "pillarId": pid,
+                        "title": role or pillar, "topic": role or pillar,
+                        "angles": [x for x in [pillar, role] if x],
+                        "funnel": tier.upper(), "framework": "",
+                        "value_lens": role, "track": "always",
+                        "track_role": role, "tier": tier, "channel": ch, "key": key}
+                card = idx_always.get((pid, w, days[i]))
+                if card:
+                    slot["saved"] = True; slot["post"] = card["content"]
+                    consumed.add(card["key"])
+                out.append(slot)
+    return out
+
+
+def _build_keyidea_bands(key_ideas, anchor, horizon_weeks: int, idx_camp: dict, consumed: set):
+    """B2.2: CHIẾN DỊCH (= key_idea có window + funnel_map) → band track 'camp' — THAY campaigns_v2.
+    posts rải trong window theo thứ tự phễu (tofu sớm → bofu muộn); sibling_group đặt sát nhau (repurpose).
+    campaign_id = key_idea.id, phase duy nhất mỗi bài ('TOFU #1'…) để thẻ đã duyệt round-trip."""
+    from datetime import date, timedelta
+    bands, bands_by_cid = [], {}
+    max_week = horizon_weeks
+    _torder = {"tofu": 0, "mofu": 1, "bofu": 2}
+    used = 0
+    for it in (key_ideas or []):
+        if not isinstance(it, dict):
+            continue
+        sd, ed = it.get("window_start"), it.get("window_end")
+        if not sd or not ed:
+            continue                                    # draft (chưa đặt kỳ) → không lên lịch
+        fw, tw = _week_of(sd, anchor), _week_of(ed, anchor)
+        if fw is None or tw is None or tw < 1:
+            continue
+        fw = max(1, fw); tw = max(fw, tw)
+        max_week = max(max_week, tw)
+        posts_src = ((it.get("funnel_map") or {}).get("posts") or [])
+        cid = str(it.get("id"))
+        color = _CAL_COLORS[used % len(_CAL_COLORS)]; used += 1
+        # sắp theo tầng phễu, gom sibling_group cạnh nhau
+        order = sorted(range(len(posts_src)),
+                       key=lambda i: (_torder.get(str((posts_src[i] or {}).get("tier", "")).lower(), 1),
+                                      str((posts_src[i] or {}).get("sibling_group") or ""), i))
+        try:
+            sy, sm, sdd = (int(x) for x in str(sd)[:10].split("-"))
+            ey, em, edd = (int(x) for x in str(ed)[:10].split("-"))
+            d0, span = date(sy, sm, sdd), max(0, (date(ey, em, edd) - date(sy, sm, sdd)).days)
+        except Exception:
+            d0, span = None, 0
+        posts = []
+        n = max(1, len(order))
+        _tier_k = {}
+        for slot_i, pi in enumerate(order):
+            p = posts_src[pi] if isinstance(posts_src[pi], dict) else {}
+            tier = str(p.get("tier") or "").strip().lower()
+            tk = tier if tier in _KI_TIERS else "post"
+            _tier_k[tk] = _tier_k.get(tk, 0) + 1
+            phase = f"{tk.upper()} #{_tier_k[tk]}"       # duy nhất trong band → key ổn định
+            if d0 is not None:
+                pt = d0 + timedelta(days=round((slot_i + 0.5) / n * span))
+                wk = max(1, _week_of(pt.strftime("%Y-%m-%d"), anchor) or fw)
+                dy = pt.weekday()
+            else:
+                wk, dy = fw, slot_i % 7
+            key = f"oc|{cid}|{phase}"
+            role = str(p.get("role") or "")
+            post = {"week": wk, "day": dy, "phase": phase, "icon": _KI_TIER_ICON.get(tk, "📌"),
+                    "hint": role, "title": (f"{p.get('channel','')}: {role}".strip(": ")[:80] or phase),
+                    "channel": str(p.get("channel") or ""), "pillar": str(p.get("pillar") or ""),
+                    "tier": tier, "sibling_group": str(p.get("sibling_group") or ""), "key": key}
+            card = idx_camp.get((cid, phase))
+            if card:
+                post["saved"] = True; post["post"] = card["content"]
+                consumed.add(card["key"])
+            posts.append(post)
+        band = {"name": it.get("title") or "Chiến dịch",
+                "occasion": _KI_GOAL_VI.get(it.get("goal"), it.get("goal") or "cao điểm"),
+                "offer": str(it.get("angle") or ""), "color": color,
+                "fromWeek": fw, "toWeek": tw, "posts": posts,
+                "campaignId": cid, "keyIdea": True}
+        bands.append(band); bands_by_cid[cid] = band
+    return bands, bands_by_cid, max_week
+
+
 async def calendar_plan(user_id=None) -> dict:
-    """M1.2: ghép lịch 2-track THẬT = always-on (NHỊP NỀN nếu có, fallback pillars) + occasion bands.
+    """M1.2 (B2.2): ghép lịch 2-track THẬT.
+    NỀN (track always): content_matrix (B2.1) nếu có → rhythm → pillars (degrade dần).
+    CHIẾN DỊCH (track camp): key_ideas có window+funnel_map (B2.1) nếu có → campaigns_v2 cũ (degrade).
 
     Anchor = thứ Hai tuần hiện tại; map start/end_date của campaign → tuần. Campaign không
     window (retention) KHÔNG lên lịch. Degrade {} (FE giữ mock). Tái dùng campaign_plan +
@@ -2553,44 +2704,53 @@ async def calendar_plan(user_id=None) -> dict:
                 idx_always[(c["pillarId"], c["week"], c["day"])] = c
         consumed = set()   # storage-key của thẻ ĐÃ đặt lên lịch (phần còn lại = orphan)
 
-        from storage.v2 import campaigns_v2
-        camps_raw = await campaigns_v2.list_campaigns_v2(uid, limit=30)
+        # B2.2 — CHIẾN DỊCH: ưu tiên key_ideas (Layered); degrade → campaigns_v2 cũ (cờ legacy).
+        _kis = (_extra or {}).get("key_ideas") if isinstance(_extra, dict) else None
+        _kis = _kis if isinstance(_kis, list) else []
         bands, bands_by_cid, camp_ids = [], {}, set()
         max_week = horizon_weeks
-        for i, c in enumerate(camps_raw or []):
-            sd, ed = c.get("start_date"), c.get("end_date")
-            if not sd or not ed:
-                continue   # retention/winback (không window) → không lên lịch tuần
-            fw, tw = _week_of(sd, anchor), _week_of(ed, anchor)
-            if fw is None or tw is None or tw < 1:
-                continue   # parse lỗi hoặc đã qua hoàn toàn
-            fw = max(1, fw); tw = max(fw, tw)
-            max_week = max(max_week, tw)
-            color = _CAL_COLORS[i % len(_CAL_COLORS)]
-            name = c.get("name") or "Đợt"
-            offer = c.get("offer_lever") or ""
-            cid = str(c.get("id"))
-            camp_ids.add(cid)
-            # M-D Pha 3: beat theo Story Arc 5 pha (đợt ≤1 tuần → 3 pha) thay vì 3 bài generic.
-            beats = _occasion_beats(sd, ed, anchor)
-            if not beats:                       # fallback an toàn nếu parse lỗi
-                beats = [{"week": fw, "day": 2, "phase": "Peak", "icon": "🚀", "hint": "đẩy mạnh đợt"}]
-            posts = []
-            for bt in beats:
-                key = f"oc|{cid}|{bt['phase']}"
-                post = {"week": bt["week"], "day": bt["day"], "phase": bt["phase"],
-                        "icon": bt["icon"], "hint": bt["hint"],
-                        "title": f"{bt['icon']} {bt['phase']} — {name}", "key": key}
-                card = idx_camp.get((cid, bt["phase"]))
-                if card:
-                    post["saved"] = True; post["post"] = card["content"]
-                    consumed.add(card["key"])
-                posts.append(post)
-            band = {"name": name, "occasion": c.get("primary_goal") or "đợt",
-                    "offer": offer or "ưu đãi đợt", "color": color,
-                    "fromWeek": fw, "toWeek": tw, "posts": posts,
-                    "campaignId": c.get("id"), "briefRunId": c.get("brief_skill_run_id")}
-            bands.append(band); bands_by_cid[cid] = band
+        _ki_bands, _ki_by_cid, _ki_mw = _build_keyidea_bands(_kis, anchor, horizon_weeks, idx_camp, consumed)
+        if _ki_bands:
+            bands, bands_by_cid = _ki_bands, _ki_by_cid
+            max_week = max(max_week, _ki_mw)
+            camp_ids = set(_ki_by_cid.keys())
+        else:
+            from storage.v2 import campaigns_v2
+            camps_raw = await campaigns_v2.list_campaigns_v2(uid, limit=30)
+            for i, c in enumerate(camps_raw or []):
+                sd, ed = c.get("start_date"), c.get("end_date")
+                if not sd or not ed:
+                    continue   # retention/winback (không window) → không lên lịch tuần
+                fw, tw = _week_of(sd, anchor), _week_of(ed, anchor)
+                if fw is None or tw is None or tw < 1:
+                    continue   # parse lỗi hoặc đã qua hoàn toàn
+                fw = max(1, fw); tw = max(fw, tw)
+                max_week = max(max_week, tw)
+                color = _CAL_COLORS[i % len(_CAL_COLORS)]
+                name = c.get("name") or "Đợt"
+                offer = c.get("offer_lever") or ""
+                cid = str(c.get("id"))
+                camp_ids.add(cid)
+                # M-D Pha 3: beat theo Story Arc 5 pha (đợt ≤1 tuần → 3 pha) thay vì 3 bài generic.
+                beats = _occasion_beats(sd, ed, anchor)
+                if not beats:                       # fallback an toàn nếu parse lỗi
+                    beats = [{"week": fw, "day": 2, "phase": "Peak", "icon": "🚀", "hint": "đẩy mạnh đợt"}]
+                posts = []
+                for bt in beats:
+                    key = f"oc|{cid}|{bt['phase']}"
+                    post = {"week": bt["week"], "day": bt["day"], "phase": bt["phase"],
+                            "icon": bt["icon"], "hint": bt["hint"],
+                            "title": f"{bt['icon']} {bt['phase']} — {name}", "key": key}
+                    card = idx_camp.get((cid, bt["phase"]))
+                    if card:
+                        post["saved"] = True; post["post"] = card["content"]
+                        consumed.add(card["key"])
+                    posts.append(post)
+                band = {"name": name, "occasion": c.get("primary_goal") or "đợt",
+                        "offer": offer or "ưu đãi đợt", "color": color,
+                        "fromWeek": fw, "toWeek": tw, "posts": posts, "legacy": True,
+                        "campaignId": c.get("id"), "briefRunId": c.get("brief_skill_run_id")}
+                bands.append(band); bands_by_cid[cid] = band
 
         # Always-on từ pillars đã chốt (M4(2)) — rải theo NHỊP (posts_per_week) suốt HORIZON.
         # Mỗi trụ xuất hiện posts_per_week lần/tuần; angles xoay theo tuần cho đa dạng.
@@ -2608,7 +2768,12 @@ async def calendar_plan(user_id=None) -> dict:
         _msg_obj = ((_extra or {}).get("messaging") if isinstance(_extra, dict) else None) or {}
         _trus = (_msg_obj.get("pillars") if isinstance(_msg_obj, dict) else None) or []
         _focus = (_msg_obj.get("focus") if isinstance(_msg_obj, dict) else "") or ""
-        if _rhythm_on:
+        # B2.2 — NỀN: ưu tiên content_matrix (Layered) → rhythm → pillars (degrade dần).
+        _cm = (_extra or {}).get("content_matrix") if isinstance(_extra, dict) else None
+        _cm_cells = (_cm.get("cells") if isinstance(_cm, dict) else None) or []
+        if _cm_cells:
+            always = _build_matrix_always(_cm_cells, max_week, idx_always, consumed)
+        elif _rhythm_on:
             always = _build_rhythm_always(_rhythm_cfg, _trus, max_week, idx_always, consumed, _focus)
         elif pillars:
             weekly = []                      # 1 phần tử = 1 slot/tuần (lặp theo nhịp trụ)
@@ -3627,7 +3792,8 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
                             campaign_id: str = "", week: str = "", day: str = "",
                             angle: str = "", value_lens: str = "", hook_style: str = "",
                             framework: str = "", phase: str = "",
-                            campaign_gap: str = "", objective: str = "", track_role: str = "") -> dict:
+                            campaign_gap: str = "", objective: str = "", track_role: str = "",
+                            tier: str = "", sibling_group: str = "") -> dict:
     """M1.2b + M-D: sinh 1 BÀI cho slot lịch — bám pillar (always-on) hoặc brief occasion.
     angle = CHỦ ĐỀ founder chọn; value_lens = GÓC KHAI THÁC; hook_style = CÁCH MỞ (1/5 nhóm);
     framework = khung copywriting ẩn. Lưu skill_run `calendar_post`. Degrade {error}."""
@@ -3681,6 +3847,16 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
                          "Chuyển hoá=chốt/CTA mạnh; Lan toả=tương tác/share).")
         elif (objective or "").strip():
             lines.append(f"Mục tiêu sub-campaign: {objective}")
+        # B2.2: tầng phễu (từ ma trận/chiến dịch) → chỉnh mục tiêu bài; repurpose → nhắc biến thể.
+        _TIER_ROLE = {"tofu": "TOFU (khơi/nhận biết) — mở rộng, KHÔNG ép bán",
+                      "mofu": "MOFU (nuôi/thuyết phục) — bằng chứng/so sánh/xử lý phản đối",
+                      "bofu": "BOFU (chốt) — CTA rõ, tạo lý do hành động ngay"}
+        _t = str(tier or "").strip().lower()
+        if _t in _TIER_ROLE:
+            lines.append(f"TẦNG PHỄU của bài: {_TIER_ROLE[_t]}.")
+        if str(sibling_group or "").strip():
+            lines.append("Bài này là 1 BIẾN THỂ repurpose (cùng lõi nội dung, đổi FORM theo nền tảng/kênh — "
+                         "giữ thông điệp, đổi cách kể cho hợp kênh, KHÔNG lặp y nguyên).")
         # Trục chung cho cả 2 track (M-D Pha 2): chủ đề + góc khai thác + khung ẩn.
         if (angle or "").strip():
             lines.append(f"Chủ đề cụ thể (founder chọn — bám SÁT): {angle}")

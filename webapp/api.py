@@ -189,7 +189,8 @@ async def biz_calendar_gen(request):
                                       d.get("value_lens", ""), d.get("hook_style", ""),
                                       d.get("framework", ""), d.get("phase", ""),
                                       d.get("campaign_gap", ""), d.get("objective", ""),
-                                      d.get("track_role", ""))
+                                      d.get("track_role", ""), d.get("tier", ""),
+                                      d.get("sibling_group", ""))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 

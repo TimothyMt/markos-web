@@ -1427,9 +1427,10 @@
       <div class="cal-post-top"><span class="trk on">Always-on</span><span class="pill-tag ${pillarCls(p.pillar)}">${p.pillar}</span>${p.saved?'<span class="slot-done">✓ Đã duyệt</span>':''}</div>
       <p class="cal-post-topiclbl">💡 Chủ đề</p>
       <p class="cal-post-title">${p.title}</p></div>`;
-  const campCard = (p) => `<div class="cal-post clickable ${p.saved?'saved':''}" data-act="slot-open" data-slot="${encodeURIComponent(JSON.stringify({track:'camp', campaignId:p.camp.campaignId, phase:p.phase||'', title:p.title, pillar:`${p.icon||'🔴'} ${p.phase||'Đợt'}`, funnel:p.camp.name, week:p.week, day:p.day, key:p.key||'', angles:[p.title], saved:p.saved, post:p.post}))}" style="--accent:${p.camp.color}" title="${p.saved?'Đã duyệt — bấm để xem/sửa':'Bấm để soạn bài đợt'}">
-      <div class="cal-post-top"><span class="trk camp" style="--c:${p.camp.color}">${p.camp.name}</span><span class="pill-tag c4">${p.phase||'Convert'}</span>${p.saved?'<span class="slot-done">✓</span>':''}</div>
-      <p class="cal-post-title">${p.title}</p><span class="cal-offer">🎁 ${p.camp.offer}</span></div>`;
+  const campCard = (p) => `<div class="cal-post clickable ${p.saved?'saved':''}" data-act="slot-open" data-slot="${encodeURIComponent(JSON.stringify({track:'camp', campaignId:p.camp.campaignId, phase:p.phase||'', title:p.title, pillar:(p.pillar||`${p.icon||'🔴'} ${p.phase||'Đợt'}`), funnel:p.camp.name, week:p.week, day:p.day, key:p.key||'', angles:[p.hint||p.title], tier:p.tier||'', sibling_group:p.sibling_group||'', track_role:p.hint||'', saved:p.saved, post:p.post}))}" style="--accent:${p.camp.color}" title="${p.saved?'Đã duyệt — bấm để xem/sửa':'Bấm để soạn bài chiến dịch'}">
+      <div class="cal-post-top"><span class="trk camp" style="--c:${p.camp.color}">${p.camp.name}</span><span class="pill-tag c4">${p.phase||'Convert'}</span>${p.sibling_group?'<span class="pill-tag" title="Repurpose — 1 nội dung, nhiều nền tảng">🔁</span>':''}${p.saved?'<span class="slot-done">✓</span>':''}</div>
+      ${p.channel?`<p class="cal-post-topiclbl">📱 ${p.channel}</p>`:''}
+      <p class="cal-post-title">${p.title}</p>${p.camp.offer?`<span class="cal-offer">🎁 ${p.camp.offer}</span>`:''}</div>`;
   // M-A: always-on giờ là slot theo (tuần,ngày) khi có dữ liệu thật; mock cũ = mảng phẳng 7 ô.
   const _alwaysHasWeeks = (a) => a && a.length && a[0] && a[0].week != null;
   const alwaysAt = (P0, w, d) => {
@@ -1963,7 +1964,7 @@
   }
 
   /* ═══════════ B2.1 — Ma trận nội dung (nền) + Đợt nhấn (spike) ═══════════ */
-  // Layered: xương sống chạy đều (trụ × phễu × nền tảng) + đợt nhấn cao điểm chồng lên.
+  // Layered: xương sống chạy đều (trụ × phễu × nền tảng) + chiến dịch cao điểm chồng lên.
   let _mxTab = 'base';               // 'base' = ma trận nền · 'spike' = đợt nhấn
   let _kiAddOpen = false;            // composer thêm đợt đang mở?
   const _MX_TIERS = [['tofu', 'TOFU', 'khơi / nhận biết'], ['mofu', 'MOFU', 'nuôi / thuyết phục'], ['bofu', 'BOFU', 'chốt']];
@@ -1981,13 +1982,13 @@
   }
 
   P.matrix = {
-    title: 'Ma trận & Đợt nhấn',
-    sub: 'Xương sống chạy đều (ma trận trụ × phễu × nền tảng) + đợt nhấn cao điểm chồng lên. Mọi bài bám Thông điệp.',
+    title: 'Ma trận & Chiến dịch',
+    sub: 'Xương sống chạy đều (ma trận trụ × phễu × nền tảng) + chiến dịch cao điểm chồng lên. Mọi bài bám Thông điệp.',
     get actions() {
       return `<a class="ghost-line" href="#message">← Thông điệp</a>`
         + (_mxTab === 'base'
           ? ` <button class="primary-btn" data-act="mx-gen">${cmHas() ? '↻ Max dựng lại ma trận' : '🧱 Max dựng ma trận nền'}</button>`
-          : ` <button class="primary-btn" data-act="ki-add-toggle">＋ Đợt nhấn mới</button>`)
+          : ` <button class="primary-btn" data-act="ki-add-toggle">＋ Chiến dịch mới</button>`)
         + ` <a class="ghost-line" href="#calendar">→ Lịch</a>`;
     },
     render: () => `<div id="mxWrap">${mxInner()}</div>`,
@@ -1996,7 +1997,7 @@
   function mxInner() {
     const tabs = `<div class="mx-tabs">
       <button class="mx-tab ${_mxTab === 'base' ? 'on' : ''}" data-act="mx-tab" data-tab="base">🧱 Ma trận nền <span class="muted">(chạy đều)</span></button>
-      <button class="mx-tab ${_mxTab === 'spike' ? 'on' : ''}" data-act="mx-tab" data-tab="spike">⚡ Đợt nhấn <span class="muted">(cao điểm)</span></button>
+      <button class="mx-tab ${_mxTab === 'spike' ? 'on' : ''}" data-act="mx-tab" data-tab="spike">⚡ Chiến dịch <span class="muted">(cao điểm)</span></button>
     </div>`;
     return tabs + (_mxTab === 'base' ? mxBaseInner() : mxSpikeInner());
   }
@@ -2033,23 +2034,23 @@
     }).join('');
     const house = m.core ? `<div class="mx-house">🏠 <b>Mái:</b> “${mxE(m.core)}” <span class="muted">— mọi ô bám cốt lõi này</span></div>` : '';
     return `${house}<section class="card mx-card"><div class="mx-grid" style="--mx-cols:${_MX_TIERS.length}">${head}${rows}</div>
-      <p class="muted mx-note">Đây là <b>nền chạy đều</b> — không phải mọi ô đều cần bài. Đợt nhấn (tab ⚡) đẩy cao điểm 1 tầng phễu across trụ theo kỳ.</p></section>`;
+      <p class="muted mx-note">Đây là <b>nền chạy đều</b> — không phải mọi ô đều cần bài. Chiến dịch (tab ⚡) đẩy cao điểm 1 tầng phễu across trụ theo kỳ.</p></section>`;
   }
   function mxSpikeInner() {
     const ideas = kiList();
     const composer = _kiAddOpen ? kiComposer() : '';
     if (!ideas.length && !_kiAddOpen) {
       return `<section class="card"><div class="empty-cta"><div class="empty-ic">⚡</div>
-        <h3>Chưa có đợt nhấn</h3>
-        <p class="muted">Đợt nhấn = cao điểm ngắn: 1 <b>ý lớn</b> đẩy mạnh 1 tầng phễu (hoặc vài trụ) trong 1 kỳ hạn. Max đề xuất từ kho góc đánh, bạn chốt.</p>
-        <div class="empty-actions"><button class="primary-btn" data-act="ki-add-toggle">＋ Đợt nhấn mới</button></div></div></section>`;
+        <h3>Chưa có chiến dịch</h3>
+        <p class="muted">Chiến dịch = cao điểm ngắn: 1 <b>ý lớn</b> đẩy mạnh 1 tầng phễu (hoặc vài trụ) trong 1 kỳ hạn. Max đề xuất từ kho góc đánh, bạn chốt.</p>
+        <div class="empty-actions"><button class="primary-btn" data-act="ki-add-toggle">＋ Chiến dịch mới</button></div></div></section>`;
     }
     return composer + `<div class="ki-list">${ideas.map(kiCardHTML).join('')}</div>`;
   }
   function kiComposer() {
     const trus = mxTrus();
     return `<section class="card ki-composer">
-      <div class="ki-comp-head"><b>＋ Đợt nhấn mới</b>
+      <div class="ki-comp-head"><b>＋ Chiến dịch mới</b>
         <button class="ghost-line sm" data-act="ki-suggest">✨ Max gợi ý ý lớn</button>
         <button class="icon-btn" data-act="ki-add-toggle" title="Đóng">✕</button></div>
       <div id="kiSuggestChips" class="ki-chips"></div>
@@ -2611,6 +2612,8 @@
     // pivot: bỏ Max chat → mọi thứ bắt đầu từ Hồ sơ doanh nghiệp
     if (id === 'pipeline' || id === 'agents' || id === 'home' || id === 'chat') id = 'dossier';
     if (id === 'brief') id = 'occasion';   // gỡ trang Campaign Brief mock → hub Lập chiến dịch thật
+    // B2.2 (①A): "Lập chiến dịch" GẬP vào Ma trận & Chiến dịch (tab Chiến dịch = key_ideas). 1 khái niệm 1 cửa.
+    if (id === 'occasion') { id = 'matrix'; _mxTab = 'spike'; }
     if (id === 'content' || id === 'video' || id === 'ugc') id = 'calendar';   // M3.1: gộp vào Lịch (bài + biến thể)
     if (id === 'doc') _docId = seg1 || null;                    // trang đọc output: #doc/<id>
     const page = P[id] || P.dossier;
@@ -3372,7 +3375,8 @@
           campaign_id: _slotCtx.campaignId || '', phase: _slotCtx.phase || '',
           week: _slotCtx.week || '', day: _slotCtx.day != null ? _slotCtx.day : '',
           campaign_gap: _slotCtx.campaign_gap || '', objective: _slotCtx.objective || '',
-          track_role: _slotCtx.track_role || '' });
+          track_role: _slotCtx.track_role || '',
+          tier: _slotCtx.tier || '', sibling_group: _slotCtx.sibling_group || '' });
         if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
         showSlotResult(r.content, r.run_id); refreshBiz();
       } catch (e) { toast('Không tạo được bài — thử lại sau.'); el.disabled = false; el.textContent = orig; }
@@ -3699,7 +3703,7 @@
       return;
     }
     if (act === 'ki-add-save') {   // chốt 1 đợt nhấn
-      if (!apiAvailable || !M.bizEnabled) { toast('Bật backend để lưu đợt'); return; }
+      if (!apiAvailable || !M.bizEnabled) { toast('Bật backend để lưu chiến dịch'); return; }
       const g = id => (document.getElementById(id) || {}).value || '';
       const title = g('kiTitle').trim();
       if (!title) { toast('Nhập ý lớn của đợt'); return; }
@@ -3710,8 +3714,8 @@
           user_id: _bizUserId, title, angle: g('kiAngle').trim(), goal: g('kiGoal'),
           window_start: g('kiWs'), window_end: g('kiWe'), focus_tier: g('kiFocusTier'), focus_pillars });
         if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
-        _kiAddOpen = false; await refreshBiz(); toast('⚡ Đã tạo đợt nhấn'); route();
-      } catch (e) { toast('Không tạo được đợt — thử lại sau.'); el.disabled = false; el.textContent = orig; }
+        _kiAddOpen = false; await refreshBiz(); toast('⚡ Đã tạo chiến dịch'); route();
+      } catch (e) { toast('Không tạo được chiến dịch — thử lại sau.'); el.disabled = false; el.textContent = orig; }
       return;
     }
     if (act === 'ki-funnel') {   // Max dựng danh sách bài dự kiến (funnel map) cho 1 đợt
