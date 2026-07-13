@@ -854,6 +854,7 @@
         </div>
       </details>` : ''}`}
       <div class="doc-grid">${bodyOrEditor}${versions}</div>`;
+    el.classList.toggle('has-versions', _docVersions.length > 1);   // N-02: layout 2-cột KHÔNG phụ thuộc :has()
     enhancePosMaps(el);   // D-034 #4: ASCII map → visual
   }
   // Lô I: skill nội dung đủ điều kiện "đo hiệu quả" (bài đăng được) → hiện panel phản hồi.
