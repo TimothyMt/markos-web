@@ -308,6 +308,13 @@ async def biz_content_matrix_gen(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+async def biz_key_ideas_import_legacy(request):
+    """B4 — nhập campaigns_v2 cũ → key_ideas (chiến dịch Layered). Additive, idempotent, không xoá đồ cũ."""
+    d = await request.json()
+    res = await biz.migrate_campaigns_to_key_ideas(d.get("user_id"))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 async def biz_rhythm_save(request):
     """Tầng ③ — lưu nhịp nền (bảng điều khiển 6 tuyến chạy quanh năm)."""
     d = await request.json()
@@ -611,6 +618,7 @@ def api_routes() -> list:
         Route("/api/biz/key-idea/save",            biz_key_idea_save,  methods=["POST"]),
         Route("/api/biz/key-idea/funnel",          biz_key_idea_funnel, methods=["POST"]),
         Route("/api/biz/content-matrix/gen",        biz_content_matrix_gen, methods=["POST"]),
+        Route("/api/biz/key-ideas/import-legacy",   biz_key_ideas_import_legacy, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),

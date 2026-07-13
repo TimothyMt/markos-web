@@ -2037,16 +2037,28 @@
     return `${house}<section class="card mx-card"><div class="mx-grid" style="--mx-cols:${_MX_TIERS.length}">${head}${rows}</div>
       <p class="muted mx-note">Đây là <b>nền chạy đều</b> — không phải mọi ô đều cần bài. Chiến dịch (tab ⚡) đẩy cao điểm 1 tầng phễu across trụ theo kỳ.</p></section>`;
   }
+  function kiLegacyCamps() {   // B4: campaigns_v2 cũ CHƯA nhập vào key_ideas (dedupe theo migrated_from)
+    const camps = (window.MOCK && M.bizCampaigns) || [];
+    const ideas = kiList();
+    const done = new Set(ideas.map(k => String(k.migrated_from || '')).filter(Boolean));
+    return camps.filter(c => c && c.id != null && !done.has(String(c.id)));
+  }
   function mxSpikeInner() {
     const ideas = kiList();
+    const _legacy = kiLegacyCamps();
+    const legacyBanner = _legacy.length
+      ? `<div class="ki-legacy-banner">📥 Có <b>${_legacy.length}</b> chiến dịch cũ (hệ trước) chưa nằm ở đây.
+         <button class="ghost-line sm" data-act="ki-import-legacy">Nhập vào Chiến dịch</button>
+         <span class="muted">— giữ nguyên đồ cũ, chỉ thêm bản sao để quản 1 chỗ.</span></div>`
+      : '';
     const composer = _kiAddOpen ? kiComposer() : '';
     if (!ideas.length && !_kiAddOpen) {
-      return `<section class="card"><div class="empty-cta"><div class="empty-ic">⚡</div>
+      return legacyBanner + `<section class="card"><div class="empty-cta"><div class="empty-ic">⚡</div>
         <h3>Chưa có chiến dịch</h3>
         <p class="muted">Chiến dịch = cao điểm ngắn: 1 <b>ý lớn</b> đẩy mạnh 1 tầng phễu (hoặc vài trụ) trong 1 kỳ hạn. Max đề xuất từ kho góc đánh, bạn chốt.</p>
         <div class="empty-actions"><button class="primary-btn" data-act="ki-add-toggle">＋ Chiến dịch mới</button></div></div></section>`;
     }
-    return composer + `<div class="ki-list">${ideas.map(kiCardHTML).join('')}</div>`;
+    return legacyBanner + composer + `<div class="ki-list">${ideas.map(kiCardHTML).join('')}</div>`;
   }
   function kiComposer() {
     const trus = mxTrus();
@@ -3730,6 +3742,16 @@
         if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
         _kiAddOpen = false; await refreshBiz(); toast('⚡ Đã tạo chiến dịch'); route();
       } catch (e) { toast('Không tạo được chiến dịch — thử lại sau.'); el.disabled = false; el.textContent = orig; }
+      return;
+    }
+    if (act === 'ki-import-legacy') {   // B4: nhập campaigns_v2 cũ → key_ideas
+      if (!apiAvailable || !M.bizEnabled) { toast('Bật backend để nhập'); return; }
+      const orig = el.textContent; el.disabled = true; el.textContent = '⏳ Đang nhập…';
+      try {
+        const r = await API.post('api/biz/key-ideas/import-legacy', { user_id: _bizUserId });
+        if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
+        await refreshBiz(); toast(`📥 Đã nhập ${r.migrated || 0} chiến dịch cũ`); route();
+      } catch (e) { toast('Không nhập được — thử lại sau.'); el.disabled = false; el.textContent = orig; }
       return;
     }
     if (act === 'ki-funnel') {   // Max dựng danh sách bài dự kiến (funnel map) cho 1 đợt

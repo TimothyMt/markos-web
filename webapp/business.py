@@ -3359,6 +3359,15 @@ def _norm_goal(g) -> str:
     return g if g in _KI_GOALS else ""
 
 
+# B4: map primary_goal của campaigns_v2 cũ → goal enum key_idea (migrate). Lạ → '' (Max suy khi gen).
+_CAMP_GOAL_TO_KI = {
+    "brand": "awareness", "branding": "awareness", "awareness": "awareness", "launch": "awareness",
+    "acquisition": "consideration", "leadgen": "consideration", "demand": "consideration", "engagement": "awareness",
+    "conversion": "conversion", "activation": "conversion", "sales": "conversion",
+    "retention": "retention", "winback": "retention", "loyalty": "retention",
+}
+
+
 def _match_pillar(val, known: list) -> str:
     """B2.1: khớp LỎNG tên trụ model trả về với danh sách trụ đã biết (messaging/content_matrix).
     Khớp chính xác → giữ; chứa nhau (2 chiều) → lấy canonical; lạ hẳn → '' (KHÔNG bỏ bài, chỉ mất trục)."""
@@ -3520,6 +3529,60 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
         return {"ok": True, "key_idea": key_idea}
     except Exception as e:
         logger.warning("biz.save_key_idea failed: %s", e)
+        return {"error": str(e)}
+
+
+async def migrate_campaigns_to_key_ideas(user_id=None) -> dict:
+    """B4: nhập campaigns_v2 CŨ (occasion) → key_ideas (chiến dịch Layered). ADDITIVE + IDEMPOTENT +
+    KHÔNG xoá campaigns_v2. Dedupe theo migrated_from. funnel_map để rỗng (Max dựng lại). Dữ liệu người
+    dùng — con người review/xoá được (không phá đồ cũ)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        from storage.v2 import profiles, campaigns_v2
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        ideas = extra.get("key_ideas") if isinstance(extra.get("key_ideas"), list) else []
+        if not isinstance(ideas, list):
+            ideas = []
+        done = {str(it.get("migrated_from")) for it in ideas
+                if isinstance(it, dict) and it.get("migrated_from")}
+        camps = await campaigns_v2.list_campaigns_v2(uid, limit=50)
+        migrated, skipped = 0, 0
+        now = time.time()
+        for c in (camps or []):
+            if not isinstance(c, dict):
+                skipped += 1; continue
+            cid = str(c.get("id") or "")
+            name = str(c.get("name") or "").strip()
+            if not cid or not name or cid in done:      # thiếu tên / đã nhập rồi → bỏ (idempotent)
+                skipped += 1; continue
+            ws = str(c.get("start_date") or "")[:40]
+            we = str(c.get("end_date") or "")[:40]
+            kid = f"{int(now)}-mig-{(re.sub(r'[^a-z0-9]+', '', name.lower())[:16] or 'camp')}-{cid[:6]}"
+            ideas.append({
+                "id": kid, "title": name[:140],
+                "angle": str(c.get("offer_lever") or c.get("summary") or "").strip()[:220],
+                "source": "migrated", "source_ref": "", "migrated_from": cid,
+                "goal": _CAMP_GOAL_TO_KI.get(str(c.get("primary_goal") or "").strip().lower(), ""),
+                "window_start": ws, "window_end": we,
+                "status": ("active" if (ws and we) else "draft"),
+                "focus_tier": "", "focus_pillars": [],
+                "funnel_map": {"ratio": "", "posts": []}, "created_at": now, "updated_at": now,
+            })
+            migrated += 1
+        if migrated:
+            extra["key_ideas"] = ideas
+            await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "migrated": migrated, "skipped": skipped}
+    except Exception as e:
+        logger.warning("biz.migrate_campaigns_to_key_ideas failed: %s", e)
         return {"error": str(e)}
 
 

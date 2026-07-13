@@ -1308,3 +1308,8 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
 .ki-pillar { font-size:11px; color:var(--txt-2); background:rgba(124,77,255,.14); border-radius:6px; padding:1px 7px; }
 .ki-sib { font-size:11px; color:var(--amber); }
 @media (max-width:720px){ .ki-tiers { grid-template-columns:1fr; } }
+
+/* B4: banner nhập chiến dịch cũ (campaigns_v2 → key_ideas) */
+.ki-legacy-banner { background:var(--panel); border:1px dashed var(--amber); border-radius:10px;
+  padding:10px 14px; margin-bottom:12px; font-size:13.5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.ki-legacy-banner .muted { font-size:12px; }
