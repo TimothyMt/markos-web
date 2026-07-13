@@ -1475,7 +1475,7 @@
     return `
       <section class="calboard">
         <div class="cal-bands" style="grid-template-columns:repeat(${W},1fr)">
-          <a class="band-base band-brand clickable" style="grid-column:1 / -1" href="#rhythm" title="Nhịp nền — bấm để chỉnh 6 tuyến chạy quanh năm"><span>🟢 <b>Branding nền</b> · liên tục · không deadline — chạy suốt cả ${W} tuần, KHÔNG tắt khi có đợt · 🎛️ chỉnh nhịp</span></a>
+          <a class="band-base band-brand clickable" style="grid-column:1 / -1" href="#matrix" title="Ma trận nền — bấm để xem/chỉnh nền (trụ × phễu × nền tảng)"><span>🟢 <b>Branding nền</b> · liên tục · không deadline — chạy suốt cả ${W} tuần, KHÔNG tắt khi có đợt · 🧱 xem ma trận nền</span></a>
           ${bands}
         </div>
         <div class="plan-weekhead" style="grid-template-columns:repeat(${W},1fr)">
@@ -1520,15 +1520,14 @@
           <button class="${_calView==='week'?'on':''}" data-act="cal-view" data-view="week">Chi tiết tuần</button>
         </div>
         ${_realCal ? `<button class="ghost-line" data-act="gen-topics">✨ Gợi ý chủ đề cả lịch</button>` : ''}
-        <a class="ghost-line" href="#rhythm">🎛️ Nhịp nền</a>
-        <button class="ghost-line" data-act="portfolio-open">🗓️ Gợi ý lịch đợt</button>
-        <button class="primary-btn" data-act="add-campaign-occasion">＋ Thêm đợt vào lịch</button>`;
+        <a class="ghost-line" href="#matrix">🧱 Ma trận nền</a>
+        <a class="primary-btn" href="#occasion">＋ Chiến dịch mới</a>`;
     },
     render: () => `
       ${_realCal
         ? `<div class="cal-note">${badge('Dựng từ chiến lược','green')} <span class="muted"> Always-on lấy từ <b>${(_realCal.alwaysOn||[]).length? new Set((_realCal.alwaysOn||[]).map(s=>s.pillar)).size : 0} trụ đã chốt</b>, rải theo nhịp đăng suốt <b>${({'30':'30 ngày','60':'60 ngày','90':'90 ngày'})[_realCal.horizon]||(_realCal.weeks+' tuần')}</b>. Mỗi ô bấm ⚡ để sinh bài thật.</span></div>`
         : (M.bizEnabled
-        ? `<div class="cal-note">${badge('Chưa có dữ liệu thật','amber')} <span class="muted"> Lập + chốt Chiến lược, rồi set <a href="#rhythm">🎛️ Nhịp nền</a> để lịch nền hiện thật. Đang xem mẫu.</span></div>`
+        ? `<div class="cal-note">${badge('Chưa có dữ liệu thật','amber')} <span class="muted"> Lập + chốt Chiến lược, rồi dựng <a href="#matrix">🧱 Ma trận nền</a> để lịch nền hiện thật. Đang xem mẫu.</span></div>`
         : `<div class="cal-note">${badge('Bản thiết kế UX','amber')} <span class="muted"> Mô hình kế hoạch — dữ liệu mẫu, nối thật khi bật backend.</span></div>`)}
       <div class="cal-legend">
         <span><i class="lg on"></i> 🟢 Branding (nền) — bài brand chạy đều mỗi tuần, KHÔNG tắt khi có đợt</span>
@@ -2616,6 +2615,8 @@
     if (id === 'brief') id = 'occasion';   // gỡ trang Campaign Brief mock → hub Lập chiến dịch thật
     // B2.2 (①A): "Lập chiến dịch" GẬP vào Ma trận & Chiến dịch (tab Chiến dịch = key_ideas). 1 khái niệm 1 cửa.
     if (id === 'occasion') { id = 'matrix'; _mxTab = 'spike'; }
+    // B2.3 (dọn nợ): "Nhịp nền" cũ (content_rhythm) GẬP vào Ma trận nền (content_matrix) — 1 surface cho nền.
+    if (id === 'rhythm') { id = 'matrix'; _mxTab = 'base'; }
     if (id === 'content' || id === 'video' || id === 'ugc') id = 'calendar';   // M3.1: gộp vào Lịch (bài + biến thể)
     if (id === 'doc') _docId = seg1 || null;                    // trang đọc output: #doc/<id>
     const page = P[id] || P.dossier;
