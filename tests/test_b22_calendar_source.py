@@ -45,7 +45,7 @@ def _install_stubs(extra):
     sys.modules["storage.v2"] = fake_v2
     sys.modules.setdefault("storage", types.ModuleType("storage"))
     fake_R = types.ModuleType("tools.llm_router")
-    class TaskType: OPS_BRIEF = "ops_brief"
+    class TaskType: OPS_BRIEF = "ops_brief"; OPS_CONTENT_CREATIVE = "ops_creative"; INTAKE_JSON = "intake_json"
     fake_R.TaskType = TaskType
     async def _c(**kw): return {"output": "{}"}
     fake_R.call = _c
@@ -148,6 +148,25 @@ async def _run():
                 bool(plan4.get("campaigns")) and plan4["campaigns"][0].get("legacy") is True))
     _EXTRA["key_ideas"] = _ki
     fake_v2.campaigns_v2._rows = []
+
+    # ---- ⑤ gen_calendar_post: 'Tạo bài' cho post CHIẾN DỊCH đọc key_idea (KHÔNG phải campaigns_v2) ----
+    # → prompt mang Ý LỚN đợt + tầng phễu + repurpose (chống bug 'Đợt: rỗng' khi id là key_idea).
+    _CAPP = []
+    async def _cap(task_type=None, system="", user="", max_tokens=0, **kw):
+        _CAPP.append((system, user)); return {"output": "BÀI MẪU"}
+    sys.modules["tools.llm_router"].call = _cap
+    async def _lc(uid, name): return ""
+    B._latest_content = _lc
+    await B.gen_calendar_post(user_id=1, track="camp", pillar="Khoa học làn da", campaign_id="k1",
+                              phase="TOFU #1", angle="Soi da 50x", track_role="khơi nhận biết",
+                              tier="tofu", sibling_group="s1")
+    _usr = _CAPP[-1][1] if _CAPP else ""
+    res += [
+        ("⑤ camp id=key_idea → prompt mang Ý LỚN đợt (title)", "Ý LỚN của đợt" in _usr and "Tháng hiểu da" in _usr),
+        ("⑤ prompt mang TẦNG PHỄU (TOFU)", "TẦNG PHỄU" in _usr and "TOFU" in _usr),
+        ("⑤ prompt mang repurpose (sibling)", "BIẾN THỂ repurpose" in _usr),
+        ("⑤ KHÔNG còn 'Đợt: rỗng' (Story-Arc không hợp)", "Đợt: . Brief" not in _usr),
+    ]
 
     return res
 

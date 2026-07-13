@@ -3825,16 +3825,26 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
             pass
         ctx, kind, lines = "", "", []
         if track == "camp" and campaign_id:
-            from storage.v2 import campaigns_v2
-            c = await campaigns_v2.get_campaign(campaign_id) or {}
-            brief = ""
-            if c.get("brief_skill_run_id"):
-                run = await skill_run_content(c["brief_skill_run_id"])
-                brief = (run or {}).get("content") or c.get("summary") or ""
-            lines.append(f"Đợt: {c.get('name','')}. Brief:\n{brief[:1800]}")
-            if (phase or "").strip():
-                lines.append(f"Bài thuộc PHA: {phase} — mục tiêu pha: {_OCC_PHASE_HINT.get(phase, '')}")
-            kind = "1 bài cho ĐỢT theo dịp, bám đúng PHA của Story Arc (CTA hợp pha)"
+            # B2.2: đợt Layered (key_idea) ưu tiên → bối cảnh ý-lớn/goal; degrade → campaigns_v2 cũ (Story Arc).
+            _ki = next((k for k in (_pe.get("key_ideas") or []) if isinstance(k, dict) and str(k.get("id")) == str(campaign_id)), None)
+            if _ki:
+                _gl = {"awareness": "nhận biết", "consideration": "cân nhắc",
+                       "conversion": "chốt/xả", "retention": "giữ chân"}.get(_ki.get("goal"), "")
+                lines.append(f"Ý LỚN của đợt (bài phục vụ): {_ki.get('title', '')}"
+                             + (f" — góc: {_ki.get('angle')}" if _ki.get("angle") else "")
+                             + (f" — mục tiêu đợt: {_gl}" if _gl else ""))
+                kind = "1 bài trong ĐỢT nội dung, phục vụ Ý LỚN của đợt + ĐÚNG tầng phễu của bài"
+            else:
+                from storage.v2 import campaigns_v2
+                c = await campaigns_v2.get_campaign(campaign_id) or {}
+                brief = ""
+                if c.get("brief_skill_run_id"):
+                    run = await skill_run_content(c["brief_skill_run_id"])
+                    brief = (run or {}).get("content") or c.get("summary") or ""
+                lines.append(f"Đợt: {c.get('name','')}. Brief:\n{brief[:1800]}")
+                if (phase or "").strip():
+                    lines.append(f"Bài thuộc PHA: {phase} — mục tiêu pha: {_OCC_PHASE_HINT.get(phase, '')}")
+                kind = "1 bài cho ĐỢT theo dịp, bám đúng PHA của Story Arc (CTA hợp pha)"
         else:
             lines.append(f"Content pillar (always-on, nền brand): {pillar or '(brand)'}")
             kind = "1 bài NỀN brand bám pillar (xây nhận biết/niềm tin — KHÔNG ép bán)"
