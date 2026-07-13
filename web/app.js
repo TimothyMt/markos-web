@@ -1426,11 +1426,13 @@
   const alwaysCard = (p) => `<div class="cal-post clickable ${p.saved?'saved':''}" data-act="slot-open" data-slot="${encodeURIComponent(JSON.stringify(p))}" style="--accent:var(--green)" title="${p.saved?'Đã duyệt — bấm để xem/sửa':'Bấm để chọn chủ đề & tạo bài'}">
       <div class="cal-post-top"><span class="trk on">Always-on</span><span class="pill-tag ${pillarCls(p.pillar)}">${p.pillar}</span>${p.saved?'<span class="slot-done">✓ Đã duyệt</span>':''}</div>
       <p class="cal-post-topiclbl">💡 Chủ đề</p>
-      <p class="cal-post-title">${p.title}</p></div>`;
+      <p class="cal-post-title">${p.title}</p>
+      <div class="cal-post-cta">${p.saved?'✓ Đã duyệt · xem/sửa':'⚡ Tạo bài'}</div></div>`;
   const campCard = (p) => `<div class="cal-post clickable ${p.saved?'saved':''}" data-act="slot-open" data-slot="${encodeURIComponent(JSON.stringify({track:'camp', campaignId:p.camp.campaignId, phase:p.phase||'', title:p.title, pillar:(p.pillar||`${p.icon||'🔴'} ${p.phase||'Đợt'}`), funnel:p.camp.name, week:p.week, day:p.day, key:p.key||'', angles:[p.hint||p.title], tier:p.tier||'', sibling_group:p.sibling_group||'', track_role:p.hint||'', saved:p.saved, post:p.post}))}" style="--accent:${p.camp.color}" title="${p.saved?'Đã duyệt — bấm để xem/sửa':'Bấm để soạn bài chiến dịch'}">
       <div class="cal-post-top"><span class="trk camp" style="--c:${p.camp.color}">${p.camp.name}</span><span class="pill-tag c4">${p.phase||'Convert'}</span>${p.sibling_group?'<span class="pill-tag" title="Repurpose — 1 nội dung, nhiều nền tảng">🔁</span>':''}${p.saved?'<span class="slot-done">✓</span>':''}</div>
       ${p.channel?`<p class="cal-post-topiclbl">📱 ${p.channel}</p>`:''}
-      <p class="cal-post-title">${p.title}</p>${p.camp.offer?`<span class="cal-offer">🎁 ${p.camp.offer}</span>`:''}</div>`;
+      <p class="cal-post-title">${p.title}</p>${p.camp.offer?`<span class="cal-offer">🎁 ${p.camp.offer}</span>`:''}
+      <div class="cal-post-cta">${p.saved?'✓ Đã duyệt · xem/sửa':'⚡ Tạo bài'}</div></div>`;
   // M-A: always-on giờ là slot theo (tuần,ngày) khi có dữ liệu thật; mock cũ = mảng phẳng 7 ô.
   const _alwaysHasWeeks = (a) => a && a.length && a[0] && a[0].week != null;
   const alwaysAt = (P0, w, d) => {
@@ -1496,15 +1498,11 @@
           const cps = campPostsAt(w, i);
           const inCamp = cps.length > 0;
           const aSlots = alwaysAt(P0, w, i);
-          const slotPillar = (aSlots[0] || {}).pillar || '';
-          const genAttrs = inCamp
-            ? `data-track="camp" data-camp-id="${cps[0].camp.campaignId || ''}"`
-            : `data-track="always" data-pillar="${slotPillar.replace(/"/g, '&quot;')}"`;
+          // B2.2: nút "Tạo bài" gắn theo TỪNG POST (trong thẻ) — không còn 1 nút chung theo ngày.
           return `<div class="cal-col ${inCamp ? 'in-camp' : ''}" ${inCamp ? `style="--c:${cps[0].camp.color}"` : ''}>
             <div class="cal-colhead">${d}${inCamp ? `<span class="col-dot" style="background:${cps[0].camp.color}"></span>` : ''}</div>
             ${aSlots.map(alwaysCard).join('') || (cps.length ? '' : '<p class="muted cal-empty">— nghỉ —</p>')}
-            ${cps.map(campCard).join('')}
-            <button class="cal-add" data-act="cal-gen" data-week="${w}" data-day="${i}" ${genAttrs}>⚡ Tạo bài</button></div>`;
+            ${cps.map(campCard).join('')}</div>`;
         }).join('')}
       </div>`;
   }
