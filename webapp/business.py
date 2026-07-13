@@ -3788,12 +3788,61 @@ async def gen_content_matrix(user_id=None) -> dict:
         return {"error": str(e)}
 
 
+# B3: KÊNH quyết định ĐỊNH DẠNG. 1 nguồn prompt (writer chính + derive dùng chung). Phần HOOK/cấm-bịa
+# là CHUNG; mỗi format chỉ khác THÂN + max_tokens. Rút chất lượng video từ _CAMPAIGN_TASK_GEN.video_script.
+_CONTENT_HOOK_HEAD = (
+    "🪝 HOOK (câu đầu / 3s đầu) — chọn 1 trong 5 góc, hợp tệp khách + tầng phễu, viết cho SẮC:\n"
+    "  • Tò mò (paradox/câu hỏi tiết lộ) • Trái ngược (đảo niềm tin) • Cảm xúc (chạm pain thật)\n"
+    "  • Góc nhìn chuyên gia (POV người trong nghề) • Đồng cảm (kể đúng trải nghiệm khách).\n")
+_CONTENT_TAIL = (
+    "🔴 NGHIÊM CẤM: mở generic ('Bạn có biết…?', 'Hôm nay mình chia sẻ…'), CTA 'Tìm hiểu thêm', bịa "
+    "số/khuyến mãi không có thật; TUYỆT ĐỐI không in nhãn khung ('Hook:', 'Thân:', 'CTA:', 'Beat:', 'Cảnh:'…) "
+    "ra bài — đọc tự nhiên, dùng được ngay.\n"
+    "🔴 Gọi người xem 'bạn'/'anh chị' (KHÔNG 'sếp'). Bám 'Chủ đề cụ thể' nếu có + USP + tệp khách + ngành. "
+    "Proof chưa có số thật → ghi '[chèn review/số thật]', KHÔNG bịa. Viết TIẾNG VIỆT tự nhiên. Trả MARKDOWN gọn.")
+_FORMAT_SPECS = {
+    "post": {"label": "1 BÀI ĐĂNG mạng xã hội (feed FB/IG)", "max_tokens": 900, "body": (
+        "📝 THÂN: 1 ý chính, có chi tiết/ví dụ ĐỜI THỰC; dùng PAS/AIDA làm khung XƯƠNG ẨN; lồng USP qua bằng "
+        "chứng/câu chuyện, KHÔNG hô khẩu hiệu.\n"
+        "📣 CTA: 1 dòng CỤ THỂ (vd \"Inbox 'tư vấn' để em check giúp\"); bài nền thì CTA mềm (lưu/chia sẻ/comment).\n"
+        "#️⃣ 3-5 hashtag tiếng Việt: thương hiệu + ngách + xu hướng.\n"
+        "💡 Kết đúng 1 dòng \"Gợi ý ảnh: …\" (concept hình để founder tự chụp/đặt).\n")},
+    "video": {"label": "1 KỊCH BẢN VIDEO ngắn quay-được-ngay (TikTok/Reels/Shorts)", "max_tokens": 1500, "body": (
+        "🎬 KỊCH BẢN quay-được-ngay. Chọn FRAMEWORK theo tầng phễu (PAS=TOFU/educate · BAB=MOFU/before-after · "
+        "AIDA=narrative · FAB=BOFU/chốt · Star-Story/Storytime=viral).\n"
+        "• Hook 0-3s: 1 câu THOẠI + text overlay đập ngay.\n"
+        "• Thân theo BEAT: mỗi beat ghi TIMING (Xs) + LỜI THOẠI THẬT (TUYỆT ĐỐI không placeholder kiểu "
+        "'[giới thiệu SP]') + Visual (shot: góc máy/hành động) + Text overlay.\n"
+        "• Music/SFX gợi ý (nhạc trend hợp mood).\n"
+        "• Cuối: Caption hook ≤125 ký tự + 8-12 hashtag VN (branded+niche+trending).\n")},
+    "short": {"label": "1 TIN NGẮN (Zalo OA / SMS / story)", "max_tokens": 700, "body": (
+        "✉️ TIN NGẮN gọn (≤4-5 dòng), 1 thông điệp, đọc lướt hiểu ngay, 1 CTA mềm rõ. KHÔNG dài dòng, KHÔNG nhồi hashtag.\n")},
+    "longform": {"label": "1 BÀI DÀI (blog / website / note)", "max_tokens": 1400, "body": (
+        "📰 BÀI DÀI có TIÊU ĐỀ + mở bài + 3-5 khối (vấn đề → giá trị/cơ chế → bằng chứng → CTA), tiểu mục rõ; "
+        "chiều sâu + ví dụ đời thực; kết có CTA cụ thể.\n")},
+}
+
+
+def _channel_to_format(channel: str) -> str:
+    """B3: dò LỎNG chuỗi kênh → định dạng nội dung (đa ngành). Rỗng/lạ → 'post' (tương thích ngược)."""
+    s = str(channel or "").strip().lower()
+    if not s:
+        return "post"
+    if any(k in s for k in ("tiktok", "reel", "short", "douyin", "video", "yt short", "kịch bản", "kich ban")):
+        return "video"
+    if any(k in s for k in ("zalo", "sms", "tin nhắn", "tin nhan", "story", "status")):
+        return "short"
+    if any(k in s for k in ("blog", "website", "web site", "bài dài", "bai dai", "seo", "landing", "note", "báo")):
+        return "longform"
+    return "post"
+
+
 async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "",
                             campaign_id: str = "", week: str = "", day: str = "",
                             angle: str = "", value_lens: str = "", hook_style: str = "",
                             framework: str = "", phase: str = "",
                             campaign_gap: str = "", objective: str = "", track_role: str = "",
-                            tier: str = "", sibling_group: str = "") -> dict:
+                            tier: str = "", sibling_group: str = "", channel: str = "") -> dict:
     """M1.2b + M-D: sinh 1 BÀI cho slot lịch — bám pillar (always-on) hoặc brief occasion.
     angle = CHỦ ĐỀ founder chọn; value_lens = GÓC KHAI THÁC; hook_style = CÁCH MỞ (1/5 nhóm);
     framework = khung copywriting ẩn. Lưu skill_run `calendar_post`. Degrade {error}."""
@@ -3867,6 +3916,19 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
         if str(sibling_group or "").strip():
             lines.append("Bài này là 1 BIẾN THỂ repurpose (cùng lõi nội dung, đổi FORM theo nền tảng/kênh — "
                          "giữ thông điệp, đổi cách kể cho hợp kênh, KHÔNG lặp y nguyên).")
+        if str(channel or "").strip():
+            lines.append(f"Kênh đăng: {channel} — viết ĐÚNG đặc tính kênh này.")
+        # B3: archetype nudge (đa ngành — chỉ gợi ý, không đổi format)
+        try:
+            from frameworks.industry_context import get_purchase_archetype
+            _arch = get_purchase_archetype(industry) or ""
+            _AR_NUDGE = {"impulse": "Ngành mua cảm xúc nhanh → nghiêng trend/hook mạnh/UGC/khoe kết quả.",
+                         "trust_building": "Ngành cần niềm tin → nghiêng POV chuyên gia/bằng chứng/giải thích cơ chế.",
+                         "demand_gen": "Ngành tạo nhu cầu → nghiêng giáo dục/so sánh/gỡ hiểu lầm."}
+            if _arch in _AR_NUDGE:
+                lines.append(_AR_NUDGE[_arch])
+        except Exception:
+            pass
         # Trục chung cho cả 2 track (M-D Pha 2): chủ đề + góc khai thác + khung ẩn.
         if (angle or "").strip():
             lines.append(f"Chủ đề cụ thể (founder chọn — bám SÁT): {angle}")
@@ -3879,22 +3941,13 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
         hook_rule = (f"\n🔴 CÁCH MỞ bài DÙNG ĐÚNG nhóm hook: {hook_style}." if (hook_style or "").strip()
                      and hook_style.lower() not in ("auto", "tự động") else "")
         from tools.llm_router import call as router_call, TaskType
+        # B3: KÊNH quyết định định dạng → chọn thân prompt + max_tokens (channel='' → 'post' = hành vi cũ).
+        _fmt = _channel_to_format(channel)
+        _spec = _FORMAT_SPECS.get(_fmt, _FORMAT_SPECS["post"])
         system = (
-            "Bạn là content writer social media giỏi cho founder Việt. Viết " + kind + ".\n\n"
-            "🪝 HOOK (câu đầu) — chọn 1 trong 5 góc, hợp tệp khách + tầng phễu, viết cho SẮC:\n"
-            "  • Tò mò (paradox/câu hỏi tiết lộ) • Trái ngược (đảo niềm tin) • Cảm xúc (chạm pain thật)\n"
-            "  • Góc nhìn chuyên gia (POV người trong nghề) • Đồng cảm (kể đúng trải nghiệm khách).\n"
-            "📝 THÂN: 1 ý chính, có chi tiết/ví dụ ĐỜI THỰC; dùng PAS/AIDA làm khung XƯƠNG ẨN; lồng USP qua "
-            "bằng chứng/câu chuyện, KHÔNG hô khẩu hiệu.\n"
-            "📣 CTA: 1 dòng CỤ THỂ (vd \"Inbox 'tư vấn' để em check giúp\"); bài nền thì CTA mềm "
-            "(lưu/chia sẻ/comment), đừng ép mua.\n"
-            "#️⃣ 3-5 hashtag tiếng Việt, trộn 3 loại: thương hiệu + ngách + xu hướng.\n"
-            "💡 Kết bằng đúng 1 dòng \"Gợi ý ảnh: …\" (concept hình minh hoạ ngắn — để founder tự chụp/đặt).\n\n"
-            "🔴 NGHIÊM CẤM: mở bài generic ('Bạn có biết…?', 'Hôm nay mình chia sẻ…'), CTA 'Tìm hiểu thêm', "
-            "bịa số/khuyến mãi không có thật; TUYỆT ĐỐI không in nhãn khung ('Hook:', 'Thân:', 'CTA:', "
-            "'Problem:', 'Mở:'…) ra bài — bài đọc tự nhiên, copy-paste đăng được ngay.\n"
-            "🔴 Trong NỘI DUNG gọi người đọc là 'bạn' hoặc 'anh/chị' (KHÔNG 'sếp'). Nếu có 'Chủ đề cụ thể' "
-            "→ bám ĐÚNG. Bám USP + đúng tệp khách + ngành. Viết TIẾNG VIỆT tự nhiên. Trả MARKDOWN gọn."
+            "Bạn là content writer/đạo diễn nội dung giỏi cho founder Việt. Nhiệm vụ: viết "
+            + _spec["label"] + " (" + kind + ").\n\n"
+            + _CONTENT_HOOK_HEAD + _spec["body"] + "\n" + _CONTENT_TAIL
             + hook_rule
         )
         # N-17: PLAYBOOK + Synthesis làm NỀN NGẦM — bài bám cách-đánh tactical, không chỉ pillar/USP.
@@ -3912,7 +3965,8 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
                 f"# Khách mục tiêu\n{target or '(chưa rõ)'}\n# USP\n{usp or '(chưa rõ)'}{voice_ctx}\n\n"
                 f"# Bối cảnh slot\n{ctx}{msg_anchor}{strat_anchor}")
         user += _spine_anchor(_pe)   # P0.2: bơm Chiến lược nền (Spine) vào prompt
-        res = await router_call(task_type=TaskType.OPS_CONTENT_CREATIVE, system=system, user=user, max_tokens=900)
+        res = await router_call(task_type=TaskType.OPS_CONTENT_CREATIVE, system=system, user=user,
+                                max_tokens=_spec["max_tokens"])
         content = (res or {}).get("output", "").strip()
         if not content:
             return {"error": "Chưa sinh được bài — thử lại."}
@@ -3980,8 +4034,10 @@ _DERIVATIVES = {
 }
 
 
-async def gen_derivative(user_id=None, kind: str = "channels", source: str = "") -> dict:
-    """M3.1: sinh biến thể từ 1 bài gốc (kind: channels/video/ugc). Lưu skill_run. Degrade {error}."""
+async def gen_derivative(user_id=None, kind: str = "channels", source: str = "",
+                         pillar: str = "", tier: str = "", target_channel: str = "") -> dict:
+    """M3.1: sinh biến thể từ 1 bài gốc (kind: channels/video/ugc). Lưu skill_run. Degrade {error}.
+    B3: video dùng thân prompt xịn _FORMAT_SPECS + bơm anchor (giọng/tầng phễu/trụ) như writer chính."""
     if not available():
         return {"error": "Chưa cấu hình Supabase."}
     if not (source or "").strip():
@@ -3995,15 +4051,29 @@ async def gen_derivative(user_id=None, kind: str = "channels", source: str = "")
             return {"error": "Chưa có user."}
         from storage.v2 import profiles
         prof = await profiles.get_profile(uid) or {}
+        _pe = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
         skill_name, task_name, instruction = _DERIVATIVES[kind]
+        # B3: video → thân prompt xịn 1 nguồn (_FORMAT_SPECS); giàu anchor giọng/tầng phễu (hết mỏng ngữ cảnh).
+        max_tok = 1200
+        if kind == "video":
+            instruction = _FORMAT_SPECS["video"]["body"]
+            max_tok = _FORMAT_SPECS["video"]["max_tokens"]
+        anchor = _messaging_anchor_from(_pe)
+        _t = str(tier or "").strip().lower()
+        tier_line = f"\n# Tầng phễu\n{_t.upper()}" if _t in ("tofu", "mofu", "bofu") else ""
         from tools.llm_router import call as router_call, TaskType
         task = getattr(TaskType, task_name, TaskType.OPS_CONTENT_CREATIVE)
         system = (
             "Bạn là copywriter/đạo diễn nội dung Việt Nam. " + instruction + "\n"
-            "🔴 Bám đúng bài gốc + ngành; KHÔNG bịa số/khuyến mãi mới ngoài bài gốc. Trả MARKDOWN gọn, dùng được ngay."
+            "🔴 Bám đúng bài gốc + GIỌNG thương hiệu + ngành; KHÔNG bịa số/khuyến mãi mới ngoài bài gốc. "
+            "Proof chưa có số thật → '[chèn review/số thật]'. Trả MARKDOWN gọn, dùng được ngay."
         )
-        user = f"# Ngành\n{prof.get('industry') or ''}\n# USP\n{prof.get('usp') or '(chưa rõ)'}\n\n# BÀI GỐC\n{source[:2500]}"
-        res = await router_call(task_type=task, system=system, user=user, max_tokens=1200)
+        user = (f"# Ngành\n{prof.get('industry') or ''}\n# USP\n{prof.get('usp') or '(chưa rõ)'}"
+                + (f"\n# Kênh đích\n{target_channel}" if str(target_channel or '').strip() else "")
+                + (f"\n# Trụ thông điệp\n{pillar}" if str(pillar or '').strip() else "")
+                + tier_line + anchor
+                + f"\n\n# BÀI GỐC\n{source[:2500]}")
+        res = await router_call(task_type=task, system=system, user=user, max_tokens=max_tok)
         content = (res or {}).get("output", "").strip()
         if not content:
             return {"error": "Chưa sinh được biến thể — thử lại."}

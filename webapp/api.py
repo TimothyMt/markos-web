@@ -190,7 +190,7 @@ async def biz_calendar_gen(request):
                                       d.get("framework", ""), d.get("phase", ""),
                                       d.get("campaign_gap", ""), d.get("objective", ""),
                                       d.get("track_role", ""), d.get("tier", ""),
-                                      d.get("sibling_group", ""))
+                                      d.get("sibling_group", ""), d.get("channel", ""))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -378,7 +378,9 @@ async def biz_reset(request):
 async def biz_content_derive(request):
     """M3.1 — sinh biến thể từ 1 bài gốc (đa kênh/video/UGC), lưu skill_run."""
     d = await request.json()
-    res = await biz.gen_derivative(d.get("user_id"), d.get("kind", "channels"), d.get("source", ""))
+    res = await biz.gen_derivative(d.get("user_id"), d.get("kind", "channels"), d.get("source", ""),
+                                   pillar=d.get("pillar", ""), tier=d.get("tier", ""),
+                                   target_channel=d.get("target_channel", ""))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 

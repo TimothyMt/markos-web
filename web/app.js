@@ -3378,7 +3378,8 @@
           week: _slotCtx.week || '', day: _slotCtx.day != null ? _slotCtx.day : '',
           campaign_gap: _slotCtx.campaign_gap || '', objective: _slotCtx.objective || '',
           track_role: _slotCtx.track_role || '',
-          tier: _slotCtx.tier || '', sibling_group: _slotCtx.sibling_group || '' });
+          tier: _slotCtx.tier || '', sibling_group: _slotCtx.sibling_group || '',
+          channel: _slotCtx.channel || '' });
         if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
         showSlotResult(r.content, r.run_id); refreshBiz();
       } catch (e) { toast('Không tạo được bài — thử lại sau.'); el.disabled = false; el.textContent = orig; }
@@ -3602,7 +3603,8 @@
       if (!src) { toast('Chưa có bài gốc'); return; }
       const orig = el.textContent; el.disabled = true; el.textContent = '⏳…';
       try {
-        const r = await API.post('api/biz/content/derive', { user_id: _bizUserId, kind, source: src });
+        const r = await API.post('api/biz/content/derive', { user_id: _bizUserId, kind, source: src,
+          pillar: (_slotCtx && _slotCtx.pillar) || '', tier: (_slotCtx && _slotCtx.tier) || '' });
         if (r.error) { toast(r.error); return; }
         showModal(labels[kind] || 'Biến thể', r.content || '(trống)', { back: true });
         toast('✅ Đã sinh & lưu biến thể'); refreshBiz();
