@@ -288,7 +288,8 @@ async def biz_key_idea_save(request):
     res = await biz.save_key_idea(
         d.get("user_id"), id=d.get("id", ""), title=d.get("title", ""), angle=d.get("angle", ""),
         source=d.get("source", "user"), source_ref=d.get("source_ref", ""), goal=d.get("goal", ""),
-        window_start=d.get("window_start", ""), window_end=d.get("window_end", ""), status=d.get("status", ""))
+        window_start=d.get("window_start", ""), window_end=d.get("window_end", ""), status=d.get("status", ""),
+        focus_tier=d.get("focus_tier", ""), focus_pillars=d.get("focus_pillars"))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -296,6 +297,13 @@ async def biz_key_idea_funnel(request):
     """CHAIN-V2 T5 — dựng funnel map + danh sách bài dự kiến cho 1 key idea (ratio uốn theo mục tiêu đợt)."""
     d = await request.json()
     res = await biz.gen_funnel_map_for_idea(d.get("user_id"), id=d.get("id", ""))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_content_matrix_gen(request):
+    """B2.1 — dựng MA TRẬN NỘI DUNG thường trực (trụ × phễu × nền tảng) — nền cho đợt nhấn."""
+    d = await request.json()
+    res = await biz.gen_content_matrix(d.get("user_id"))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -599,6 +607,7 @@ def api_routes() -> list:
         Route("/api/biz/key-ideas/suggest",        biz_key_ideas_suggest, methods=["POST"]),
         Route("/api/biz/key-idea/save",            biz_key_idea_save,  methods=["POST"]),
         Route("/api/biz/key-idea/funnel",          biz_key_idea_funnel, methods=["POST"]),
+        Route("/api/biz/content-matrix/gen",        biz_content_matrix_gen, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),

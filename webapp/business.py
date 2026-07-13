@@ -313,8 +313,11 @@ async def biz_data(user_id=None) -> dict:
     try:
         _ie8 = (out.get("bizProfile") or {}).get("intake_extra") or {}
         out["bizKeyIdeas"] = (_ie8.get("key_ideas") if isinstance(_ie8, dict) else []) or []
+        # B2.1: ma trận nội dung thường trực (trụ × phễu × nền tảng) — nền cho đợt nhấn.
+        out["bizContentMatrix"] = (_ie8.get("content_matrix") if isinstance(_ie8, dict) else {}) or {}
     except Exception:
         out["bizKeyIdeas"] = []
+        out["bizContentMatrix"] = {}
     # N-07b: Playbook lệch chiến lược? (playbook bám synthesis_id cũ ≠ synthesis hiện hành) → FE badge.
     try:
         _ie6 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -3191,6 +3194,20 @@ def _norm_goal(g) -> str:
     return g if g in _KI_GOALS else ""
 
 
+def _match_pillar(val, known: list) -> str:
+    """B2.1: khớp LỎNG tên trụ model trả về với danh sách trụ đã biết (messaging/content_matrix).
+    Khớp chính xác → giữ; chứa nhau (2 chiều) → lấy canonical; lạ hẳn → '' (KHÔNG bỏ bài, chỉ mất trục)."""
+    v = str(val or "").strip()
+    if not v or not isinstance(known, list):
+        return v[:160] if v else ""
+    vl = v.lower()
+    for k in known:
+        kl = str(k or "").strip().lower()
+        if kl and (kl == vl or kl in vl or vl in kl):
+            return str(k).strip()[:160]
+    return ""            # model bịa trụ lạ → bỏ trục (bài vẫn giữ), tránh đẻ trụ ngoài Thông điệp
+
+
 def _playbook_segments(extra: dict) -> list:
     """Đọc segments từ playbook_struct đã lưu (producer _gen_playbook/PR-A). [] nếu thiếu/hỏng (degrade)."""
     ps = extra.get("playbook_struct") if isinstance(extra, dict) else None
@@ -3280,9 +3297,11 @@ async def suggest_key_ideas(user_id=None, n: int = 5) -> dict:
 
 async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str = "",
                         source: str = "user", source_ref: str = "", goal: str = "",
-                        window_start: str = "", window_end: str = "", status: str = "") -> dict:
+                        window_start: str = "", window_end: str = "", status: str = "",
+                        focus_tier: str = "", focus_pillars=None) -> dict:
     """T4: user chốt/sửa 1 key idea (từ đề xuất Max hoặc tự viết) + đặt kỳ hạn đợt.
     Append/update intake_extra.key_ideas (dedupe theo id); window rỗng → status draft.
+    B2.1: đợt nhấn — focus_tier (đẩy tầng phễu nào) + focus_pillars (nhấn trụ nào), non-binding.
     Additive — KHÔNG đụng funnel_map/campaigns cũ."""
     if not available():
         return {"error": "Chưa cấu hình Supabase."}
@@ -3308,6 +3327,9 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
         if st not in ("draft", "active", "done"):
             st = "draft"
         now = time.time()
+        ft = str(focus_tier or "").strip().lower()
+        ft = ft if ft in _KI_TIERS else ""          # đợt nhấn tầng nào (rác → '' = suy từ goal)
+        fp = [str(x).strip()[:160] for x in focus_pillars if str(x).strip()] if isinstance(focus_pillars, list) else []
         meta = {
             "title": title,
             "angle": str(angle or "").strip()[:220],
@@ -3315,7 +3337,9 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
             "source_ref": str(source_ref or "").strip()[:160],
             "goal": _norm_goal(goal),
             "window_start": ws, "window_end": we,
-            "status": st, "updated_at": now,
+            "status": st,
+            "focus_tier": ft, "focus_pillars": fp[:8],
+            "updated_at": now,
         }
         kid = str(id or "").strip()
         found = next((it for it in ideas if isinstance(it, dict) and str(it.get("id")) == kid), None) if kid else None
@@ -3383,6 +3407,26 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 terr = str((p or {}).get("territory") or "")
                 if terr:
                     angle_ctx.append(f"[trụ] {terr} — {(p or {}).get('angle','')}")
+        # B2.1 danh sách trụ đã biết (để khớp lỏng pillar mỗi bài) — từ messaging + content_matrix
+        known_pillars = [str((p or {}).get("territory") or "").strip()
+                         for p in ((msg or {}).get("pillars") or []) if str((p or {}).get("territory") or "").strip()]
+        cmatrix = extra.get("content_matrix") if isinstance(extra.get("content_matrix"), dict) else {}
+        cm_cells = cmatrix.get("cells") if isinstance(cmatrix.get("cells"), list) else []
+        for c in cm_cells:
+            pv = str((c or {}).get("pillar") or "").strip()
+            if pv and pv not in known_pillars:
+                known_pillars.append(pv)
+        # B2.1 đợt NHẤN: focus_tier (đẩy tầng phễu nào) + focus_pillars (nhấn trụ nào) — non-binding
+        focus_tier = str(idea.get("focus_tier") or "").strip().lower()
+        focus_tier = focus_tier if focus_tier in _KI_TIERS else ""
+        focus_pillars = [str(x).strip() for x in (idea.get("focus_pillars") or []) if str(x).strip()] \
+            if isinstance(idea.get("focus_pillars"), list) else []
+        focus_bits = []
+        if focus_tier:
+            focus_bits.append(f"DỒN tầng {focus_tier.upper()} across các trụ (đợt nhấn tầng này)")
+        if focus_pillars:
+            focus_bits.append("CHỈ nhấn trụ: " + ", ".join(focus_pillars[:8]))
+        focus_line = ("ĐỢT NHẤN: " + " · ".join(focus_bits)) if focus_bits else ""
         goal = _norm_goal(idea.get("goal"))
         ratio_hint = _GOAL_RATIO.get(goal, "")
         goal_line = (f"MỤC TIÊU đợt: {goal} → khung tỉ lệ phễu gợi ý {ratio_hint} (TOFU/MOFU/BOFU)"
@@ -3394,18 +3438,31 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
             "Bạn là Content Strategist. Cho 1 Ý LỚN (đợt nội dung), dựng DANH SÁCH BÀI DỰ KIẾN theo phễu "
             "TOFU (khơi/nhận biết) → MOFU (nuôi/thuyết phục) → BOFU (chốt), phân bổ theo MỤC TIÊU đợt. "
             "Mỗi bài: tier (tofu/mofu/bofu) · kênh ĐÍCH DANH (vd 'Reels 15s') · vai trò (1 câu: bài này làm "
-            "gì trong phễu). Bám giọng thương hiệu. Số bài TỈNH TÁO theo độ dài đợt + nguồn lực — ưu tiên "
-            "đầu phễu ở đợt nhận biết, đáy phễu ở đợt chốt; ĐỪNG nhồi (team nhỏ).\n"
+            "gì trong phễu) · pillar (TRỤ thông điệp bài này thuộc về — CHỌN trong danh sách trụ đã cho, "
+            "để trống nếu không rõ) · sibling_group (mã nhóm để GỘP 1 nội dung repurpose sang nhiều nền tảng: "
+            "các bài cùng lõi khác nền tảng dùng CHUNG 1 mã vd 's1'; bài đơn để trống). "
+            "Bám giọng thương hiệu. Số bài TỈNH TÁO theo độ dài đợt + nguồn lực — ưu tiên "
+            "đầu phễu ở đợt nhận biết, đáy phễu ở đợt chốt; ĐỪNG nhồi (team nhỏ). Đợt nhấn là CAO ĐIỂM NGẮN "
+            "chồng lên ma trận nền — bám trụ sẵn có, đừng đẻ trụ mới.\n"
             + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số. Ngưỡng tỉ lệ là gợi ý — chỉnh theo baseline thật.\n"
             'Output JSON DUY NHẤT: {"ratio":"<vd 60/30/10>","posts":[{"tier":"tofu|mofu|bofu","channel":"",'
-            '"role":"","note":""}]}'
+            '"role":"","pillar":"","sibling_group":"","note":""}]}'
         )
         vdo = ", ".join(str(x) for x in (voice.get("do") or [])[:4])
+        # ma trận nội dung nền (bối cảnh — đợt nhấn chồng lên, không dựng lại)
+        cm_lines = [f"- [{str((c or {}).get('tier') or '')}] {str((c or {}).get('pillar') or '')}: "
+                    f"{str((c or {}).get('role') or '')}" + (f" (nền tảng: {', '.join(str(x) for x in ((c or {}).get('platforms') or [])[:3])})"
+                    if (c or {}).get('platforms') else "") for c in cm_cells[:16]]
         user = (f"# Ngành\n{industry} — {arche}\n# Ý LỚN\n{idea.get('title','')}\n# Góc/thế đối lập\n{idea.get('angle','')}\n"
-                f"# {goal_line}\n# Kỳ hạn đợt\n{idea.get('window_start','') or '(chưa đặt)'} → {idea.get('window_end','') or '(chưa đặt)'}\n"
+                f"# {goal_line}\n"
+                + (f"# {focus_line}\n" if focus_line else "")
+                + f"# Kỳ hạn đợt\n{idea.get('window_start','') or '(chưa đặt)'} → {idea.get('window_end','') or '(chưa đặt)'}\n"
                 f"# Kênh đang dùng\n{cur_channels or '(đề xuất kênh hợp archetype)'}\n"
                 f"# Giọng NÊN\n{vdo or '(theo thương hiệu)'}\n"
-                "# Kho góc đánh liên quan\n" + ("\n".join(f"- {x}" for x in angle_ctx[:16]) or "(dùng ý lớn)")
+                + (f"# TRỤ thông điệp (chọn pillar cho mỗi bài trong đây)\n" + "\n".join(f"- {t}" for t in known_pillars[:8]) + "\n"
+                   if known_pillars else "")
+                + ("# Ma trận nội dung nền (đợt nhấn chồng lên)\n" + "\n".join(cm_lines) + "\n" if cm_lines else "")
+                + "# Kho góc đánh liên quan\n" + ("\n".join(f"- {x}" for x in angle_ctx[:16]) or "(dùng ý lớn)")
                 + (f"\n# Chiến lược\n{synth[:1200]}" if synth.strip() else ""))
         res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=2600)
         raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
@@ -3424,6 +3481,8 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 if not (ch and role):              # bỏ post thiếu khoá downstream cần
                     continue
                 posts.append({"tier": tier, "channel": ch, "role": role,
+                              "pillar": _match_pillar(p.get("pillar"), known_pillars),  # khớp lỏng trụ; lạ → ''
+                              "sibling_group": str(p.get("sibling_group") or "").strip()[:24],
                               "note": str(p.get("note") or "").strip()[:160]})
         except Exception as e:
             logger.warning("gen_funnel_map_for_idea: parse thất bại: %s", e)
@@ -3434,7 +3493,8 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 terr = str((p or {}).get("territory") or "").strip()
                 if terr:
                     posts.append({"tier": "tofu", "channel": _ch0,
-                                  "role": f"Giới thiệu lãnh địa: {terr}", "note": "(degrade — chưa có đề xuất AI)"})
+                                  "role": f"Giới thiệu lãnh địa: {terr}", "pillar": terr, "sibling_group": "",
+                                  "note": "(degrade — chưa có đề xuất AI)"})
             if not posts:
                 return {"error": "Chưa dựng được danh sách bài — thử lại."}
         if not ratio:
@@ -3447,6 +3507,119 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
         return {"ok": True, "funnel_map": fmap}
     except Exception as e:
         logger.warning("biz.gen_funnel_map_for_idea failed: %s", e)
+        return {"error": str(e)}
+
+
+async def gen_content_matrix(user_id=None) -> dict:
+    """B2.1: dựng MA TRẬN NỘI DUNG thường trực (trụ × phễu × nền tảng) — xương sống chạy đều quanh năm.
+    Đọc messaging.pillars (TRỤ, đa ngành) + playbook_struct (kênh, degrade) + archetype + current_channels + synthesis.
+    Ghi intake_extra.content_matrix. Validate tier/pillar/role; degrade tối thiểu 1 ô/trụ (KHÔNG cụt-im-lặng).
+    Non-binding — user sửa/xoá ô = override. Dừng ở KHUNG — KHÔNG sinh câu chữ / thẻ calendar (B3)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        industry = prof.get("industry") or ""
+        cur_channels = prof.get("current_channels") or ""
+        synth = await _latest_content(uid, "synthesis")
+        msg = extra.get("messaging") if isinstance(extra.get("messaging"), dict) else {}
+        core = str((msg or {}).get("core") or "")
+        # TRỤ = messaging.pillars (đa ngành — sinh từ T3). Degrade: không pillars → 1 "trụ chung" từ core/synthesis
+        pillars = [{"territory": str((p or {}).get("territory") or "").strip(),
+                    "angle": str((p or {}).get("angle") or "").strip()}
+                   for p in ((msg or {}).get("pillars") or []) if str((p or {}).get("territory") or "").strip()]
+        if not pillars:
+            base = core or (synth.strip()[:120] if synth.strip() else "")
+            if not base:
+                return {"error": "Chưa có Thông điệp để dựng ma trận — làm bước Thông điệp trước."}
+            pillars = [{"territory": "Thông điệp chung", "angle": base}]
+        known = [p["territory"] for p in pillars]
+        # archetype → gợi ý nền tảng (đa ngành, KHÔNG cố định FB/TikTok)
+        arche = ""
+        try:
+            from frameworks.industry_context import get_purchase_archetype, ARCHETYPE_LABEL
+            arche = ARCHETYPE_LABEL.get(get_purchase_archetype(industry) or "", "") or (get_purchase_archetype(industry) or "")
+        except Exception:
+            pass
+        # kênh gợi ý theo trụ từ playbook_struct (degrade → gom current_channels)
+        pillar_channels = {}
+        for s in _playbook_segments(extra):
+            for tk in _KI_TIERS:
+                for h in (((s.get("tiers") or {}) if isinstance(s, dict) else {}).get(tk) or []):
+                    terr = str((h or {}).get("territory") or "").strip()
+                    chs = [str(x).strip() for x in ((h or {}).get("channels") or []) if str(x).strip()]
+                    if terr and chs:
+                        for c in chs:
+                            pillar_channels.setdefault(terr, [])
+                            if c not in pillar_channels[terr]:
+                                pillar_channels[terr].append(c)
+        chan_hint = cur_channels or ", ".join(list({c for v in pillar_channels.values() for c in v})[:6])
+        from tools.llm_router import call as router_call, TaskType
+        import json as _json
+        system = (
+            "Bạn là Content Strategist. Dựng MA TRẬN NỘI DUNG THƯỜNG TRỰC (xương sống chạy đều quanh năm) cho thương hiệu. "
+            "Ma trận = TRỤ thông điệp (đã cho) × PHỄU (tofu khơi/nhận biết → mofu nuôi/thuyết phục → bofu chốt). "
+            "Với mỗi Ô ĐÁNG LÀM, cho: pillar (CHỌN trong danh sách trụ đã cho) · tier (tofu/mofu/bofu) · role (1 câu ô "
+            "này làm gì trong phễu của trụ) · platforms (1-3 nền tảng HỢP hành vi mua của ngành + kênh đang dùng — 1 nội "
+            "dung repurpose sang các nền tảng này) · cadence (nhịp gợi ý, vd '1 bài/2 tuần'). KHÔNG ép đủ mọi ô — chọn ô "
+            "đắt giá, nhịp THƯA hợp team nhỏ (ĐỪNG nhồi). Đây là NỀN chạy đều, KHÔNG phải chiến dịch cao điểm.\n"
+            + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số/thành tích.\n"
+            'Output JSON DUY NHẤT: {"cells":[{"pillar":"","tier":"tofu|mofu|bofu","role":"","platforms":[""],"cadence":""}]}'
+        )
+        pc_lines = "\n".join(f"- {p['territory']}" + (f": {p['angle']}" if p["angle"] else "")
+                             + (f" · kênh gợi ý: {', '.join(pillar_channels[p['territory']][:3])}" if pillar_channels.get(p["territory"]) else "")
+                             for p in pillars)
+        user = (f"# Ngành (hành vi mua)\n{industry} — {arche or '(chưa rõ archetype)'}\n"
+                f"# Thông điệp cốt lõi\n{core or '(chưa có)'}\n"
+                "# TRỤ thông điệp (DÙNG ĐÚNG các trụ này cho pillar)\n" + pc_lines + "\n"
+                f"# Kênh đang dùng / gợi ý\n{chan_hint or '(đề xuất kênh hợp hành vi mua ngành)'}\n"
+                + (f"# Chiến lược\n{synth[:1200]}" if synth.strip() else "")
+                + "\n\nDựng ma trận nền (chọn ô đắt giá, nhịp thưa).")
+        res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=2800)
+        raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
+        _ch0 = (cur_channels.split(",")[0].strip()[:60] if cur_channels else "") or "Facebook"
+        cells = []
+        try:
+            data = _json.loads(raw)
+            for c in (data.get("cells") or []):
+                if not isinstance(c, dict):
+                    continue
+                tier = str(c.get("tier") or "").strip().lower()
+                if tier not in _KI_TIERS:              # lọc ô tier rác
+                    continue
+                role = str(c.get("role") or "").strip()[:200]
+                if not role:                            # role bắt buộc → bỏ ô
+                    continue
+                pill = _match_pillar(c.get("pillar"), known) or known[0]   # trụ lạ → về trụ đầu (không đẻ trụ ngoài Thông điệp)
+                plats = [str(x).strip()[:60] for x in (c.get("platforms") or []) if str(x).strip()][:4]
+                if not plats:
+                    plats = [_ch0]
+                cells.append({"pillar": pill, "tier": tier, "role": role,
+                              "platforms": plats, "cadence": str(c.get("cadence") or "").strip()[:40]})
+        except Exception as e:
+            logger.warning("gen_content_matrix: parse thất bại: %s", e)
+        # CHỐNG cụt-im-lặng: cells rỗng sau validate → tối thiểu 1 ô/trụ ở tofu
+        if not cells:
+            for p in pillars[:6]:
+                cells.append({"pillar": p["territory"], "tier": "tofu",
+                              "role": f"Khơi nhận biết trụ: {p['territory']}", "platforms": [_ch0],
+                              "cadence": "", "note": "(degrade — chưa có đề xuất AI)"})
+            if not cells:
+                return {"error": "Chưa dựng được ma trận — thử lại."}
+        cmatrix = {"cells": cells, "updated_at": time.time()}
+        extra["content_matrix"] = cmatrix
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "content_matrix": cmatrix}
+    except Exception as e:
+        logger.warning("biz.gen_content_matrix failed: %s", e)
         return {"error": str(e)}
 
 
