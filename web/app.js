@@ -1498,11 +1498,15 @@
           const cps = campPostsAt(w, i);
           const inCamp = cps.length > 0;
           const aSlots = alwaysAt(P0, w, i);
-          // B2.2: nút "Tạo bài" gắn theo TỪNG POST (trong thẻ) — không còn 1 nút chung theo ngày.
+          // B2.2: nút "Tạo bài" gắn theo TỪNG POST (trong thẻ). Ngày nghỉ (trống) → vẫn có nút thêm bài ad-hoc.
+          const empty = !aSlots.length && !cps.length;
+          const addBtn = empty
+            ? `<button class="cal-add" data-act="cal-gen" data-week="${w}" data-day="${i}" data-track="always" data-pillar="${(alwaysWeekFirstPillar(P0, w) || '').replace(/"/g, '&quot;')}">＋ Tạo bài</button>`
+            : '';
           return `<div class="cal-col ${inCamp ? 'in-camp' : ''}" ${inCamp ? `style="--c:${cps[0].camp.color}"` : ''}>
             <div class="cal-colhead">${d}${inCamp ? `<span class="col-dot" style="background:${cps[0].camp.color}"></span>` : ''}</div>
             ${aSlots.map(alwaysCard).join('') || (cps.length ? '' : '<p class="muted cal-empty">— nghỉ —</p>')}
-            ${cps.map(campCard).join('')}</div>`;
+            ${cps.map(campCard).join('')}${addBtn}</div>`;
         }).join('')}
       </div>`;
   }
