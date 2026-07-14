@@ -123,6 +123,42 @@
     },
   };
 
+  // R1 Phase 3 — SỨC KHOẺ THƯƠNG HIỆU (brand-health): chậm/directional, tách hẳn khỏi
+  // Hiệu quả Marketing (nhanh/performance). LUẬT: KHÔNG bịa số — chưa đo được thì để trống
+  // + gợi ý cách đo rẻ. Đa ngành: 4 chiều phổ quát, không hardcode ví dụ ngành.
+  P.brandhealth = {
+    title: 'Sức khỏe thương hiệu',
+    sub: 'Chỉ số chậm · directional — brand xây lâu dài, khác Hiệu quả Marketing (nhanh, số cứng)',
+    render: () => {
+      const E = _eHero;
+      const bh = M.bizBrandHealth || {};
+      // mỗi chiều: đọc số THẬT nếu có (bh.<key>.{value,note}); thiếu → empty-state + cách đo rẻ.
+      const dim = (key, icon, name, why, why_measure, cheap) => {
+        const d = bh[key] || {};
+        const has = d.value != null && d.value !== '';
+        const body = has
+          ? `<p class="bh-val">${E(String(d.value))}</p>${d.note ? `<span class="muted">${E(d.note)}</span>` : ''}`
+          : `<div class="bh-empty"><span class="tag amber">Chưa đo</span>
+               <p class="muted" style="margin:6px 0 4px"><b>Cách đo rẻ:</b> ${E(cheap)}</p></div>`;
+        return `<section class="card span-6 bh-card">
+          <div class="card-head"><h3>${icon} ${E(name)}</h3><span class="pill">${E(why_measure)}</span></div>
+          <p class="muted" style="margin:-2px 0 8px">${E(why)}</p>
+          ${body}
+        </section>`;
+      };
+      return `
+        <div class="bh-intro">🏛️ <b>Brand = chậm, directional</b> (nhận biết · cảm nhận · trung thành · lan truyền).
+          Không so trực tiếp với reach/ROAS bên <a href="#overview">Hiệu quả Marketing</a> — 2 nhịp khác nhau.
+          Ngành chưa đo được cứ để trống, đừng ép ra số.</div>
+        <section class="grid">
+          ${dim('awareness','📢','Nhận biết','Bao nhiêu người biết đến mình?','chậm','follower theo tháng · Google Trends tên thương hiệu · hỏi khách "biết chúng tôi qua đâu"')}
+          ${dim('perception','💚','Cảm nhận','Người ta nghĩ gì về mình?','cảm tính','sao trung bình (Maps/Shopee) · đọc 20 review gần nhất gắn nhãn +/− · 1 câu NPS "0–10 giới thiệu?"')}
+          ${dim('loyalty','🔁','Trung thành','Khách có quay lại không?','giữ chân','% khách mua ≥2 lần · khoảng cách giữa 2 đơn · tỉ lệ rời bỏ')}
+          ${dim('sov','📣','Lan truyền & Share of Voice','Được nhắc/giới thiệu nhiều không?','so đối thủ','hỏi "ai giới thiệu bạn tới?" · đếm tag/share · so lượng nhắc với đối thủ')}
+        </section>`;
+    },
+  };
+
   /* ---- AI Agent & dữ liệu thật ---- */
   const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString('vi-VN'));
   const profRow = (k, v) => v ? `<div class="kv"><span>${k}</span><b>${v}</b></div>` : '';

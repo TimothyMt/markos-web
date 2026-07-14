@@ -1325,3 +1325,13 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
   border-left:3px solid var(--primary-2); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13.5px; }
 .brand-nudge a { color:var(--primary); font-weight:600; margin-left:4px; text-decoration:none; }
 .brand-nudge a:hover { text-decoration:underline; }
+
+/* R1 Phase 3 — Sức khỏe thương hiệu (directional, tách khỏi performance) */
+.bh-intro { background:linear-gradient(180deg,var(--panel-2),var(--panel)); border:1px solid var(--border);
+  border-left:3px solid var(--primary-2); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13.5px; line-height:1.5; }
+.bh-intro a { color:var(--primary); font-weight:600; text-decoration:none; }
+.bh-intro a:hover { text-decoration:underline; }
+.bh-card .card-head .pill { text-transform:none; font-weight:600; }
+.bh-val { font-size:24px; font-weight:700; margin:4px 0 2px; }
+.bh-empty { padding:6px 0 2px; }
+.bh-empty .tag { font-size:11px; }

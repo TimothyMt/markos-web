@@ -26,6 +26,9 @@ window.MOCK = {
       { id: 'sequence', label: 'Email / Zalo chuỗi',  icon: '✉️' },
     ]},
     { group: '④ Đo & Tối ưu', items: [
+      { subhead: 'Sức khỏe thương hiệu' },
+      { id: 'brandhealth',  label: 'Sức khỏe thương hiệu', icon: '🏛️' },
+      { subhead: 'Hiệu quả Marketing' },
       { id: 'overview',     label: 'Hiệu quả Marketing', icon: '📊' },
       { id: 'adsanalytics', label: 'Phân tích quảng cáo', icon: '📈' },
       { id: 'optimizer',    label: 'Tối ưu tự động',  icon: '⚡' },
