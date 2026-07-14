@@ -86,6 +86,51 @@ def _validate_stage(stage: str) -> str:
     return s if s in ("launch", "growth", "scale") else ""
 
 
+# STRATEGY-FRAMEWORK #4 — Hướng tăng trưởng trọng tâm (AARRR/STDC). enum, KHÁC stage.
+_GROWTH_FOCI = ("acquisition", "conversion", "retention", "referral")
+
+
+def _validate_growth_focus(gf: str) -> str:
+    """Validate growth_focus enum {'acquisition','conversion','retention','referral'}; khác/rỗng → ''."""
+    if not gf:
+        return ""
+    s = str(gf).strip().lower()
+    return s if s in _GROWTH_FOCI else ""
+
+
+# Định giá như ĐÒN BẨY định vị (giá = tín hiệu vị thế) — thuộc tầng ② Nền, không chỉ là số ở ①.
+_PRICE_POSTURES = ("premium", "parity", "value")
+_PRICE_VI = {
+    "premium": "định giá CAO CẤP (giá cao — tín hiệu chất lượng/khác biệt, đừng đua khuyến mãi)",
+    "parity":  "định giá NGANG TẦM (bằng mặt bằng — cạnh tranh bằng giá trị khác, không bằng giá)",
+    "value":   "định giá GIÁ TỐT (thấp hơn — tín hiệu tiết kiệm/khối lượng, nhấn hiệu quả chi phí)",
+}
+
+
+def _validate_price_posture(pp: str) -> str:
+    """Validate price_posture enum {'premium','parity','value'}; khác/rỗng → ''."""
+    if not pp:
+        return ""
+    s = str(pp).strip().lower()
+    return s if s in _PRICE_POSTURES else ""
+
+
+# stage → gợi ý growth_focus MẶC ĐỊNH (chỉ GỢI Ý lúc đọc, KHÔNG persist — người chốt thắng).
+_STAGE_TO_FOCUS = {"launch": "acquisition", "growth": "conversion", "scale": "retention"}
+
+# growth_focus → nhãn VN + đòn bẩy re-weight (nội dung nghiêng · kênh · metric trọng tâm).
+_FOCUS_VI = {
+    "acquisition": ("Kéo khách mới biết đến", "hook/phủ rộng cho người CHƯA biết",
+                    "kênh reach cao (video ngắn/SEO/social)", "người mới · reach · CPM"),
+    "conversion": ("Chốt đơn (quan tâm → mua)", "review/so sánh/chào giá/CTA mạnh",
+                   "retargeting · landing · inbox", "tỉ lệ chốt · số đơn · CPL"),
+    "retention": ("Giữ khách quay lại", "hướng dẫn dùng/chăm sóc/upsell",
+                  "email·Zalo·CRM chuỗi", "mua lặp · LTV · rời bỏ"),
+    "referral": ("Khách giới thiệu khách", "khơi chia sẻ/UGC/ưu đãi giới thiệu",
+                 "cộng đồng · chương trình giới thiệu", "% từ giới thiệu · K-factor"),
+}
+
+
 # M-E2 (B): bộ góc khai thác (value lens) — KHỚP nhãn FE để slot pre-select đúng option.
 _VALUE_LENSES = ["Nỗi đau/Vấn đề", "Kết quả/Lợi ích", "Bằng chứng xã hội", "Khát vọng/Định vị",
                  "Xử lý phản đối", "Cơ chế/USP", "Khẩn cấp", "Uy tín chuyên môn"]
@@ -524,6 +569,8 @@ async def save_spine(user_id=None, spine: dict = None) -> dict:
                 "alternative":   _s(pos_in.get("alternative")),
                 "differentiator": _s(pos_in.get("differentiator")),
                 "statement":     _s(pos_in.get("statement")),
+                # Đòn bẩy giá (tầng ②): giá = tín hiệu định vị. Enum do người chốt.
+                "price_posture": _validate_price_posture(pos_in.get("price_posture")),
             }
 
             # constraint
@@ -534,8 +581,13 @@ async def save_spine(user_id=None, spine: dict = None) -> dict:
                 "capacity": _s(con_in.get("capacity")),
             }
 
+            # #4 Hướng tăng trưởng trọng tâm — enum do NGƯỜI chốt (human wins). Bỏ trống →
+            # anchor tự GỢI Ý từ stage lúc đọc (KHÔNG persist máy đoán = không cần ledger derived-state).
+            growth_focus = _validate_growth_focus(spine.get("growth_focus"))
+
             extra["spine"] = {
                 "stage": stage,
+                "growth_focus": growth_focus,
                 "objective": objective,
                 "audience": audience,
                 "positioning": positioning,
@@ -3139,6 +3191,19 @@ def _spine_anchor(extra) -> str:
     if stage:
         lines.append(f"Giai đoạn: {stage}")
 
+    # #4 Hướng tăng trưởng trọng tâm — người chốt thắng; bỏ trống thì GỢI Ý từ stage.
+    gf = _validate_growth_focus(s.get("growth_focus"))
+    gf_suggested = False
+    if not gf and stage:
+        gf = _STAGE_TO_FOCUS.get(stage, "")
+        gf_suggested = bool(gf)
+    if gf and gf in _FOCUS_VI:
+        label, lean, chan, metric = _FOCUS_VI[gf]
+        head = (f"Hướng tăng trưởng (GỢI Ý từ giai đoạn — chưa chốt, đừng làm lệch cực đoan): {label}"
+                if gf_suggested else f"Hướng tăng trưởng trọng tâm kỳ này: {label}")
+        lines.append(f"{head} — ƯU TIÊN (TRỌNG SỐ, KHÔNG bỏ phần còn lại): "
+                     f"nội dung nghiêng {lean}; {chan}; đo trọng tâm {metric}.")
+
     # Mục tiêu
     obj = s.get("objective") if isinstance(s.get("objective"), dict) else {}
     outcome = (obj.get("outcome") or "").strip()
@@ -3206,6 +3271,10 @@ def _spine_anchor(extra) -> str:
                     lines.append(f"{base} — {stmt}")
                 else:
                     lines.append(base)
+    # Đòn bẩy giá (định vị) — độc lập, hiện cả khi chưa điền định vị khác.
+    pp = _validate_price_posture(pos.get("price_posture"))
+    if pp:
+        lines.append(f"Đòn bẩy giá: {_PRICE_VI[pp]}")
 
     # Năng lực (RÀNG BUỘC)
     con = s.get("constraint") if isinstance(s.get("constraint"), dict) else {}

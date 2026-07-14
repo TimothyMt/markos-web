@@ -1701,6 +1701,7 @@
     const m = (window.MOCK && M.bizSpine) || {};
     _spine = {
       stage: m.stage || '',
+      growth_focus: m.growth_focus || '',
       objective: {
         outcome: (m.objective || {}).outcome || '',
         metric: (m.objective || {}).metric || '',
@@ -1716,7 +1717,8 @@
       positioning: {
         alternative: (m.positioning || {}).alternative || '',
         differentiator: (m.positioning || {}).differentiator || '',
-        statement: (m.positioning || {}).statement || ''
+        statement: (m.positioning || {}).statement || '',
+        price_posture: (m.positioning || {}).price_posture || ''
       },
       constraint: {
         people: (m.constraint || {}).people || '',
@@ -1730,6 +1732,8 @@
     const S = spineState();
     const stageEl = document.querySelector('input[name="spineStage"]:checked');
     if (stageEl) S.stage = stageEl.value;
+    const gfEl = document.querySelector('input[name="spineGrowth"]:checked');
+    S.growth_focus = gfEl ? gfEl.value : '';   // không chọn = bỏ trống (Max gợi ý từ giai đoạn)
     const o = S.objective;
     const outcomeEl = document.getElementById('spineOutcome');
     const metricEl = document.getElementById('spineMetric');
@@ -1763,6 +1767,8 @@
     if (altEl) p.alternative = altEl.value;
     if (diffEl) p.differentiator = diffEl.value;
     if (stmtEl) p.statement = stmtEl.value;
+    const ppEl = document.getElementById('spinePricePosture');
+    if (ppEl) p.price_posture = ppEl.value;
     const c = S.constraint;
     const peopleEl = document.getElementById('spinePeople');
     const budgetEl = document.getElementById('spineBudget');
@@ -1785,6 +1791,21 @@
         <span>${label}</span>
       </label>
     `).join('');
+    // #4 Hướng tăng trưởng trọng tâm — 1 câu hỏi, không màn mới. Bỏ trống ("Để Max") = gợi ý từ giai đoạn.
+    const gf = S.growth_focus || '';
+    const growthOpts = [
+      ['acquisition', '🎯 Kéo khách mới biết đến'],
+      ['conversion',  '💰 Chốt đơn (quan tâm → mua)'],
+      ['retention',   '🔁 Giữ khách quay lại'],
+      ['referral',    '📣 Khách giới thiệu khách'],
+      ['',            '🤖 Để Max gợi ý từ giai đoạn'],
+    ];
+    const growthHtml = growthOpts.map(([v, label]) => `
+      <label class="radio-opt">
+        <input type="radio" name="spineGrowth" value="${v}" ${gf === v ? 'checked' : ''}>
+        <span>${label}</span>
+      </label>
+    `).join('');
     const o = S.objective;
     const t = o.target || { value: null, unit: '', period: '' };
     const b = o.baseline || { value: null, unit: '', period: '' };
@@ -1800,6 +1821,12 @@
             <label class="spine-lbl">1 · Giai đoạn</label>
             <div class="radio-group">${stageHtml}</div>
             <p class="muted" style="font-size:12px;margin-top:6px">Chọn giai đoạn để Max điều chỉnh lộ trình. Bỏ trống = Max tự suy từ hồ sơ.</p>
+          </div>
+
+          <div class="spine-col">
+            <label class="spine-lbl">1b · Hướng tăng trưởng trọng tâm</label>
+            <p class="muted" style="font-size:12px;margin:-2px 0 8px">Kỳ này bạn cần <b>dồn sức</b> vào đâu nhất? Max nghiêng nội dung/kênh/đo theo đòn bẩy này (trọng số — không bỏ phần còn lại).</p>
+            <div class="radio-group">${growthHtml}</div>
           </div>
 
           <div class="spine-col">
@@ -1835,6 +1862,13 @@
               <label class="fld"><span>Differentiator (Bạn có gì họ không có?)</span><textarea id="spineDifferentiator" rows="2" placeholder="vd: Hạt rang xay ngay tại quán, không gian làm việc ổn, wifi mạnh">${E(p.differentiator)}</textarea></label>
             </div>
             <label class="fld"><span>Statement (tuỳ chọn — câu định vị 1 câu)</span><input id="spineStatement" value="${E(p.statement)}" placeholder="vd: Cà phê specialty xay ngay — không gian cho người làm việc remote"></label>
+            <label class="fld"><span>Đòn bẩy giá (giá = tín hiệu định vị · dữ liệu chi tiết ở <a href="#pricing">① Định giá</a>)</span>
+              <select id="spinePricePosture">
+                <option value="" ${!p.price_posture ? 'selected' : ''}>— Chưa chốt / để Max suy —</option>
+                <option value="premium" ${p.price_posture === 'premium' ? 'selected' : ''}>Cao cấp (giá cao — tín hiệu chất lượng)</option>
+                <option value="parity" ${p.price_posture === 'parity' ? 'selected' : ''}>Ngang tầm (bằng thị trường — thắng bằng giá trị khác)</option>
+                <option value="value" ${p.price_posture === 'value' ? 'selected' : ''}>Giá tốt (thấp hơn — tín hiệu tiết kiệm)</option>
+              </select></label>
           </div>
 
           <div class="spine-col">
