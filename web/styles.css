@@ -1315,3 +1315,9 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
 .ki-legacy-banner { background:var(--panel); border:1px dashed var(--amber); border-radius:10px;
   padding:10px 14px; margin-bottom:12px; font-size:13.5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .ki-legacy-banner .muted { font-size:12px; }
+
+/* R1: cổng nhẹ Brand→Marketing (dẫn hướng chốt Nền thương hiệu trước) */
+.brand-nudge { background:linear-gradient(180deg,var(--panel-2),var(--panel)); border:1px solid var(--primary-2);
+  border-left:3px solid var(--primary-2); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13.5px; }
+.brand-nudge a { color:var(--primary); font-weight:600; margin-left:4px; text-decoration:none; }
+.brand-nudge a:hover { text-decoration:underline; }

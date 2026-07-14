@@ -1525,6 +1525,7 @@
         <a class="primary-btn" href="#occasion">＋ Chiến dịch mới</a>`;
     },
     render: () => `
+      ${brandNudge()}
       ${_realCal
         ? `<div class="cal-note">${badge('Dựng từ chiến lược','green')} <span class="muted"> Always-on lấy từ <b>${(_realCal.alwaysOn||[]).length? new Set((_realCal.alwaysOn||[]).map(s=>s.pillar)).size : 0} trụ đã chốt</b>, rải theo nhịp đăng suốt <b>${({'30':'30 ngày','60':'60 ngày','90':'90 ngày'})[_realCal.horizon]||(_realCal.weeks+' tuần')}</b>. Mỗi ô bấm ⚡ để sinh bài thật.</span></div>`
         : (M.bizEnabled
@@ -1821,6 +1822,11 @@
   /* ════════ THÔNG ĐIỆP (Messaging House) — "nói gì với khách", content bám vào ════════ */
   let _msg = null;   // đệm chỉnh; null = lấy từ MOCK.bizMessaging
   function msgHas() { const m = (window.MOCK && M.bizMessaging) || {}; return !!(m.core || (m.pillars || []).length); }
+  // R1: cổng NHẸ Brand→Marketing — chưa chốt Nền thương hiệu (Thông điệp) → dẫn hướng, KHÔNG chặn cứng.
+  function brandNudge() {
+    if (!M.bizEnabled || msgHas()) return '';
+    return `<div class="brand-nudge">🏛️ <b>Chốt Nền thương hiệu trước</b> — mọi bài Marketing bám thông điệp + giọng để nhất quán (Brand dẫn dắt Marketing). <a href="#message">→ Tới Thông điệp</a></div>`;
+  }
   function msgState() {
     if (_msg) return _msg;
     const m = (window.MOCK && M.bizMessaging) || {};
@@ -2054,12 +2060,12 @@
       : '';
     const composer = _kiAddOpen ? kiComposer() : '';
     if (!ideas.length && !_kiAddOpen) {
-      return legacyBanner + `<section class="card"><div class="empty-cta"><div class="empty-ic">⚡</div>
+      return brandNudge() + legacyBanner + `<section class="card"><div class="empty-cta"><div class="empty-ic">⚡</div>
         <h3>Chưa có chiến dịch</h3>
         <p class="muted">Chiến dịch = cao điểm ngắn: 1 <b>ý lớn</b> đẩy mạnh 1 tầng phễu (hoặc vài trụ) trong 1 kỳ hạn. Max đề xuất từ kho góc đánh, bạn chốt.</p>
         <div class="empty-actions"><button class="primary-btn" data-act="ki-add-toggle">＋ Chiến dịch mới</button></div></div></section>`;
     }
-    return legacyBanner + composer + `<div class="ki-list">${ideas.map(kiCardHTML).join('')}</div>`;
+    return brandNudge() + legacyBanner + composer + `<div class="ki-list">${ideas.map(kiCardHTML).join('')}</div>`;
   }
   function kiComposer() {
     const trus = mxTrus();
