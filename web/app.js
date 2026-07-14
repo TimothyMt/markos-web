@@ -2566,7 +2566,9 @@
         <div class="brand-text"><span class="brand-name">Marketing OS</span><span class="brand-sub">Auto Ads Facebook</span></div></div>
       <nav class="nav">${M.nav.map(g=>`
         ${g.group?`<p class="nav-label">${g.group}</p>`:''}
-        ${g.items.map(it=>`<a class="nav-item ${it.id===active?'active':''}" href="#${it.id}"><span class="ic">${it.icon}</span> ${it.label}</a>`).join('')}
+        ${g.items.map(it=> it.subhead
+          ? `<p class="nav-subhead">${it.subhead}</p>`
+          : `<a class="nav-item ${it.id===active?'active':''}" href="#${it.id}"><span class="ic">${it.icon}</span> ${it.label}</a>`).join('')}
       `).join('')}</nav>
       <div class="sidebar-foot"><p class="version">v2.4.0 · demo dữ liệu mock</p></div>`;
     document.getElementById('sidebar').innerHTML = html;

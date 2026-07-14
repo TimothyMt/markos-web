@@ -69,6 +69,10 @@ body { overflow-x: hidden; }
   font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
   color: var(--muted); margin: 14px 8px 6px;
 }
+.nav-subhead {
+  font-size: 10px; letter-spacing: .04em; font-weight: 600;
+  color: var(--txt-2); margin: 8px 8px 2px 10px; opacity: .8;
+}
 .nav-item {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 12px; border-radius: 11px;

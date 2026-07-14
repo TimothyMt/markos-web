@@ -3,7 +3,12 @@ window.MOCK = {
   nav: [
     // R1: 2 tầng — ② NỀN THƯƠNG HIỆU (bền) dẫn dắt ③ MARKETING (theo mục tiêu).
     { group: '① Chẩn đoán', items: [
-      { id: 'dossier', label: 'Hồ sơ doanh nghiệp', icon: '🗂️' },
+      { id: 'dossier',    label: 'Hồ sơ doanh nghiệp', icon: '🗂️' },
+      { id: 'market',     label: 'Thị trường',         icon: '🌐' },
+      { id: 'competitor', label: 'Đối thủ',            icon: '🥊' },
+      { id: 'customer',   label: 'Khách hàng',         icon: '👥' },
+      { id: 'pricing',    label: 'Định giá',           icon: '💰' },
+      { id: 'swot',       label: 'SWOT',               icon: '🧭' },
     ]},
     { group: '② Nền thương hiệu', items: [
       { id: 'strategy',   label: 'Định vị & Chiến lược', icon: '🎯' },
@@ -11,16 +16,18 @@ window.MOCK = {
       { id: 'voice',      label: 'Giọng & Tính cách',    icon: '🗣️' },
     ]},
     { group: '③ Marketing', items: [
-      { id: 'tactical', label: 'Tactical Playbook',   icon: '🔨' },
+      { subhead: 'Chiến lược kênh' },
+      { id: 'tactical', label: 'Cách đánh',           icon: '🔨' },
+      { subhead: 'Sản xuất' },
       { id: 'matrix',   label: 'Ma trận & Chiến dịch', icon: '🧱' },
       { id: 'calendar', label: 'Lịch nội dung',       icon: '🗓️' },
       { id: 'adscopy',  label: 'Quảng cáo (copy)',    icon: '🧲' },
-      { id: 'inbox',    label: 'Sales Inbox Script',  icon: '💬' },
+      { id: 'inbox',    label: 'Kịch bản chốt sale',  icon: '💬' },
       { id: 'sequence', label: 'Email / Zalo chuỗi',  icon: '✉️' },
     ]},
     { group: '④ Đo & Tối ưu', items: [
       { id: 'overview',     label: 'Hiệu quả Marketing', icon: '📊' },
-      { id: 'adsanalytics', label: 'Ads Analytics',  icon: '📈' },
+      { id: 'adsanalytics', label: 'Phân tích quảng cáo', icon: '📈' },
       { id: 'optimizer',    label: 'Tối ưu tự động',  icon: '⚡' },
       { id: 'spy',          label: 'Theo dõi đối thủ', icon: '🕵️' },
       { id: 'schedule',     label: 'Lịch trình & cảnh báo', icon: '⏰' },
