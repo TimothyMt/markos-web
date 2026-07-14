@@ -189,7 +189,8 @@ async def biz_calendar_gen(request):
                                       d.get("value_lens", ""), d.get("hook_style", ""),
                                       d.get("framework", ""), d.get("phase", ""),
                                       d.get("campaign_gap", ""), d.get("objective", ""),
-                                      d.get("track_role", ""))
+                                      d.get("track_role", ""), d.get("tier", ""),
+                                      d.get("sibling_group", ""), d.get("channel", ""))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -288,7 +289,8 @@ async def biz_key_idea_save(request):
     res = await biz.save_key_idea(
         d.get("user_id"), id=d.get("id", ""), title=d.get("title", ""), angle=d.get("angle", ""),
         source=d.get("source", "user"), source_ref=d.get("source_ref", ""), goal=d.get("goal", ""),
-        window_start=d.get("window_start", ""), window_end=d.get("window_end", ""), status=d.get("status", ""))
+        window_start=d.get("window_start", ""), window_end=d.get("window_end", ""), status=d.get("status", ""),
+        focus_tier=d.get("focus_tier", ""), focus_pillars=d.get("focus_pillars"))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -296,6 +298,20 @@ async def biz_key_idea_funnel(request):
     """CHAIN-V2 T5 — dựng funnel map + danh sách bài dự kiến cho 1 key idea (ratio uốn theo mục tiêu đợt)."""
     d = await request.json()
     res = await biz.gen_funnel_map_for_idea(d.get("user_id"), id=d.get("id", ""))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_content_matrix_gen(request):
+    """B2.1 — dựng MA TRẬN NỘI DUNG thường trực (trụ × phễu × nền tảng) — nền cho đợt nhấn."""
+    d = await request.json()
+    res = await biz.gen_content_matrix(d.get("user_id"))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_key_ideas_import_legacy(request):
+    """B4 — nhập campaigns_v2 cũ → key_ideas (chiến dịch Layered). Additive, idempotent, không xoá đồ cũ."""
+    d = await request.json()
+    res = await biz.migrate_campaigns_to_key_ideas(d.get("user_id"))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -369,7 +385,9 @@ async def biz_reset(request):
 async def biz_content_derive(request):
     """M3.1 — sinh biến thể từ 1 bài gốc (đa kênh/video/UGC), lưu skill_run."""
     d = await request.json()
-    res = await biz.gen_derivative(d.get("user_id"), d.get("kind", "channels"), d.get("source", ""))
+    res = await biz.gen_derivative(d.get("user_id"), d.get("kind", "channels"), d.get("source", ""),
+                                   pillar=d.get("pillar", ""), tier=d.get("tier", ""),
+                                   target_channel=d.get("target_channel", ""))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -599,6 +617,8 @@ def api_routes() -> list:
         Route("/api/biz/key-ideas/suggest",        biz_key_ideas_suggest, methods=["POST"]),
         Route("/api/biz/key-idea/save",            biz_key_idea_save,  methods=["POST"]),
         Route("/api/biz/key-idea/funnel",          biz_key_idea_funnel, methods=["POST"]),
+        Route("/api/biz/content-matrix/gen",        biz_content_matrix_gen, methods=["POST"]),
+        Route("/api/biz/key-ideas/import-legacy",   biz_key_ideas_import_legacy, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),

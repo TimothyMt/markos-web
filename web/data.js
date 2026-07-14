@@ -1,30 +1,42 @@
 /* Marketing OS — mock data + navigation config (data thật nối sau) */
 window.MOCK = {
   nav: [
-    { group: '① Khám phá & Chẩn đoán', items: [
-      { id: 'dossier', label: 'Hồ sơ doanh nghiệp', icon: '🗂️' },
+    // R1: 2 tầng — ② NỀN THƯƠNG HIỆU (bền) dẫn dắt ③ MARKETING (theo mục tiêu).
+    { group: '① Chẩn đoán', items: [
+      { id: 'dossier',    label: 'Hồ sơ doanh nghiệp', icon: '🗂️' },
+      { id: 'market',     label: 'Thị trường',         icon: '🌐' },
+      { id: 'competitor', label: 'Đối thủ',            icon: '🥊' },
+      { id: 'customer',   label: 'Khách hàng',         icon: '👥' },
+      { id: 'pricing',    label: 'Định giá',           icon: '💰' },
+      { id: 'swot',       label: 'SWOT',               icon: '🧭' },
     ]},
-    { group: '② Chiến lược', items: [
-      { id: 'strategy',   label: 'Chiến lược tổng hợp',   icon: '🎯' },
-      { id: 'tactical',   label: 'Tactical Playbook',     icon: '🔨' },
+    { group: '② Nền thương hiệu', items: [
+      { id: 'strategy',   label: 'Định vị & Chiến lược', icon: '🎯' },
+      { id: 'message',    label: 'Thông điệp',           icon: '🏛️' },
+      { id: 'voice',      label: 'Giọng & Tính cách',    icon: '🗣️' },
     ]},
-    { group: '③ Sản xuất', items: [
-      { id: 'occasion', label: 'Lập chiến dịch',     icon: '🎯' },
-      { id: 'calendar', label: 'Lịch nội dung',      icon: '🗓️' },
-      { id: 'adscopy',  label: 'Quảng cáo (copy)',   icon: '🧲' },
-      { id: 'inbox',    label: 'Sales Inbox Script', icon: '💬' },
-      { id: 'sequence', label: 'Email / Zalo chuỗi', icon: '✉️' },
-      { id: 'voice',    label: 'Brand Voice',        icon: '🗣️' },
+    { group: '③ Marketing', items: [
+      { subhead: 'Chiến lược kênh' },
+      { id: 'tactical', label: 'Cách đánh',           icon: '🔨' },
+      { subhead: 'Sản xuất' },
+      { id: 'matrix',   label: 'Ma trận & Chiến dịch', icon: '🧱' },
+      { id: 'calendar', label: 'Lịch nội dung',       icon: '🗓️' },
+      { id: 'adscopy',  label: 'Quảng cáo (copy)',    icon: '🧲' },
+      { id: 'inbox',    label: 'Kịch bản chốt sale',  icon: '💬' },
+      { id: 'sequence', label: 'Email / Zalo chuỗi',  icon: '✉️' },
     ]},
-    { group: '④ Vận hành & Tối ưu', items: [
-      { id: 'overview',     label: 'Tổng quan số liệu', icon: '📊' },
-      { id: 'adsanalytics', label: 'Ads Analytics',  icon: '📈' },
+    { group: '④ Đo & Tối ưu', items: [
+      { subhead: 'Sức khỏe thương hiệu' },
+      { id: 'brandhealth',  label: 'Sức khỏe thương hiệu', icon: '🏛️' },
+      { subhead: 'Hiệu quả Marketing' },
+      { id: 'overview',     label: 'Hiệu quả Marketing', icon: '📊' },
+      { id: 'adsanalytics', label: 'Phân tích quảng cáo', icon: '📈' },
       { id: 'optimizer',    label: 'Tối ưu tự động',  icon: '⚡' },
       { id: 'spy',          label: 'Theo dõi đối thủ', icon: '🕵️' },
       { id: 'schedule',     label: 'Lịch trình & cảnh báo', icon: '⏰' },
       { id: 'accounts',     label: 'Kết nối tài khoản', icon: '🔗' },
     ]},
-    { group: '⑤ Học hỏi & Hệ thống', items: [
+    { group: '⑤ Hệ thống', items: [
       { id: 'reports', label: 'Báo cáo',  icon: '📑' },
       { id: 'admin',   label: 'Quản trị', icon: '🛠️' },
       { id: 'settings',label: 'Cài đặt',  icon: '⚙️' },
