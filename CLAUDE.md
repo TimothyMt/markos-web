@@ -74,3 +74,17 @@ Lỗi nguy hiểm nhất = **mối nối**: function *tiêu thụ* một khoá m
 3. Claude Code review PR (diff, logic, an toàn) trước khi merge.
 4. Sau khi Claude Code duyệt → merge PR vào `staging` để user test (`gh pr merge --squash`).
 5. User test xong trên `staging`, tự quyết định mở PR `staging` → `main` và merge.
+
+## Giao việc cho AI coding agent (Cline / Antigravity)
+Luật môi trường (Windows/pager, cấm Write đè file lớn) + verify: **`AGENTS.md`** ở root — mọi agent đọc file đó trước.
+
+**Brief ở tầng MỤC TIÊU, KHÔNG phải số dòng.** Giao *"dọn code X chết sau P1 — tự tìm, tự verify"*; KHÔNG liệt kê `L1812–1860` kèm câu "tin số này, đừng kiểm lại". Vì:
+- Số dòng **hết hạn ngay khi agent sửa nhát đầu** → nó xoá tiếp theo số cũ = **xoá nhầm chỗ**.
+- Cấm agent verify = tháo lưới an toàn của chính nó.
+- Nếu Claude vừa chỉ thị từng dòng vừa review → **review vô nghĩa** (review chính mình). Phân vai "Cline code, Claude review" chỉ có giá trị khi Cline **tự quyết**.
+
+**Việc quá nhỏ để giao** (≤ vài dòng, thuần cơ học, đã hết mơ hồ) → Claude tự làm, **user review**. Round-trip qua agent không bõ. Delegation chỉ đáng khi việc còn phần mơ hồ để người làm tự quyết.
+
+**Khi review agent:** luôn xem `git --no-pager diff --numstat` trước. Task thuần xoá phải là **`0` dòng thêm** — agent hay lỡ chạy formatter đè cả file.
+
+**Grep xác nhận caller phải quét cả `tests/`**, không chỉ `web/` + `webapp/` — hàm tưởng chết vẫn có thể đang được test gọi.
