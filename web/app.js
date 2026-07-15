@@ -2181,17 +2181,34 @@
       ${fp ? `<div class="ki-fprow">${fp}</div>` : ''}
       ${posts.length ? `<div class="ki-funnel-act"><button class="ghost-line sm" data-act="ki-funnel" data-id="${mxE(k.id)}">↻ Dựng lại bài</button></div>` : ''}
       ${body}
+      ${kiRisksHTML(k.risks)}
     </section>`;
+  }
+  // B6-A: bảng Rủi ro & dự phòng (Max nháp khi dựng bài; ẩn nếu chưa có)
+  function kiRisksHTML(risks) {
+    if (!Array.isArray(risks) || !risks.length) return '';
+    const lv = v => v ? `<span class="ki-risk-lv lv-${{'thấp':'lo','trung bình':'mid','cao':'hi'}[v] || 'na'}">${mxE(v)}</span>` : '<span class="muted">—</span>';
+    const rows = risks.map(r => `<tr>
+      <td>${mxE(r.risk || '')}</td>
+      <td class="ki-risk-c">${lv(r.likelihood)}</td>
+      <td class="ki-risk-c">${lv(r.impact)}</td>
+      <td>${mxE(r.backup || '')}</td></tr>`).join('');
+    return `<details class="ki-risks"><summary>⚠️ Rủi ro &amp; dự phòng (${risks.length})</summary>
+      <table class="ki-risk-tbl"><thead><tr><th>Rủi ro</th><th>Xác suất</th><th>Tác động</th><th>Phương án B</th></tr></thead>
+      <tbody>${rows}</tbody></table></details>`;
   }
   function kiFunnelHTML(fm) {
     const posts = fm.posts || [];
     const ratio = fm.ratio || '';
     const byTier = { tofu: [], mofu: [], bofu: [] };
     posts.forEach(p => { if (byTier[p.tier]) byTier[p.tier].push(p); });
+    const offers = fm.offers || {};
     const tiers = _MX_TIERS.map(([id, lbl, desc]) => {
       const arr = byTier[id];
+      const off = offers[id];
       return `<div class="ki-tier">
         <div class="ki-tier-h"><b>${lbl}</b> <span class="muted">${desc}</span> <span class="ki-count">${arr.length} bài</span></div>
+        ${off ? `<div class="ki-offer" title="Offer/chào mời chính của tầng này — bài bám theo">🎁 ${mxE(off)}</div>` : ''}
         ${arr.length ? arr.map(kiPostHTML).join('') : '<div class="ki-tier-empty muted">— chưa có bài —</div>'}
       </div>`;
     }).join('');

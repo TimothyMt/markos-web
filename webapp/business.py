@@ -3428,6 +3428,55 @@ def _norm_goal(g) -> str:
     return g if g in _KI_GOALS else ""
 
 
+# B6: mức xác suất/tác động cho Risk & Contingency (khoá "Bước 5"). Rác → ''.
+_RISK_LEVELS = ("thấp", "trung bình", "cao")
+
+
+def _norm_risk_level(v) -> str:
+    s = str(v or "").strip().lower()
+    if s in _RISK_LEVELS:
+        return s
+    # gom biến thể EN/vi phổ biến
+    m = {"low": "thấp", "medium": "trung bình", "med": "trung bình", "high": "cao",
+         "tb": "trung bình", "trung binh": "trung bình"}
+    return m.get(s, "")
+
+
+def _norm_risks(val) -> list:
+    """B6-A: chuẩn hoá [{risk,likelihood,impact,backup}] — cắt độ dài, enum mức, cap 6, bỏ mục rỗng."""
+    if not isinstance(val, list):
+        return []
+    out = []
+    for r in val:
+        if not isinstance(r, dict):
+            continue
+        risk = str(r.get("risk") or "").strip()[:200]
+        backup = str(r.get("backup") or "").strip()[:240]
+        if not risk and not backup:
+            continue
+        out.append({
+            "risk": risk,
+            "likelihood": _norm_risk_level(r.get("likelihood")),
+            "impact": _norm_risk_level(r.get("impact")),
+            "backup": backup,
+        })
+        if len(out) >= 6:
+            break
+    return out
+
+
+def _norm_offers(val) -> dict:
+    """B6-B: chuẩn hoá offer theo tầng {tofu,mofu,bofu} — chỉ giữ tier hợp lệ, str ngắn."""
+    if not isinstance(val, dict):
+        return {}
+    out = {}
+    for tk in _KI_TIERS:
+        s = str(val.get(tk) or "").strip()[:200]
+        if s:
+            out[tk] = s
+    return out
+
+
 # B4: map primary_goal của campaigns_v2 cũ → goal enum key_idea (migrate). Lạ → '' (Max suy khi gen).
 _CAMP_GOAL_TO_KI = {
     "brand": "awareness", "branding": "awareness", "awareness": "awareness", "launch": "awareness",
@@ -3541,7 +3590,7 @@ async def suggest_key_ideas(user_id=None, n: int = 5) -> dict:
 async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str = "",
                         source: str = "user", source_ref: str = "", goal: str = "",
                         window_start: str = "", window_end: str = "", status: str = "",
-                        focus_tier: str = "", focus_pillars=None) -> dict:
+                        focus_tier: str = "", focus_pillars=None, risks=None) -> dict:
     """T4: user chốt/sửa 1 key idea (từ đề xuất Max hoặc tự viết) + đặt kỳ hạn đợt.
     Append/update intake_extra.key_ideas (dedupe theo id); window rỗng → status draft.
     B2.1: đợt nhấn — focus_tier (đẩy tầng phễu nào) + focus_pillars (nhấn trụ nào), non-binding.
@@ -3584,6 +3633,8 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
             "focus_tier": ft, "focus_pillars": fp[:8],
             "updated_at": now,
         }
+        if risks is not None:            # B6-A: chỉ đụng risks khi FE gửi (tránh xoá risks Max nháp lúc chỉ sửa meta)
+            meta["risks"] = _norm_risks(risks)
         kid = str(id or "").strip()
         found = next((it for it in ideas if isinstance(it, dict) and str(it.get("id")) == kid), None) if kid else None
         if found is not None:
@@ -3742,7 +3793,16 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
             "đầu phễu ở đợt nhận biết, đáy phễu ở đợt chốt; ĐỪNG nhồi (team nhỏ). Đợt nhấn là CAO ĐIỂM NGẮN "
             "chồng lên ma trận nền — bám trụ sẵn có, đừng đẻ trụ mới.\n"
             + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số. Ngưỡng tỉ lệ là gợi ý — chỉnh theo baseline thật.\n"
-            'Output JSON DUY NHẤT: {"ratio":"<vd 60/30/10>","posts":[{"tier":"tofu|mofu|bofu","channel":"",'
+            # B6-B: offer/chào-mời theo TẦNG (tofu nhẹ:tò mò/theo dõi · mofu:lý do tin/tư vấn · bofu:ưu đãi/CTA chốt).
+            "Thêm 'offers' = lời chào mời chính cho mỗi tầng (tofu: mồi nhẹ tạo tò mò/theo dõi; mofu: lý do tin / mời tư "
+            "vấn; bofu: ưu đãi + CTA chốt) — bám năng lực thật, KHÔNG bịa khuyến mãi vô căn cứ. "
+            # B6-A: Risk & Contingency — rủi ro triển khai đợt + phương án dự phòng.
+            "Thêm 'risks' = 2-4 rủi ro triển khai đợt (vd chi phí/kênh/creative không ăn), mỗi rủi ro có likelihood + "
+            "impact ('thấp'|'trung bình'|'cao') + backup (phương án B cụ thể). Thực tế, không sáo rỗng.\n"
+            'Output JSON DUY NHẤT: {"ratio":"<vd 60/30/10>",'
+            '"offers":{"tofu":"","mofu":"","bofu":""},'
+            '"risks":[{"risk":"","likelihood":"thấp|trung bình|cao","impact":"thấp|trung bình|cao","backup":""}],'
+            '"posts":[{"tier":"tofu|mofu|bofu","channel":"",'
             '"role":"","pillar":"","sibling_group":"","note":""}]}'
         )
         vdo = ", ".join(str(x) for x in (voice.get("do") or [])[:4])
@@ -3763,10 +3823,12 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 + (f"\n# Chiến lược\n{synth[:1200]}" if synth.strip() else ""))
         res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=2600)
         raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
-        posts, ratio = [], ""
+        posts, ratio, offers, risks = [], "", {}, []
         try:
             data = _json.loads(raw)
             ratio = str(data.get("ratio") or "")[:20]
+            offers = _norm_offers(data.get("offers"))     # B6-B: offer theo tầng
+            risks = _norm_risks(data.get("risks"))          # B6-A: rủi ro + dự phòng
             for p in (data.get("posts") or []):
                 if not isinstance(p, dict):
                     continue
@@ -3796,12 +3858,14 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 return {"error": "Chưa dựng được danh sách bài — thử lại."}
         if not ratio:
             ratio = ratio_hint or "60/30/10"
-        fmap = {"ratio": ratio, "posts": posts}
+        fmap = {"ratio": ratio, "posts": posts, "offers": offers}   # B6-B: offer/tầng ở funnel_map
         idea["funnel_map"] = fmap
+        if risks:                                                    # B6-A: risks ở cấp đợt (giữ nếu gen mới rỗng? — ghi đè khi có)
+            idea["risks"] = risks
         idea["updated_at"] = time.time()
         extra["key_ideas"] = ideas
         await profiles.upsert_profile(uid, intake_extra=extra)
-        return {"ok": True, "funnel_map": fmap}
+        return {"ok": True, "funnel_map": fmap, "risks": idea.get("risks", [])}
     except Exception as e:
         logger.warning("biz.gen_funnel_map_for_idea failed: %s", e)
         return {"error": str(e)}
@@ -4014,6 +4078,11 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
                 lines.append(f"Ý LỚN của đợt (bài phục vụ): {_ki.get('title', '')}"
                              + (f" — góc: {_ki.get('angle')}" if _ki.get("angle") else "")
                              + (f" — mục tiêu đợt: {_gl}" if _gl else ""))
+                # B6-B: offer theo TẦNG của đợt → bài bám đúng chào mời tầng này (không tự chế offer lệch)
+                _fm = _ki.get("funnel_map") if isinstance(_ki.get("funnel_map"), dict) else {}
+                _off = (_fm.get("offers") or {}).get((tier or "").strip().lower()) if isinstance(_fm.get("offers"), dict) else ""
+                if _off:
+                    lines.append(f"OFFER/chào mời tầng {(tier or '').upper()} (bám đúng, đừng tự chế lệch): {_off}")
                 kind = "1 bài trong ĐỢT nội dung, phục vụ Ý LỚN của đợt + ĐÚNG tầng phễu của bài"
             else:
                 from storage.v2 import campaigns_v2
