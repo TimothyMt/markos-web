@@ -1020,8 +1020,8 @@
     title: 'Chiến lược tổng hợp', sub: 'Định vị (bền) · SAVE · Roadmap theo nhịp · KPI cần theo dõi',
     actions: `<a class="ghost-line" href="#tactical">🔨 Tactical Playbook</a> <a class="primary-btn" href="#message">→ Bước tiếp: 🏛️ Thông điệp</a>`,
     render: () => {
-      // Spine dời từ Hồ sơ về đây (② Định vị & Chiến lược) — đầu trang, mọi trạng thái.
-      const _spineTop = `<section class="grid"><div class="span-12">${spineCollapsible()}</div></section>`;
+      // R2 P1: 1 form Chiến lược (đặt cược + mục tiêu/giá/năng lực) render trong từng nhánh
+      // (2 nhánh loại trừ nhau → không trùng ID). Bỏ Spine rời + Đặt cược rời.
       const _inner = (() => {
       const latest = (M.bizLatest || {}).synthesis;
       if (M.bizEnabled && latest) {
@@ -1029,7 +1029,7 @@
         const running = (M.agentJobs || []).some(j => j.status === 'running' && (j.task === 'strategy' || j.task === 'full'));
         // M4(1): chốt chiến lược — so version đã duyệt với bản mới nhất (tạo lại → version đổi → bỏ chốt)
         const approved = (((M.bizProfile || {}).intake_extra || {}).synthesis_approved_version) === latest.version;
-        return `<section class="grid">
+        return `${strategyForm(true)}<section class="grid">
           ${directionalBanner}
           ${inferredMeter()}
           ${card('Chiến lược — do Max lập', `
@@ -1058,8 +1058,8 @@
         if (researchDone) {
           const running = (M.agentJobs || []).some(j => j.status === 'running' && (j.task === 'strategize' || j.task === 'full'));
           return `<section class="grid">
-            <div class="card span-12 dir-banner">🚪 <b>Nghiên cứu xong (T1-T3).</b> Chốt <b>ĐẶT CƯỢC</b> (thị trường · tệp · định vị · giá · kênh) trên dữ liệu THẬT → Max chạy chiến lược (T4-T5) bám đúng lựa chọn → chia <b>tuyến nội dung</b> → lịch. <span class="muted">(Tin cậy/bằng chứng nằm ở tuyến nội dung, không ở đây.)</span></div>
-            ${betForm()}
+            <div class="card span-12 dir-banner">🚪 <b>Nghiên cứu xong (T1-T3).</b> Chốt <b>CHIẾN LƯỢC</b> (đặt cược + mục tiêu · hướng tăng trưởng · giá · năng lực) trên dữ liệu THẬT — nhập <b>1 lần</b> → Max lập chiến lược (T4-T5) + bơm vào mọi bài. <span class="muted">(Tin cậy/bằng chứng nằm ở tuyến nội dung, không ở đây.)</span></div>
+            ${strategyForm(false)}
             ${card('⚙️ Tinh chỉnh nâng cao (tuỳ chọn)', `
               <details><summary style="cursor:pointer;color:var(--muted)">Nhịp roadmap + trọng tâm giai đoạn — để Tự động nếu chưa chắc</summary>
                 <div class="fld" style="margin-top:10px"><span>Nhịp roadmap</span><div class="gate-usp">
@@ -1095,7 +1095,7 @@
         ${strategyMock()}
       </section>`;
       })();
-      return _spineTop + _inner;
+      return _inner;
     },
     mount: () => {},
   };
@@ -1278,9 +1278,10 @@
   }
 
   /* ── Vision A: form ĐẶT CƯỢC theo 5 nhóm (option từ T1-T3 + tự ghi) → T4-T5 ── */
-  function betForm() {
+  function betForm(skip) {
     const E = _eHero;
-    const cats = M.bizBetCategories || [];
+    skip = skip || [];
+    const cats = (M.bizBetCategories || []).filter(c => !skip.includes(c.key));   // R2: bỏ 'price' (dùng select enum)
     const opts = M.bizBetOptions || {};
     const chosen = M.bizBetChoices || {};
     if (!cats.length) return '';
@@ -1309,6 +1310,83 @@
         ${sugBtn}
       </div>
       ${groups}`, { cls: 'span-12' });
+  }
+
+  // R2 P1: 1 FORM chiến lược — đặt cược (chip Max gợi ý) + mục tiêu/hướng/giá/năng lực (điền tay).
+  // Thay Spine rời + Đặt cược rời. Lưu → save_strategy_input (fan-out bet_choices + spine).
+  function strategyForm(collapsed) {
+    const E = _eHero;
+    const S = spineState();
+    const o = S.objective, t = o.target || {}, b = o.baseline || {}, p = S.positioning, c = S.constraint, a = S.audience;
+    const gf = S.growth_focus || '';
+    const growthOpts = [['acquisition', '🎯 Kéo khách mới'], ['conversion', '💰 Chốt đơn'], ['retention', '🔁 Giữ khách'], ['referral', '📣 Giới thiệu'], ['', '🤖 Để Max']];
+    const growthHtml = growthOpts.map(([v, l]) => `<label class="radio-opt"><input type="radio" name="stratGrowth" value="${v}" ${gf === v ? 'checked' : ''}><span>${l}</span></label>`).join('');
+    const stageOpts = [['launch', 'Mới ra mắt'], ['growth', 'Đang tăng'], ['scale', 'Nhân rộng']];
+    const stageHtml = stageOpts.map(([v, l]) => `<label class="radio-opt"><input type="radio" name="stratStage" value="${v}" ${S.stage === v ? 'checked' : ''}><span>${l}</span></label>`).join('');
+    const ppOpts = [['', '— để Max suy —'], ['premium', 'Cao cấp'], ['parity', 'Ngang tầm'], ['value', 'Giá tốt']];
+    const ppHtml = ppOpts.map(([v, l]) => `<option value="${v}" ${p.price_posture === v ? 'selected' : ''}>${l}</option>`).join('');
+    const spineCard = card('🎯 Định giá · Hướng tăng trưởng · Mục tiêu · Năng lực', `
+      <div class="spine-grid">
+        <div class="spine-col"><label class="spine-lbl">Hướng tăng trưởng trọng tâm</label>
+          <div class="radio-group">${growthHtml}</div></div>
+        <div class="spine-col"><label class="spine-lbl">Đòn bẩy giá (định vị)</label>
+          <select id="stratPrice" class="fld-sel">${ppHtml}</select></div>
+        <div class="spine-col"><label class="spine-lbl">Giai đoạn</label>
+          <div class="radio-group">${stageHtml}</div></div>
+        <div class="spine-col"><label class="spine-lbl">Mục tiêu (SMART)</label>
+          <div class="grid grid-2">
+            <label class="fld"><span>Outcome</span><input id="stratOutcome" value="${E(o.outcome)}" placeholder="vd: Tăng doanh thu online"></label>
+            <label class="fld"><span>Metric</span><input id="stratMetric" value="${E(o.metric)}" placeholder="vd: Doanh thu / Đơn / Lead"></label></div>
+          <div class="grid grid-2">
+            <label class="fld"><span>Target</span><div class="input-row"><input id="stratTV" type="number" step="any" value="${t.value != null ? t.value : ''}" placeholder="Số"><input id="stratTU" value="${E(t.unit)}" placeholder="Đơn vị"><input id="stratTP" value="${E(t.period)}" placeholder="Kỳ"></div></label>
+            <label class="fld"><span>Baseline</span><div class="input-row"><input id="stratBV" type="number" step="any" value="${b.value != null ? b.value : ''}" placeholder="Số"><input id="stratBU" value="${E(b.unit)}" placeholder="Đơn vị"><input id="stratBP" value="${E(b.period)}" placeholder="Kỳ"></div></label></div>
+          <label class="fld"><span>Deadline</span><input id="stratDeadline" type="date" value="${E(o.deadline)}"></label></div>
+        <div class="spine-col"><label class="spine-lbl">Định vị — bổ sung (tuỳ chọn)</label>
+          <div class="grid grid-2">
+            <label class="fld"><span>Không có bạn, khách làm gì?</span><textarea id="stratAlt" rows="2" placeholder="vd: tự mua trôi nổi">${E(p.alternative)}</textarea></label>
+            <label class="fld"><span>Bạn khác gì họ?</span><textarea id="stratDiff" rows="2" placeholder="vd: phác đồ chuẩn y khoa">${E(p.differentiator)}</textarea></label></div>
+          <div class="grid grid-2">
+            <label class="fld"><span>Nỗi đau khách</span><input id="stratPain" value="${E(a.pain)}" placeholder="vd: mua nhầm, da kích ứng"></label>
+            <label class="fld"><span>Khách thường ở đâu</span><input id="stratWhere" value="${E(a.where)}" placeholder="vd: TikTok, phòng khám"></label></div></div>
+        <div class="spine-col"><label class="spine-lbl">Năng lực (ràng buộc)</label>
+          <div class="grid grid-3">
+            <label class="fld"><span>Người</span><input id="stratPeople" value="${E(c.people)}" placeholder="vd: Founder + 1 content"></label>
+            <label class="fld"><span>Ngân sách/tháng</span><input id="stratBudget" value="${E(c.budget)}" placeholder="vd: 10-15 triệu"></label>
+            <label class="fld"><span>Sức sản xuất</span><input id="stratCapacity" value="${E(c.capacity)}" placeholder="vd: 8 bài/tháng"></label></div></div>
+      </div>`, { cls: 'span-12' });
+    const inner = betForm(['price']) + spineCard;
+    if (collapsed) {
+      return `<section class="grid"><div class="span-12"><details class="spine-details">
+        <summary>🎯 Chiến lược (đặt cược + mục tiêu/giá/năng lực) — bấm để xem/chỉnh</summary>
+        <div class="grid" style="margin-top:10px">${inner}
+          <div class="span-12" style="text-align:right"><button class="ghost-line sm" data-act="strat-save">💾 Lưu chiến lược (không lập lại)</button></div></div>
+      </details></div></section>`;
+    }
+    return inner;
+  }
+  function _collectStrategy() {   // gom form gộp → payload cho save_strategy_input
+    const cats = M.bizBetCategories || [];
+    const chip = k => {
+      const on = Array.from(document.querySelectorAll('.bet-chip.on[data-cat="' + k + '"]')).map(b => b.dataset.val);
+      const free = (((document.getElementById('betFree-' + k) || {}).value) || '').split(',').map(s => s.trim()).filter(Boolean);
+      return [...on, ...free];
+    };
+    const val = id => (document.getElementById(id) || {}).value || '';
+    const num = id => { const v = val(id); return v ? parseFloat(v) : null; };
+    const growth = (document.querySelector('input[name="stratGrowth"]:checked') || {}).value || '';
+    const stage = (document.querySelector('input[name="stratStage"]:checked') || {}).value || '';
+    return {
+      market: chip('market'), segment: chip('segment'), channel: chip('channel'),
+      positioning: { statement: chip('positioning').join(' · '), alternative: val('stratAlt'), differentiator: val('stratDiff') },
+      price_posture: val('stratPrice'),
+      stage, growth_focus: growth,
+      objective: { outcome: val('stratOutcome'), metric: val('stratMetric'),
+        target: { value: num('stratTV'), unit: val('stratTU'), period: val('stratTP') },
+        baseline: { value: num('stratBV'), unit: val('stratBU'), period: val('stratBP') },
+        deadline: val('stratDeadline') },
+      audience: { pain: val('stratPain'), where: val('stratWhere') },
+      constraint: { people: val('stratPeople'), budget: val('stratBudget'), capacity: val('stratCapacity') },
+    };
   }
 
   /* ── Wizard tạo Campaign tổng (chọn các gap → đặt cược → Max đề xuất sub → chốt) ── */
@@ -3987,25 +4065,32 @@
       toast('🤖 Nhóm này để Max tự đề xuất');
       return;
     }
-    if (act === 'run-strategize-bet') {   // Vision A: lưu đặt cược (5 nhóm) → chạy T4-T5
+    if (act === 'run-strategize-bet') {   // R2: lưu form gộp (fan-out) → chạy T4-T5
       try {
-        const cats = M.bizBetCategories || [];
-        const choices = {};
-        cats.forEach(c => {
-          const on = Array.from(document.querySelectorAll('.bet-chip.on[data-cat="' + c.key + '"]')).map(b => b.dataset.val);
-          const free = (((document.getElementById('betFree-' + c.key) || {}).value) || '').split(',').map(s => s.trim()).filter(Boolean);
-          choices[c.key] = [...on, ...free];   // nhóm bỏ trống = [] → Max tự quyết
-        });
-        const b = await API.post('api/biz/bet/save', { user_id: _bizUserId, choices });
+        const payload = _collectStrategy();
+        const b = await API.post('api/biz/strategy-input/save', { user_id: _bizUserId, payload });
         if (b.error) { toast(b.error); return; }
         const horizon = (document.querySelector('input[name="gateHorizon"]:checked') || {}).value || 'auto';
         const posture = (document.querySelector('input[name="gatePosture"]:checked') || {}).value || 'auto';
         await API.post('api/biz/gate', { horizon, posture, user_id: _bizUserId });
         const r = await API.post('api/biz/agent', { task: 'strategize', user_id: _bizUserId });
         if (r.error) { toast(r.error); return; }
-        toast('Đã chốt đặt cược — Max đang lập chiến lược + playbook…');
+        _spine = null;   // reset đệm → đọc lại spine mới lưu
+        toast('Đã chốt chiến lược — Max đang lập chiến lược + playbook…');
         await refreshBiz(); renderRail(); renderTopbar(); route();
       } catch (e) { toast('Không lập được chiến lược'); }
+      return;
+    }
+    if (act === 'strat-save') {   // R2: lưu form gộp KHÔNG lập lại (chỉnh mục tiêu/giá/hướng sau khi đã có synthesis)
+      el.disabled = true; const _t = el.textContent; el.textContent = '⏳ Đang lưu…';
+      try {
+        const payload = _collectStrategy();
+        const r = await API.post('api/biz/strategy-input/save', { user_id: _bizUserId, payload });
+        if (r && r.error) { toast(r.error); el.disabled = false; el.textContent = _t; return; }
+        _spine = null; await refreshBiz();
+        toast('✅ Đã lưu chiến lược — Max bám khi viết bài');
+        route();
+      } catch (e) { toast('Lưu lỗi — thử lại'); el.disabled = false; el.textContent = _t; }
       return;
     }
     if (act === 'approve-synthesis') {   // M4(1): chốt bản chiến lược hiện tại
