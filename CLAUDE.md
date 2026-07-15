@@ -69,7 +69,8 @@ Lỗi nguy hiểm nhất = **mối nối**: function *tiêu thụ* một khoá m
 ## Git workflow (Cline code, Claude Code review, user merge)
 `main` có branch protection: bắt buộc đi qua PR, không ai push thẳng được (kể cả admin). Có sẵn branch `staging` làm nhánh trung gian để test trước khi lên `main`.
 
-1. Mọi task code mới → tạo branch riêng từ `main` (vd `feature/xxx`). KHÔNG bao giờ commit/push thẳng vào `main`.
+1. Mọi task code mới → tạo branch riêng **từ `staging`** (vd `feature/xxx`). KHÔNG bao giờ commit/push thẳng vào `main` hay `staging`.
+   (Cắt từ `staging` chứ không phải `main`: PR nhắm `staging`, và `AGENTS.md` + các bản vá mới nhất chỉ có ở `staging`.)
 2. Cline code + push branch đó, mở PR (`base: staging`) bằng `gh pr create` — KHÔNG tự merge.
 3. Claude Code review PR (diff, logic, an toàn) trước khi merge.
 4. Sau khi Claude Code duyệt → merge PR vào `staging` để user test (`gh pr merge --squash`).
