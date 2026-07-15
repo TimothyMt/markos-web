@@ -36,6 +36,7 @@ python3 -c "import webapp.business, webapp.api"
 | **D1-F2** | `D1-F2-messaging-seam.md` | nối Spine + vault vào `gen_messaging` (định vị→Messaging House) | ⬜ brief xong, **chờ Cline** |
 | **INTAKE-USP** | `intake-usp-sharpen.md` | F1 bỏ nhồi-2-ý+giọng buộc tội · F2 thêm alternative→intake_extra.answers · F3 competitor onliness/white-space · F4 usp_stance missing→white-space | ⬜ brief xong, **chờ Cline** |
 | **PB-WIRE** | `playbook-artifact-wiring.md` | W0 hạ độ cao `_TAC_SYSTEM` (góc đánh, không hook) + emit JSON `playbook_struct` · W1 nối territory/kênh→gen_calendar_post (hook tự viết bám Messaging) · W2 cut+KPI có khoá cho D6 | ⬜ brief CHỐT, **chờ Cline** |
+| **VL1** | `VL1-video-viral-learn.md` | F1 extract(gendownload) · F2 Gemini bóc tách 2 tầng · F3 cụm ③ auto-discovery (reuse last30days) · F4 thư viện formula (derived-state) · F5 cầu formula→gen_calendar_post + hook 5→10 · FE tab mới | ⬜ brief xong (feasibility ✅ prototype), **chờ Cline** |
 | … | (F5 nháp-xác-nhận UX · D1-F3 QC rubric · D2/D3/D6 lấp card→brief→wire · chốt sau R-1) | | |
 
 > Không chắc chỗ nào → hỏi lại, ĐỪNG bịa. Được tham khảo `marketingskills` repo + `product-journey-4-tang.md` (xem PLAN mục "Tham khảo").
