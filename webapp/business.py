@@ -3477,6 +3477,35 @@ def _norm_offers(val) -> dict:
     return out
 
 
+def _norm_pillar_mix(val, known) -> list:
+    """B6-C: chuẩn hoá [{pillar,pct}] về trụ ĐÃ BIẾT, tổng CHÍNH XÁC 100 (proportional).
+    Trụ lạ → khớp lỏng/bỏ; pct<0→0; không có dữ liệu hợp lệ → [] (FE ẩn, KHÔNG bịa mix)."""
+    known = [str(k).strip() for k in (known or []) if str(k).strip()]
+    if not known or not isinstance(val, list):
+        return []
+    raw = {}
+    for it in val:
+        if not isinstance(it, dict):
+            continue
+        pk = _match_pillar(it.get("pillar"), known)
+        if not pk:
+            continue
+        try:
+            pct = float(it.get("pct"))
+        except (TypeError, ValueError):
+            continue
+        raw[pk] = raw.get(pk, 0.0) + max(0.0, pct)
+    tot = sum(raw.values())
+    if tot <= 0:
+        return []
+    out = [{"pillar": k, "pct": int(round(v / tot * 100))} for k, v in raw.items() if v > 0]
+    out.sort(key=lambda x: -x["pct"])
+    s = sum(x["pct"] for x in out)
+    if out and s != 100:                      # bù sai số làm tròn vào ô lớn nhất → tổng đúng 100
+        out[0]["pct"] += (100 - s)
+    return out
+
+
 # B4: map primary_goal của campaigns_v2 cũ → goal enum key_idea (migrate). Lạ → '' (Max suy khi gen).
 _CAMP_GOAL_TO_KI = {
     "brand": "awareness", "branding": "awareness", "awareness": "awareness", "launch": "awareness",
@@ -3933,7 +3962,11 @@ async def gen_content_matrix(user_id=None) -> dict:
             "dung repurpose sang các nền tảng này) · cadence (nhịp gợi ý, vd '1 bài/2 tuần'). KHÔNG ép đủ mọi ô — chọn ô "
             "đắt giá, nhịp THƯA hợp team nhỏ (ĐỪNG nhồi). Đây là NỀN chạy đều, KHÔNG phải chiến dịch cao điểm.\n"
             + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số/thành tích.\n"
-            'Output JSON DUY NHẤT: {"cells":[{"pillar":"","tier":"tofu|mofu|bofu","role":"","platforms":[""],"cadence":""}]}'
+            # B6-C: mix % tỉ trọng nội dung theo trụ (tổng 100) — trụ lõi/đắt giá nặng hơn, trụ phụ nhẹ.
+            "Thêm 'mix' = phân bổ % KHỐI LƯỢNG nội dung theo trụ (tổng 100) — trụ lõi/đắt giá nặng hơn; "
+            "chỉ dùng các trụ đã cho. Đây là tỉ trọng làm bài, KHÔNG phải cam kết KPI.\n"
+            'Output JSON DUY NHẤT: {"mix":[{"pillar":"","pct":0}],'
+            '"cells":[{"pillar":"","tier":"tofu|mofu|bofu","role":"","platforms":[""],"cadence":""}]}'
         )
         pc_lines = "\n".join(f"- {p['territory']}" + (f": {p['angle']}" if p["angle"] else "")
                              + (f" · kênh gợi ý: {', '.join(pillar_channels[p['territory']][:3])}" if pillar_channels.get(p["territory"]) else "")
@@ -3948,8 +3981,10 @@ async def gen_content_matrix(user_id=None) -> dict:
         raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
         _ch0 = (cur_channels.split(",")[0].strip()[:60] if cur_channels else "") or "Facebook"
         cells = []
+        mix = []
         try:
             data = _json.loads(raw)
+            mix = _norm_pillar_mix(data.get("mix"), known)   # B6-C: % tỉ trọng pillar (tổng 100)
             for c in (data.get("cells") or []):
                 if not isinstance(c, dict):
                     continue
@@ -3975,7 +4010,7 @@ async def gen_content_matrix(user_id=None) -> dict:
                               "cadence": "", "note": "(degrade — chưa có đề xuất AI)"})
             if not cells:
                 return {"error": "Chưa dựng được ma trận — thử lại."}
-        cmatrix = {"cells": cells, "updated_at": time.time()}
+        cmatrix = {"cells": cells, "mix": mix, "updated_at": time.time()}   # B6-C: mix % (rỗng → FE ẩn)
         extra["content_matrix"] = cmatrix
         await profiles.upsert_profile(uid, intake_extra=extra)
         return {"ok": True, "content_matrix": cmatrix}

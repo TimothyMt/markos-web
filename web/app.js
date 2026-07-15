@@ -2049,6 +2049,16 @@
   const _GOAL_VI = { awareness: 'Nhận biết', consideration: 'Cân nhắc', conversion: 'Chốt / Xả', retention: 'Giữ chân' };
   const mxE = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   function cmCells() { const c = (window.MOCK && M.bizContentMatrix) || {}; return Array.isArray(c.cells) ? c.cells : []; }
+  function cmMix() { const c = (window.MOCK && M.bizContentMatrix) || {}; return Array.isArray(c.mix) ? c.mix : []; }   // B6-C
+  const _MIX_COLORS = ['#7c4dff', '#5c6bc0', '#ffb74d', '#c1553f', '#66bb6a', '#26a69a', '#ec407a', '#8d6e63'];
+  function mxMixBar() {   // B6-C: thanh % tỉ trọng nội dung theo trụ (ẩn nếu chưa có mix)
+    const mix = cmMix();
+    if (!mix.length) return '';
+    const seg = mix.map((m, i) => `<div class="mx-mix-seg" style="width:${m.pct}%;background:${_MIX_COLORS[i % _MIX_COLORS.length]}" title="${mxE(m.pillar)} — ${m.pct}%"></div>`).join('');
+    const leg = mix.map((m, i) => `<span class="mx-mix-leg"><i style="background:${_MIX_COLORS[i % _MIX_COLORS.length]}"></i>${mxE(m.pillar)} <b>${m.pct}%</b></span>`).join('');
+    return `<div class="mx-mix"><div class="mx-mix-h">📊 <b>Tỉ trọng nội dung theo trụ</b> <span class="muted">(khối lượng bài — tổng 100%)</span></div>
+      <div class="mx-mix-bar">${seg}</div><div class="mx-mix-legs">${leg}</div></div>`;
+  }
   function cmHas() { return cmCells().length > 0; }
   function kiList() { return (window.MOCK && M.bizKeyIdeas) || []; }
   function mxTrus() {   // trụ = messaging.pillars (đa ngành); bổ sung trụ xuất hiện trong cells
@@ -2111,7 +2121,7 @@
       return `<div class="mx-row"><div class="mx-rowh">${t.icon} ${mxE(t.territory)}</div>${cellsH}</div>`;
     }).join('');
     const house = m.core ? `<div class="mx-house">🏠 <b>Mái:</b> “${mxE(m.core)}” <span class="muted">— mọi ô bám cốt lõi này</span></div>` : '';
-    return `${house}<section class="card mx-card"><div class="mx-grid" style="--mx-cols:${_MX_TIERS.length}">${head}${rows}</div>
+    return `${house}${mxMixBar()}<section class="card mx-card"><div class="mx-grid" style="--mx-cols:${_MX_TIERS.length}">${head}${rows}</div>
       <p class="muted mx-note">Đây là <b>nền chạy đều</b> — không phải mọi ô đều cần bài. Chiến dịch (tab ⚡) đẩy cao điểm 1 tầng phễu across trụ theo kỳ.</p></section>`;
   }
   function kiLegacyCamps() {   // B4: campaigns_v2 cũ CHƯA nhập vào key_ideas (dedupe theo migrated_from)

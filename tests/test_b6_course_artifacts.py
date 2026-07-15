@@ -16,7 +16,11 @@ import sys, os, types, asyncio
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
 
-_DB = {"intake_extra": {"key_ideas": [
+_DB = {"intake_extra": {
+    "messaging": {"core": "Cốt lõi X", "pillars": [
+        {"territory": "Chất lượng", "angle": "a"}, {"territory": "Trải nghiệm", "angle": "b"},
+        {"territory": "Giá", "angle": "c"}]},
+    "key_ideas": [
     {"id": "k1", "title": "Đợt phủ nhận biết", "angle": "góc X", "goal": "awareness",
      "window_start": "2026-08-01", "window_end": "2026-08-20", "status": "active",
      "focus_tier": "", "focus_pillars": [], "funnel_map": {"ratio": "", "posts": []},
@@ -46,6 +50,10 @@ def _install():
     async def _c(**k):
         _CALLS.append(k)
         sysp = k.get("system", "")
+        if "MA TRẬN NỘI DUNG" in sysp:   # gen_content_matrix (B6-C)
+            return {"output": '{"mix":[{"pillar":"Chất lượng","pct":5},{"pillar":"Trải nghiệm","pct":3},'
+                    '{"pillar":"Giá","pct":2},{"pillar":"Trụ lạ","pct":9}],'
+                    '"cells":[{"pillar":"Chất lượng","tier":"tofu","role":"khơi","platforms":["FB"],"cadence":"1 bài/tuần"}]}'}
         if "DANH SÁCH BÀI" in sysp:   # gen_funnel_map_for_idea
             return {"output": '{"ratio":"65/25/10",'
                     '"offers":{"tofu":"Xem clip mẹo da khô","mofu":"Đặt tư vấn 1:1 miễn phí","bofu":"Giảm 15% gói phục hồi"},'
@@ -110,6 +118,27 @@ async def _run():
     userp = next((c["user"] for c in _CALLS if "user" in c), "")
     res.append(("④ calendar_post camp bơm OFFER tầng MOFU vào prompt",
                 "OFFER" in userp and "Đặt tư vấn 1:1 miễn phí" in userp))
+    # ⑤ C — % tỉ trọng pillar (pure + gen_content_matrix)
+    NM = B._norm_pillar_mix
+    known = ["Chất lượng", "Trải nghiệm", "Giá"]
+    m1 = NM([{"pillar": "Chất lượng", "pct": 5}, {"pillar": "Trải nghiệm", "pct": 3}, {"pillar": "Giá", "pct": 2}], known)
+    res += [
+        ("⑤ _norm_pillar_mix chuẩn hoá tổng CHÍNH XÁC 100 + sort giảm",
+         sum(x["pct"] for x in m1) == 100 and m1[0]["pillar"] == "Chất lượng" and m1[0]["pct"] == 50),
+        ("⑤ _norm_pillar_mix bỏ trụ lạ + pct<0→0 + rỗng→[]",
+         NM([{"pillar": "Lạ hoắc", "pct": 99}], known) == [] and NM([{"pillar": "Giá", "pct": -5}], known) == []
+         and NM(None, known) == []),
+    ]
+    _CALLS.clear()
+    outm = await B.gen_content_matrix(user_id=1)
+    cm = _DB["intake_extra"]["content_matrix"]
+    sysm = _CALLS[0]["system"] if _CALLS else ""
+    res += [
+        ("⑤ prompt gen matrix CÓ schema mix", '"mix"' in sysm),
+        ("⑤ content_matrix.mix chuẩn hoá tổng 100, bỏ trụ lạ (3 trụ)",
+         isinstance(cm.get("mix"), list) and len(cm["mix"]) == 3 and sum(x["pct"] for x in cm["mix"]) == 100
+         and all(x["pillar"] in known for x in cm["mix"])),
+    ]
     return res
 
 
