@@ -86,10 +86,10 @@ async def _run():
         ("⑤ EVAL-3: anchor(retention) khác anchor(base) + khác anchor(conversion)",
          a_ret != a_base and a_ret != a_conv and "Giữ khách quay lại" in a_ret),
     ]
-    # ⑥ save_spine persist + junk → '' + không đè máy đoán
-    await B.save_spine(user_id=1, spine={"stage": "launch", "growth_focus": "referral"})
+    # ⑥ save persist + junk → '' + không đè máy đoán (R2-P2A: save_spine chết → cửa vào là save_strategy_input)
+    await B.save_strategy_input(user_id=1, payload={"stage": "launch", "growth_focus": "referral"})
     sp = _DB["intake_extra"]["spine"]
-    await B.save_spine(user_id=1, spine={"stage": "launch", "growth_focus": "loạn"})
+    await B.save_strategy_input(user_id=1, payload={"stage": "launch", "growth_focus": "loạn"})
     sp2 = _DB["intake_extra"]["spine"]
     res += [
         ("⑥ save persist growth_focus hợp lệ", sp.get("growth_focus") == "referral"),
@@ -99,9 +99,9 @@ async def _run():
     VP = B._validate_price_posture
     a_pp = B._spine_anchor({"spine": {"positioning": {"price_posture": "premium"}}})
     a_nopp = B._spine_anchor({"spine": {"positioning": {"statement": "x"}}})
-    await B.save_spine(user_id=1, spine={"positioning": {"price_posture": "value"}})
+    await B.save_strategy_input(user_id=1, payload={"positioning": {"price_posture": "value"}})
     sp3 = _DB["intake_extra"]["spine"]
-    await B.save_spine(user_id=1, spine={"positioning": {"price_posture": "loạn"}})
+    await B.save_strategy_input(user_id=1, payload={"positioning": {"price_posture": "loạn"}})
     sp4 = _DB["intake_extra"]["spine"]
     res += [
         ("⑦ price_posture enum hợp lệ / junk → ''",
