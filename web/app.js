@@ -2945,6 +2945,15 @@
     ov.classList.add('show');
   }
   // Khung TEXT sửa được (t2) + Lưu & Duyệt ngay tại ô (t1). wasSaved=đang xem bài đã lưu.
+  // mirror backend _channel_to_format (B3) — để biết base đã là định dạng gì (ẩn nút bung trùng chính nó)
+  function _fmtFromChannel(channel) {
+    const s = String(channel || '').trim().toLowerCase();
+    if (!s) return 'post';
+    if (['tiktok', 'reel', 'short', 'douyin', 'video', 'yt short', 'kịch bản', 'kich ban'].some(k => s.includes(k))) return 'video';
+    if (['zalo', 'sms', 'tin nhắn', 'tin nhan', 'story', 'status'].some(k => s.includes(k))) return 'short';
+    if (['blog', 'website', 'web site', 'bài dài', 'bai dai', 'seo', 'landing', 'note', 'báo'].some(k => s.includes(k))) return 'longform';
+    return 'post';
+  }
   function showSlotResult(content, runId, wasSaved) {
     const ov = document.getElementById('bizModal'); if (!ov || !_slotCtx) return;
     const E = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2965,7 +2974,7 @@
       </div>
       <div class="rate-group slot-repurpose" title="Bung biến thể từ bài này — giữ thông điệp, đổi form theo kênh">
         <span class="muted" style="font-size:12px">🔁 Bung:</span>
-        <button class="ghost-line sm" data-act="post-derive" data-kind="video">🎬 Video</button>
+        ${_fmtFromChannel(_slotCtx.channel) === 'video' ? '' : '<button class="ghost-line sm" data-act="post-derive" data-kind="video">🎬 Video</button>'}
         <button class="ghost-line sm" data-act="post-derive" data-kind="channels">📱 Đa kênh</button>
         <button class="ghost-line sm" data-act="post-derive" data-kind="ugc">📸 UGC</button>
       </div>
