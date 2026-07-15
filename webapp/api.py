@@ -290,7 +290,8 @@ async def biz_key_idea_save(request):
         d.get("user_id"), id=d.get("id", ""), title=d.get("title", ""), angle=d.get("angle", ""),
         source=d.get("source", "user"), source_ref=d.get("source_ref", ""), goal=d.get("goal", ""),
         window_start=d.get("window_start", ""), window_end=d.get("window_end", ""), status=d.get("status", ""),
-        focus_tier=d.get("focus_tier", ""), focus_pillars=d.get("focus_pillars"))
+        focus_tier=d.get("focus_tier", ""), focus_pillars=d.get("focus_pillars"),
+        risks=d.get("risks"))   # B6-A: human override rủi ro & dự phòng (None nếu FE không gửi)
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 

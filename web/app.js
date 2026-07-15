@@ -2049,6 +2049,16 @@
   const _GOAL_VI = { awareness: 'Nhận biết', consideration: 'Cân nhắc', conversion: 'Chốt / Xả', retention: 'Giữ chân' };
   const mxE = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   function cmCells() { const c = (window.MOCK && M.bizContentMatrix) || {}; return Array.isArray(c.cells) ? c.cells : []; }
+  function cmMix() { const c = (window.MOCK && M.bizContentMatrix) || {}; return Array.isArray(c.mix) ? c.mix : []; }   // B6-C
+  const _MIX_COLORS = ['#7c4dff', '#5c6bc0', '#ffb74d', '#c1553f', '#66bb6a', '#26a69a', '#ec407a', '#8d6e63'];
+  function mxMixBar() {   // B6-C: thanh % tỉ trọng nội dung theo trụ (ẩn nếu chưa có mix)
+    const mix = cmMix();
+    if (!mix.length) return '';
+    const seg = mix.map((m, i) => `<div class="mx-mix-seg" style="width:${m.pct}%;background:${_MIX_COLORS[i % _MIX_COLORS.length]}" title="${mxE(m.pillar)} — ${m.pct}%"></div>`).join('');
+    const leg = mix.map((m, i) => `<span class="mx-mix-leg"><i style="background:${_MIX_COLORS[i % _MIX_COLORS.length]}"></i>${mxE(m.pillar)} <b>${m.pct}%</b></span>`).join('');
+    return `<div class="mx-mix"><div class="mx-mix-h">📊 <b>Tỉ trọng nội dung theo trụ</b> <span class="muted">(khối lượng bài — tổng 100%)</span></div>
+      <div class="mx-mix-bar">${seg}</div><div class="mx-mix-legs">${leg}</div></div>`;
+  }
   function cmHas() { return cmCells().length > 0; }
   function kiList() { return (window.MOCK && M.bizKeyIdeas) || []; }
   function mxTrus() {   // trụ = messaging.pillars (đa ngành); bổ sung trụ xuất hiện trong cells
@@ -2111,7 +2121,7 @@
       return `<div class="mx-row"><div class="mx-rowh">${t.icon} ${mxE(t.territory)}</div>${cellsH}</div>`;
     }).join('');
     const house = m.core ? `<div class="mx-house">🏠 <b>Mái:</b> “${mxE(m.core)}” <span class="muted">— mọi ô bám cốt lõi này</span></div>` : '';
-    return `${house}<section class="card mx-card"><div class="mx-grid" style="--mx-cols:${_MX_TIERS.length}">${head}${rows}</div>
+    return `${house}${mxMixBar()}<section class="card mx-card"><div class="mx-grid" style="--mx-cols:${_MX_TIERS.length}">${head}${rows}</div>
       <p class="muted mx-note">Đây là <b>nền chạy đều</b> — không phải mọi ô đều cần bài. Chiến dịch (tab ⚡) đẩy cao điểm 1 tầng phễu across trụ theo kỳ.</p></section>`;
   }
   function kiLegacyCamps() {   // B4: campaigns_v2 cũ CHƯA nhập vào key_ideas (dedupe theo migrated_from)
@@ -2181,17 +2191,34 @@
       ${fp ? `<div class="ki-fprow">${fp}</div>` : ''}
       ${posts.length ? `<div class="ki-funnel-act"><button class="ghost-line sm" data-act="ki-funnel" data-id="${mxE(k.id)}">↻ Dựng lại bài</button></div>` : ''}
       ${body}
+      ${kiRisksHTML(k.risks)}
     </section>`;
+  }
+  // B6-A: bảng Rủi ro & dự phòng (Max nháp khi dựng bài; ẩn nếu chưa có)
+  function kiRisksHTML(risks) {
+    if (!Array.isArray(risks) || !risks.length) return '';
+    const lv = v => v ? `<span class="ki-risk-lv lv-${{'thấp':'lo','trung bình':'mid','cao':'hi'}[v] || 'na'}">${mxE(v)}</span>` : '<span class="muted">—</span>';
+    const rows = risks.map(r => `<tr>
+      <td>${mxE(r.risk || '')}</td>
+      <td class="ki-risk-c">${lv(r.likelihood)}</td>
+      <td class="ki-risk-c">${lv(r.impact)}</td>
+      <td>${mxE(r.backup || '')}</td></tr>`).join('');
+    return `<details class="ki-risks"><summary>⚠️ Rủi ro &amp; dự phòng (${risks.length})</summary>
+      <table class="ki-risk-tbl"><thead><tr><th>Rủi ro</th><th>Xác suất</th><th>Tác động</th><th>Phương án B</th></tr></thead>
+      <tbody>${rows}</tbody></table></details>`;
   }
   function kiFunnelHTML(fm) {
     const posts = fm.posts || [];
     const ratio = fm.ratio || '';
     const byTier = { tofu: [], mofu: [], bofu: [] };
     posts.forEach(p => { if (byTier[p.tier]) byTier[p.tier].push(p); });
+    const offers = fm.offers || {};
     const tiers = _MX_TIERS.map(([id, lbl, desc]) => {
       const arr = byTier[id];
+      const off = offers[id];
       return `<div class="ki-tier">
         <div class="ki-tier-h"><b>${lbl}</b> <span class="muted">${desc}</span> <span class="ki-count">${arr.length} bài</span></div>
+        ${off ? `<div class="ki-offer" title="Offer/chào mời chính của tầng này — bài bám theo">🎁 ${mxE(off)}</div>` : ''}
         ${arr.length ? arr.map(kiPostHTML).join('') : '<div class="ki-tier-empty muted">— chưa có bài —</div>'}
       </div>`;
     }).join('');
