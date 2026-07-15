@@ -105,6 +105,8 @@ _PRICE_VI = {
     "parity":  "định giá NGANG TẦM (bằng mặt bằng — cạnh tranh bằng giá trị khác, không bằng giá)",
     "value":   "định giá GIÁ TỐT (thấp hơn — tín hiệu tiết kiệm/khối lượng, nhấn hiệu quả chi phí)",
 }
+# nhãn NGẮN cho bet_choices.price (R2 fan-out) + gợi ý map ngược từ text người ghi → enum.
+_PRICE_SHORT = {"premium": "Cao cấp", "parity": "Ngang tầm", "value": "Giá tốt"}
 
 
 def _validate_price_posture(pp: str) -> str:
@@ -1933,6 +1935,98 @@ async def save_bet(user_id=None, choices=None) -> dict:
         return {"ok": True, "bet_choices": norm}
     except Exception as e:
         logger.warning("biz.save_bet failed: %s", e)
+        return {"error": str(e)}
+
+
+async def save_strategy_input(user_id=None, payload=None) -> dict:
+    """R2 P1: 1 BỀ MẶT nhập chiến lược → FAN-OUT ghi CẢ `bet_choices` (nuôi synthesis/playbook) VÀ
+    `spine` (nuôi _spine_anchor máy viết) từ 1 payload — ATOMIC (đọc 1 lần, 1 upsert). Dedupe ô chung
+    (tệp/định vị/giá). Downstream đọc y như cũ → tương thích ngược. Con người chốt (KHÔNG derived-state).
+
+    payload = {
+      market:[..], channel:[..], segment:[..],                 # bet-style (list, Max gợi ý)
+      positioning:{alternative, differentiator, statement},     # spine positioning (statement dùng chung bet)
+      price_posture: 'premium|parity|value',                    # dùng chung bet.price
+      stage, growth_focus,                                      # spine
+      objective:{outcome, metric, target:{value,unit,period}, baseline:{...}, deadline},
+      audience:{pain, where},                                   # who = segment (dedupe)
+      constraint:{people, budget, capacity},
+    }"""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        p = payload if isinstance(payload, dict) else {}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+
+        def _list(v, n=5, ln=160):
+            if isinstance(v, str):
+                v = [v]
+            return [str(x).strip()[:ln] for x in (v or []) if str(x).strip()][:n] if isinstance(v, list) else []
+
+        def _s(v, ln=500):
+            return str(v or "").strip()[:ln]
+
+        def _ss(v, ln=200):
+            return str(v or "").strip()[:ln]
+
+        pos_in = p.get("positioning") if isinstance(p.get("positioning"), dict) else {}
+        aud_in = p.get("audience") if isinstance(p.get("audience"), dict) else {}
+        con_in = p.get("constraint") if isinstance(p.get("constraint"), dict) else {}
+        obj_in = p.get("objective") if isinstance(p.get("objective"), dict) else {}
+        tgt_in = obj_in.get("target") if isinstance(obj_in.get("target"), dict) else {}
+        bl_in = obj_in.get("baseline") if isinstance(obj_in.get("baseline"), dict) else {}
+
+        segment = _list(p.get("segment"))
+        stmt = _s(pos_in.get("statement"))
+        pp = _validate_price_posture(p.get("price_posture") or pos_in.get("price_posture"))
+
+        # ---- bet_choices (synthesis/playbook đọc — DEDUPE: định vị/giá/tệp lấy từ ô chung) ----
+        bet = {
+            "market": _list(p.get("market")),
+            "segment": segment,
+            "positioning": [stmt] if stmt else [],
+            "price": [_PRICE_SHORT[pp]] if pp else [],
+            "channel": _list(p.get("channel")),
+        }
+        # ---- spine (anchor đọc — cùng ô định vị/giá/tệp) ----
+        spine = {
+            "stage": _validate_stage(p.get("stage")),
+            "growth_focus": _validate_growth_focus(p.get("growth_focus")),
+            "objective": {
+                "outcome": _ss(obj_in.get("outcome")),
+                "metric": _ss(obj_in.get("metric")),
+                "target": {"value": _parse_vn_number(tgt_in.get("value")), "unit": _ss(tgt_in.get("unit")), "period": _ss(tgt_in.get("period"))},
+                "baseline": {"value": _parse_vn_number(bl_in.get("value")), "unit": _ss(bl_in.get("unit")), "period": _ss(bl_in.get("period"))},
+                "deadline": _ss(obj_in.get("deadline")),
+            },
+            "audience": {"who": " · ".join(segment), "pain": _s(aud_in.get("pain")), "where": _s(aud_in.get("where"))},
+            "positioning": {"alternative": _s(pos_in.get("alternative")), "differentiator": _s(pos_in.get("differentiator")),
+                            "statement": stmt, "price_posture": pp},
+            "constraint": {"people": _s(con_in.get("people")), "budget": _s(con_in.get("budget")), "capacity": _s(con_in.get("capacity"))},
+        }
+
+        extra["bet_choices"] = bet
+        extra["spine"] = spine
+        fields = {"intake_extra": extra}
+        # compat cũ (như save_bet): wedge từ tệp, usp từ định vị
+        if segment:
+            extra["wedge"] = " · ".join(segment)
+        if stmt:
+            extra["usp_stance"] = "clear"
+            fields["usp"] = stmt[:400]
+            fields["usp_confidence"] = "clear"
+        await profiles.upsert_profile(uid, **fields)
+        return {"ok": True, "bet_choices": bet, "spine": spine}
+    except Exception as e:
+        logger.warning("biz.save_strategy_input failed: %s", e)
         return {"error": str(e)}
 
 
