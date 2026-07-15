@@ -704,8 +704,6 @@
         ${card('Chẩn đoán & kết quả', diagBody, {cls:'span-7',
           action: `<span class="muted">Chạy từng mục, hoặc “Toàn diện” ở góc trên</span>`})}
 
-        <div class="span-12">${spineBand()}</div>
-
         ${jobs.length ? card('Tiến trình Agent (realtime)', `
           <ul class="rows">${jobs.map(j=>`
             <li class="row">
@@ -1022,6 +1020,9 @@
     title: 'Chiến lược tổng hợp', sub: 'Định vị (bền) · SAVE · Roadmap theo nhịp · KPI cần theo dõi',
     actions: `<a class="ghost-line" href="#tactical">🔨 Tactical Playbook</a> <a class="primary-btn" href="#message">→ Bước tiếp: 🏛️ Thông điệp</a>`,
     render: () => {
+      // Spine dời từ Hồ sơ về đây (② Định vị & Chiến lược) — đầu trang, mọi trạng thái.
+      const _spineTop = `<section class="grid"><div class="span-12">${spineCollapsible()}</div></section>`;
+      const _inner = (() => {
       const latest = (M.bizLatest || {}).synthesis;
       if (M.bizEnabled && latest) {
         // D-037a: 1 card duy nhất (bỏ agentBar trùng "Xem output") — output inline + nút rerun
@@ -1093,6 +1094,8 @@
         ${directionalBanner}
         ${strategyMock()}
       </section>`;
+      })();
+      return _spineTop + _inner;
     },
     mount: () => {},
   };
@@ -1776,6 +1779,15 @@
     if (peopleEl) c.people = peopleEl.value;
     if (budgetEl) c.budget = budgetEl.value;
     if (capacityEl) c.capacity = capacityEl.value;
+  }
+  // Spine đặt ở ② Định vị & Chiến lược (đầu trang, gập). Mở khi CHƯA có synthesis (đang điền);
+  // gập khi đã có (ưu tiên xem kết quả). Đây là INPUT → synthesis là OUTPUT, cùng 1 trang.
+  function spineCollapsible() {
+    const hasSyn = !!((M.bizLatest || {}).synthesis);
+    return `<details class="spine-details" ${hasSyn ? '' : 'open'}>
+      <summary>🎯 Chiến lược nền (Spine) — đầu vào để Max lập định vị &amp; bơm vào mọi bài</summary>
+      ${spineBand()}
+    </details>`;
   }
   function spineBand() {
     const S = spineState();

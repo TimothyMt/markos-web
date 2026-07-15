@@ -1350,6 +1350,17 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
 .brand-nudge a { color:var(--primary); font-weight:600; margin-left:4px; text-decoration:none; }
 .brand-nudge a:hover { text-decoration:underline; }
 
+/* Spine dời về ② Định vị & Chiến lược — khối gập */
+.spine-details { border:1px solid var(--stroke); border-radius:12px; background:var(--panel-2); overflow:hidden; }
+.spine-details > summary { cursor:pointer; list-style:none; padding:12px 16px; font-size:14px; font-weight:600;
+  color:var(--txt); display:flex; align-items:center; gap:6px; }
+.spine-details > summary::-webkit-details-marker { display:none; }
+.spine-details > summary::before { content:'▸'; color:var(--muted); transition:transform .15s; }
+.spine-details[open] > summary::before { transform:rotate(90deg); }
+.spine-details > summary:hover { background:var(--panel); }
+.spine-details[open] > summary { border-bottom:1px solid var(--stroke); }
+.spine-details .spine-band { margin:0; border:0; border-radius:0; }
+
 /* R1 Phase 3 — Sức khỏe thương hiệu (directional, tách khỏi performance) */
 .bh-intro { background:linear-gradient(180deg,var(--panel-2),var(--panel)); border:1px solid var(--border);
   border-left:3px solid var(--primary-2); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13.5px; line-height:1.5; }
