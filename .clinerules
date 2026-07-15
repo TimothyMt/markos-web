@@ -1,7 +1,8 @@
 # Quy tắc bắt buộc cho Cline trong repo này
 
 ## Đọc trước khi code
-Luôn đọc `CLAUDE.md` ở root trước khi bắt đầu bất kỳ task nào — chứa kiến trúc, quy ước dữ liệu, cổng kiểm mối nối.
+Luôn đọc `AGENTS.md` ở root TRƯỚC (bẫy môi trường Windows/pager, luật sửa file, verify) — dùng chung cho mọi agent.
+Rồi đọc `CLAUDE.md` — kiến trúc, quy ước dữ liệu, cổng kiểm mối nối.
 
 ## Git workflow — bắt buộc, không ngoại lệ
 `main` đã bật branch protection (require PR + approval, chặn cả admin bypass) — nhưng vẫn phải tuân thủ đúng flow sau, không cố lách:

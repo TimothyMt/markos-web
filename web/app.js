@@ -1776,7 +1776,6 @@
 
   /* ════════ CHIẾN LƯỢC NỀN (Strategy Spine) — P0.1 F4: khai xương sống, mọi miền bám vào ════════ */
   let _spine = null;   // đệm chỉnh; null = lấy từ MOCK.bizSpine
-  function spineHas() { const m = (window.MOCK && M.bizSpine) || {}; return m.stage || m.objective || m.audience || m.positioning || m.constraint; }
   function spineState() {
     if (_spine) return _spine;
     const m = (window.MOCK && M.bizSpine) || {};
@@ -1808,175 +1807,6 @@
       }
     };
     return _spine;
-  }
-  function _spineSync() {   // gom giá trị input vào đệm
-    const S = spineState();
-    const stageEl = document.querySelector('input[name="spineStage"]:checked');
-    if (stageEl) S.stage = stageEl.value;
-    const gfEl = document.querySelector('input[name="spineGrowth"]:checked');
-    S.growth_focus = gfEl ? gfEl.value : '';   // không chọn = bỏ trống (Max gợi ý từ giai đoạn)
-    const o = S.objective;
-    const outcomeEl = document.getElementById('spineOutcome');
-    const metricEl = document.getElementById('spineMetric');
-    const targetValEl = document.getElementById('spineTargetValue');
-    const targetUnitEl = document.getElementById('spineTargetUnit');
-    const targetPeriodEl = document.getElementById('spineTargetPeriod');
-    const baselineValEl = document.getElementById('spineBaselineValue');
-    const baselineUnitEl = document.getElementById('spineBaselineUnit');
-    const baselinePeriodEl = document.getElementById('spineBaselinePeriod');
-    const deadlineEl = document.getElementById('spineDeadline');
-    if (outcomeEl) o.outcome = outcomeEl.value;
-    if (metricEl) o.metric = metricEl.value;
-    if (targetValEl) o.target.value = targetValEl.value ? parseFloat(targetValEl.value) : null;
-    if (targetUnitEl) o.target.unit = targetUnitEl.value;
-    if (targetPeriodEl) o.target.period = targetPeriodEl.value;
-    if (baselineValEl) o.baseline.value = baselineValEl.value ? parseFloat(baselineValEl.value) : null;
-    if (baselineUnitEl) o.baseline.unit = baselineUnitEl.value;
-    if (baselinePeriodEl) o.baseline.period = baselinePeriodEl.value;
-    if (deadlineEl) o.deadline = deadlineEl.value;
-    const a = S.audience;
-    const whoEl = document.getElementById('spineWho');
-    const painEl = document.getElementById('spinePain');
-    const whereEl = document.getElementById('spineWhere');
-    if (whoEl) a.who = whoEl.value;
-    if (painEl) a.pain = painEl.value;
-    if (whereEl) a.where = whereEl.value;
-    const p = S.positioning;
-    const altEl = document.getElementById('spineAlternative');
-    const diffEl = document.getElementById('spineDifferentiator');
-    const stmtEl = document.getElementById('spineStatement');
-    if (altEl) p.alternative = altEl.value;
-    if (diffEl) p.differentiator = diffEl.value;
-    if (stmtEl) p.statement = stmtEl.value;
-    const ppEl = document.getElementById('spinePricePosture');
-    if (ppEl) p.price_posture = ppEl.value;
-    const c = S.constraint;
-    const peopleEl = document.getElementById('spinePeople');
-    const budgetEl = document.getElementById('spineBudget');
-    const capacityEl = document.getElementById('spineCapacity');
-    if (peopleEl) c.people = peopleEl.value;
-    if (budgetEl) c.budget = budgetEl.value;
-    if (capacityEl) c.capacity = capacityEl.value;
-  }
-  // Spine đặt ở ② Định vị & Chiến lược (đầu trang, gập). Mở khi CHƯA có synthesis (đang điền);
-  // gập khi đã có (ưu tiên xem kết quả). Đây là INPUT → synthesis là OUTPUT, cùng 1 trang.
-  function spineCollapsible() {
-    const hasSyn = !!((M.bizLatest || {}).synthesis);
-    return `<details class="spine-details" ${hasSyn ? '' : 'open'}>
-      <summary>🎯 Chiến lược nền (Spine) — đầu vào để Max lập định vị &amp; bơm vào mọi bài</summary>
-      ${spineBand()}
-    </details>`;
-  }
-  function spineBand() {
-    const S = spineState();
-    const E = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const stageLabels = {
-      launch: 'Mới ra mắt — kiếm khách đầu',
-      growth: 'Đang tăng — có công thức lặp',
-      scale: 'Nhân rộng — hệ thống hoá'
-    };
-    const stageHtml = Object.entries(stageLabels).map(([v, label]) => `
-      <label class="radio-opt">
-        <input type="radio" name="spineStage" value="${v}" ${S.stage === v ? 'checked' : ''}>
-        <span>${label}</span>
-      </label>
-    `).join('');
-    // #4 Hướng tăng trưởng trọng tâm — 1 câu hỏi, không màn mới. Bỏ trống ("Để Max") = gợi ý từ giai đoạn.
-    const gf = S.growth_focus || '';
-    const growthOpts = [
-      ['acquisition', '🎯 Kéo khách mới biết đến'],
-      ['conversion',  '💰 Chốt đơn (quan tâm → mua)'],
-      ['retention',   '🔁 Giữ khách quay lại'],
-      ['referral',    '📣 Khách giới thiệu khách'],
-      ['',            '🤖 Để Max gợi ý từ giai đoạn'],
-    ];
-    const growthHtml = growthOpts.map(([v, label]) => `
-      <label class="radio-opt">
-        <input type="radio" name="spineGrowth" value="${v}" ${gf === v ? 'checked' : ''}>
-        <span>${label}</span>
-      </label>
-    `).join('');
-    const o = S.objective;
-    const t = o.target || { value: null, unit: '', period: '' };
-    const b = o.baseline || { value: null, unit: '', period: '' };
-    const a = S.audience;
-    const p = S.positioning;
-    const c = S.constraint;
-    return `
-      <section class="card spine-band" id="spineWrap">
-        <div class="dir-banner" style="margin-bottom:14px">🎯 <b>Chiến lược nền (Spine)</b> — 5 nhóm ô. Bạn điền, Max rút ra định vị & roadmap.</div>
-
-        <div class="spine-grid">
-          <div class="spine-col">
-            <label class="spine-lbl">1 · Giai đoạn</label>
-            <div class="radio-group">${stageHtml}</div>
-            <p class="muted" style="font-size:12px;margin-top:6px">Chọn giai đoạn để Max điều chỉnh lộ trình. Bỏ trống = Max tự suy từ hồ sơ.</p>
-          </div>
-
-          <div class="spine-col">
-            <label class="spine-lbl">1b · Hướng tăng trưởng trọng tâm</label>
-            <p class="muted" style="font-size:12px;margin:-2px 0 8px">Kỳ này bạn cần <b>dồn sức</b> vào đâu nhất? Max nghiêng nội dung/kênh/đo theo đòn bẩy này (trọng số — không bỏ phần còn lại).</p>
-            <div class="radio-group">${growthHtml}</div>
-          </div>
-
-          <div class="spine-col">
-            <label class="spine-lbl">2 · Mục tiêu (SMART)</label>
-            <div class="grid grid-2">
-              <label class="fld"><span>Outcome (kết quả)</span><input id="spineOutcome" value="${E(o.outcome)}" placeholder="vd: Tăng doanh thu từ kênh online"></label>
-              <label class="fld"><span>Metric (chỉ số đo)</span><input id="spineMetric" value="${E(o.metric)}" placeholder="vd: Doanh thu / Đơn hàng / Lead"></label>
-            </div>
-            <div class="grid grid-2">
-              <label class="fld"><span>Target (mục tiêu)</span>
-                <div class="input-row"><input id="spineTargetValue" type="number" step="any" value="${t.value != null ? t.value : ''}" placeholder="Số"><input id="spineTargetUnit" value="${E(t.unit)}" placeholder="Đơn vị (vnđ, đơn, lead)"><input id="spineTargetPeriod" value="${E(t.period)}" placeholder="Kỳ (tháng, quý)"></div>
-              </label>
-              <label class="fld"><span>Baseline (điểm đầu)</span>
-                <div class="input-row"><input id="spineBaselineValue" type="number" step="any" value="${b.value != null ? b.value : ''}" placeholder="Số"><input id="spineBaselineUnit" value="${E(b.unit)}" placeholder="Đơn vị"><input id="spineBaselinePeriod" value="${E(b.period)}" placeholder="Kỳ"></div>
-              </label>
-            </div>
-            <label class="fld"><span>Deadline</span><input id="spineDeadline" type="date" value="${E(o.deadline)}"></label>
-          </div>
-
-          <div class="spine-col">
-            <label class="spine-lbl">3 · Tệp khách (ICP)</label>
-            <div class="grid grid-3">
-              <label class="fld"><span>Who (ai)</span><input id="spineWho" value="${E(a.who)}" placeholder="vd: Dân văn phòng 25–34, Q.1 TP.HCM"></label>
-              <label class="fld"><span>Pain (nỗi đau)</span><input id="spinePain" value="${E(a.pain)}" placeholder="vd: Bận, muốn uống cà phê ngon mà không tốn thời gian"></label>
-              <label class="fld"><span>Where (nơi)</span><input id="spineWhere" value="${E(a.where)}" placeholder="vd: Instagram, Google Maps, Office building Q.1"></label>
-            </div>
-          </div>
-
-          <div class="spine-col">
-            <label class="spine-lbl">4 · Định vị</label>
-            <div class="grid grid-2">
-              <label class="fld"><span>Alternative (Không có bạn, khách làm gì?)</span><textarea id="spineAlternative" rows="2" placeholder="vd: Mua Highlands / Phúc Long / pha sẵn ở nhà">${E(p.alternative)}</textarea></label>
-              <label class="fld"><span>Differentiator (Bạn có gì họ không có?)</span><textarea id="spineDifferentiator" rows="2" placeholder="vd: Hạt rang xay ngay tại quán, không gian làm việc ổn, wifi mạnh">${E(p.differentiator)}</textarea></label>
-            </div>
-            <label class="fld"><span>Statement (tuỳ chọn — câu định vị 1 câu)</span><input id="spineStatement" value="${E(p.statement)}" placeholder="vd: Cà phê specialty xay ngay — không gian cho người làm việc remote"></label>
-            <label class="fld"><span>Đòn bẩy giá (giá = tín hiệu định vị · dữ liệu chi tiết ở <a href="#pricing">① Định giá</a>)</span>
-              <select id="spinePricePosture">
-                <option value="" ${!p.price_posture ? 'selected' : ''}>— Chưa chốt / để Max suy —</option>
-                <option value="premium" ${p.price_posture === 'premium' ? 'selected' : ''}>Cao cấp (giá cao — tín hiệu chất lượng)</option>
-                <option value="parity" ${p.price_posture === 'parity' ? 'selected' : ''}>Ngang tầm (bằng thị trường — thắng bằng giá trị khác)</option>
-                <option value="value" ${p.price_posture === 'value' ? 'selected' : ''}>Giá tốt (thấp hơn — tín hiệu tiết kiệm)</option>
-              </select></label>
-          </div>
-
-          <div class="spine-col">
-            <label class="spine-lbl">5 · Năng lực</label>
-            <div class="grid grid-3">
-              <label class="fld"><span>People (người)</span><input id="spinePeople" value="${E(c.people)}" placeholder="vd: Founder + 1 nội dung + 1 ads part-time"></label>
-              <label class="fld"><span>Budget (ngân sách/tháng)</span><input id="spineBudget" value="${E(c.budget)}" placeholder="vd: 10–15 triệu"></label>
-              <label class="fld"><span>Capacity (sức lực sản xuất)</span><input id="spineCapacity" value="${E(c.capacity)}" placeholder="vd: 12 bài/tháng, 2 video/tháng"></label>
-            </div>
-          </div>
-        </div>
-
-        <div class="spine-act" style="display:flex;gap:8px;margin-top:16px">
-          <button class="primary-btn" data-act="spine-save">💾 Lưu chiến lược nền</button>
-          <span class="muted" style="align-self:center;font-size:12px">Lưu → Max sinh lại định vị & roadmap</span>
-        </div>
-      </section>
-    `;
   }
 
   /* ════════ THÔNG ĐIỆP (Messaging House) — "nói gì với khách", content bám vào ════════ */
@@ -4041,18 +3871,6 @@
         if (r && r.error) { toast(r.error); el.disabled = false; el.textContent = _t; return; }
         await refreshBiz(); _msg = null;
         toast('✅ Đã chốt Thông điệp — mọi bài sẽ bám theo');
-        route();
-      } catch (e) { toast('Lưu lỗi — thử lại'); el.disabled = false; el.textContent = _t; }
-      return;
-    }
-    if (act === 'spine-save') {   // P0.1 F4: Chiến lược nền — lưu spine
-      _spineSync();
-      el.disabled = true; const _t = el.textContent; el.textContent = '⏳ Đang lưu…';
-      try {
-        const r = await API.post('api/biz/spine/save', { user_id: _bizUserId, spine: spineState() });
-        if (r && r.error) { toast(r.error); el.disabled = false; el.textContent = _t; return; }
-        await refreshBiz(); _spine = null;
-        toast('✅ Đã lưu Chiến lược nền — Max dùng để dựng chiến dịch');
         route();
       } catch (e) { toast('Lưu lỗi — thử lại'); el.disabled = false; el.textContent = _t; }
       return;

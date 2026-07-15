@@ -262,13 +262,6 @@ async def biz_bet_options(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
-async def biz_bet_save(request):
-    """Vision A — lưu lựa chọn đặt cược (5 nhóm) trước khi chạy T4-T5."""
-    d = await request.json()
-    res = await biz.save_bet(d.get("user_id"), d.get("choices"))
-    return JSONResponse(res, status_code=400 if "error" in res else 200)
-
-
 async def biz_funnel_map(request):
     """Lô G — dựng bản đồ phễu × kênh cho 1 tuyến (mục đích)."""
     d = await request.json()
@@ -335,13 +328,6 @@ async def biz_messaging_save(request):
     """Thông điệp — lưu bản founder đã chỉnh tay."""
     d = await request.json()
     res = await biz.save_messaging(d.get("user_id"), d.get("messaging"))
-    return JSONResponse(res, status_code=400 if "error" in res else 200)
-
-
-async def biz_spine_save(request):
-    """Strategy Spine — lưu xương sống chiến lược (P0.1)."""
-    d = await request.json()
-    res = await biz.save_spine(d.get("user_id"), d.get("spine"))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -620,7 +606,6 @@ def api_routes() -> list:
         Route("/api/biz/campaign/branding",        biz_campaign_branding, methods=["POST"]),
         Route("/api/biz/gaps",                     biz_gaps,           methods=["POST"]),
         Route("/api/biz/bet/options",              biz_bet_options,    methods=["POST"]),
-        Route("/api/biz/bet/save",                 biz_bet_save,       methods=["POST"]),
         Route("/api/biz/funnel-map",               biz_funnel_map,     methods=["POST"]),
         Route("/api/biz/key-ideas/suggest",        biz_key_ideas_suggest, methods=["POST"]),
         Route("/api/biz/key-idea/save",            biz_key_idea_save,  methods=["POST"]),
@@ -630,7 +615,6 @@ def api_routes() -> list:
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),
-        Route("/api/biz/spine/save",               biz_spine_save,     methods=["POST"]),
         Route("/api/biz/strategy-input/save",      biz_strategy_input_save, methods=["POST"]),
         Route("/api/biz/campaign/master",          biz_master_plan,    methods=["POST"]),
         Route("/api/biz/campaign/sub",             biz_subcampaign,    methods=["POST"]),
