@@ -1316,7 +1316,14 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
 .ki-nofunnel p { margin:0 0 10px; }
 
 .ki-funnel { margin-top:12px; }
-.ki-ratio { font-size:13px; margin-bottom:10px; }
+.ki-ratio { font-size:13px; margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+/* FV3-3: badge mục đích + nguồn tỉ lệ (Max suy / user chốt) + preview khi chọn mục đích */
+.ki-badge[class*="purpose-"] { color:var(--primary); }
+.ki-ratio-prev { font-size:12.5px; margin:2px 0 6px; }
+.ki-ratio-prev b { color:var(--txt); }
+.ki-rsrc { font-size:11px; padding:1px 7px; border-radius:999px; border:1px solid var(--stroke-2); color:var(--muted); }
+.ki-rsrc.user { color:var(--amber); border-color:rgba(255,200,87,.4); }
+.ghost-line.xs { padding:2px 8px; font-size:11px; }
 .ki-tiers { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .ki-tier { background:var(--panel-2); border:1px solid var(--stroke); border-radius:10px; padding:10px; }
 .ki-tier-h { display:flex; align-items:baseline; gap:6px; margin-bottom:8px; font-size:13px; flex-wrap:wrap; }

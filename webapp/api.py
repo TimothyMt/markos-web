@@ -335,6 +335,14 @@ async def biz_purposes_derive(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+async def biz_funnel_ratio_save(request):
+    """FV3-3: user CHỐT TAY tỉ lệ phễu 1 đợt (human-override). Ghi ratio + ratio_source='user' →
+    gen_funnel_map sau đó bám đúng, Max không đè."""
+    d = await request.json()
+    res = await biz.save_funnel_ratio(d.get("user_id"), id=d.get("id", ""), ratio=d.get("ratio", ""))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 async def biz_key_ideas_import_legacy(request):
     """B4 — nhập campaigns_v2 cũ → key_ideas (chiến dịch Layered). Additive, idempotent, không xoá đồ cũ."""
     d = await request.json()
@@ -648,6 +656,7 @@ def api_routes() -> list:
         Route("/api/biz/big-idea/save",             biz_big_idea_save, methods=["POST"]),
         Route("/api/biz/big-ideas/derive",          biz_big_ideas_derive, methods=["POST"]),
         Route("/api/biz/purposes/derive",           biz_purposes_derive, methods=["POST"]),
+        Route("/api/biz/funnel-ratio/save",         biz_funnel_ratio_save, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),
