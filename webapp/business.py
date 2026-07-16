@@ -3380,6 +3380,27 @@ def _norm_goal(g) -> str:
     return g if g in _KI_GOALS else ""
 
 
+# FV3-2: MỤC ĐÍCH chiến dịch — 7 loại (doc §3.1). Là "chiến dịch để làm gì", KHÁC tầng phễu.
+# Enum cũ _KI_GOALS thực chất là tầng-phễu-đội-lốt-mục-đích → migrate map dưới. purpose là peer của goal
+# (goal giữ nguyên: ratio hiện còn uốn theo goal tới khi #3 chuyển ratio sang derive-từ-purpose).
+_KI_PURPOSES = ("branding", "launch", "demand", "conversion", "retention", "winback", "advocacy")
+_KI_PURPOSE_VI = {
+    "branding": "🎨 Xây thương hiệu", "launch": "🚀 Ra mắt", "demand": "🧲 Kéo nhu cầu",
+    "conversion": "💰 Chốt đơn / Sale", "retention": "🔁 Giữ chân", "winback": "🪃 Kéo lại khách cũ",
+    "advocacy": "📣 Lan truyền",
+}
+# migrate 4 enum goal cũ → purpose (doc §3.1). launch/winback/advocacy là loại MỚI, không có nguồn cũ.
+_KI_GOAL_TO_PURPOSE = {
+    "awareness": "branding", "consideration": "demand",
+    "conversion": "conversion", "retention": "retention",
+}
+
+
+def _norm_purpose(p) -> str:
+    p = str(p or "").strip().lower()
+    return p if p in _KI_PURPOSES else ""
+
+
 # B6: mức xác suất/tác động cho Risk & Contingency (khoá "Bước 5"). Rác → ''.
 _RISK_LEVELS = ("thấp", "trung bình", "cao")
 
@@ -3572,11 +3593,12 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
                         source: str = "user", source_ref: str = "", goal: str = "",
                         window_start: str = "", window_end: str = "", status: str = "",
                         focus_tier: str = "", focus_pillars=None, risks=None,
-                        big_idea_id: str = "") -> dict:
+                        big_idea_id: str = "", purpose: str = "") -> dict:
     """T4: user chốt/sửa 1 key idea (từ đề xuất Max hoặc tự viết) + đặt kỳ hạn đợt.
     Append/update intake_extra.key_ideas (dedupe theo id); window rỗng → status draft.
     B2.1: đợt nhấn — focus_tier (đẩy tầng phễu nào) + focus_pillars (nhấn trụ nào), non-binding.
     FV3-1: big_idea_id = FK mềm tới big idea (chỉ ghi nếu big idea TỒN TẠI, không thì "").
+    FV3-2: purpose = mục đích chiến dịch (7 loại §3.1), peer của goal. Không truyền → suy từ goal.
     Additive — KHÔNG đụng funnel_map/campaigns cũ."""
     if not available():
         return {"error": "Chưa cấu hình Supabase."}
@@ -3616,6 +3638,8 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
             "source": ("max" if str(source).strip().lower() == "max" else "user"),
             "source_ref": str(source_ref or "").strip()[:160],
             "goal": _norm_goal(goal),
+            # FV3-2: purpose truyền thẳng thì dùng; không thì suy từ goal (peer, không đè goal).
+            "purpose": _norm_purpose(purpose) or _KI_GOAL_TO_PURPOSE.get(_norm_goal(goal), ""),
             "window_start": ws, "window_end": we,
             "status": st,
             "focus_tier": ft, "focus_pillars": fp[:8],
@@ -3808,6 +3832,50 @@ async def derive_big_ideas(user_id=None) -> dict:
         return {"ok": True, "derived": derived, "skipped": skipped}
     except Exception as e:
         logger.warning("biz.derive_big_ideas failed: %s", e)
+        return {"error": str(e)}
+
+
+async def derive_purposes(user_id=None) -> dict:
+    """FV3-2: migration ADDITIVE + IDEMPOTENT. Với mỗi key_ideas[i] CHƯA CÓ purpose hợp lệ,
+    suy từ goal cũ qua _KI_GOAL_TO_PURPOSE rồi ghi vào. goal GIỮ NGUYÊN (peer, không xoá).
+    goal rỗng/lạ (không map được) → BỎ QUA, để purpose trống (save_key_idea/#3 lấp sau) — KHÔNG bịa.
+    Chạy lại lần 2 = 0 thay đổi (bỏ qua key_idea đã có purpose hợp lệ).
+    Trả {"ok": True, "derived": n, "skipped": m}."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        ideas = extra.get("key_ideas") if isinstance(extra.get("key_ideas"), list) else []
+        if not isinstance(ideas, list):
+            ideas = []
+        derived, skipped = 0, 0
+        for ki in ideas:
+            if not isinstance(ki, dict):
+                skipped += 1
+                continue
+            if _norm_purpose(ki.get("purpose")):     # đã có purpose hợp lệ → idempotent, bỏ qua
+                skipped += 1
+                continue
+            p = _KI_GOAL_TO_PURPOSE.get(_norm_goal(ki.get("goal")), "")
+            if not p:                                 # goal rỗng/lạ → không suy được, để trống
+                skipped += 1
+                continue
+            ki["purpose"] = p
+            derived += 1
+        if derived:
+            extra["key_ideas"] = ideas
+            await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "derived": derived, "skipped": skipped}
+    except Exception as e:
+        logger.warning("biz.derive_purposes failed: %s", e)
         return {"error": str(e)}
 
 
