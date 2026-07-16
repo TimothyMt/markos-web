@@ -1967,6 +1967,9 @@
   let _kiAddOpen = false;            // composer thêm đợt đang mở?
   const _MX_TIERS = [['tofu', 'TOFU', 'khơi / nhận biết'], ['mofu', 'MOFU', 'nuôi / thuyết phục'], ['bofu', 'BOFU', 'chốt']];
   const _GOAL_VI = { awareness: 'Nhận biết', consideration: 'Cân nhắc', conversion: 'Chốt / Xả', retention: 'Giữ chân' };
+  // FV3-2/3: 7 mục đích chiến dịch (nhãn badge — degrade khi bizPurposes chưa nạp). Nguồn chuẩn = backend.
+  const _PURPOSE_VI = { branding: '🎨 Xây thương hiệu', launch: '🚀 Ra mắt', demand: '🧲 Kéo nhu cầu', conversion: '💰 Chốt đơn / Sale', retention: '🔁 Giữ chân', winback: '🪃 Kéo lại khách cũ', advocacy: '📣 Lan truyền' };
+  const _GOAL_TO_PURPOSE = { awareness: 'branding', consideration: 'demand', conversion: 'conversion', retention: 'retention' };   // FV3-3: map gợi ý goal cũ → purpose
   const mxE = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   function cmCells() { const c = (window.MOCK && M.bizContentMatrix) || {}; return Array.isArray(c.cells) ? c.cells : []; }
   function cmMix() { const c = (window.MOCK && M.bizContentMatrix) || {}; return Array.isArray(c.mix) ? c.mix : []; }   // B6-C
@@ -1982,6 +1985,7 @@
   function cmHas() { return cmCells().length > 0; }
   function kiList() { return (window.MOCK && M.bizKeyIdeas) || []; }
   function biList() { return (window.MOCK && M.bizBigIdeas) || []; }   // FV3-1: ý lớn gom nhiều chiến dịch
+  function plList() { return (window.MOCK && M.bizPurposes) || []; }   // FV3-2/3: menu 7 mục đích + ratio/why suy sẵn
   function mxTrus() {   // trụ = messaging.pillars (đa ngành); bổ sung trụ xuất hiện trong cells
     const m = (window.MOCK && M.bizMessaging) || {};
     const out = [];
@@ -2101,15 +2105,16 @@
       <input id="kiTitle" class="occ-inp full" placeholder="Ý lớn của đợt (1 câu)" maxlength="140">
       <input id="kiAngle" class="occ-inp full" placeholder="Góc / thế đối lập (tuỳ chọn)" maxlength="220">
       <div class="ki-comp-row">
-        <label>Mục tiêu <select id="kiGoal" class="occ-inp">
-          <option value="">— suy tự động —</option>
-          ${Object.entries(_GOAL_VI).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
+        <label>Mục đích <select id="kiPurpose" class="occ-inp" onchange="var o=this.options[this.selectedIndex],p=document.getElementById('kiRatioPrev');p.innerHTML=(o.value&&o.dataset.ratio)?('📊 Tỉ lệ phễu gợi ý <b>'+o.dataset.ratio+'</b> (TOFU/MOFU/BOFU)'+(o.dataset.why?' — '+o.dataset.why:'')):''">
+          <option value="">— chọn mục đích —</option>
+          ${plList().map(p => `<option value="${mxE(p.key)}" data-ratio="${mxE(p.ratio)}" data-why="${mxE(p.why)}">${mxE(p.label)}</option>`).join('') || Object.entries(_PURPOSE_VI).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
         </select></label>
         <label>Đẩy tầng <select id="kiFocusTier" class="occ-inp">
-          <option value="">— theo mục tiêu —</option>
+          <option value="">— theo mục đích —</option>
           ${_MX_TIERS.map(([id, lbl]) => `<option value="${id}">${lbl}</option>`).join('')}
         </select></label>
       </div>
+      <div id="kiRatioPrev" class="ki-ratio-prev muted"></div>
       <div class="ki-comp-row">
         <label>Từ ngày <input id="kiWs" type="date" class="occ-inp"></label>
         <label>Đến ngày <input id="kiWe" type="date" class="occ-inp"></label>
@@ -2129,13 +2134,15 @@
     </section>`;
   }
   function kiCardHTML(k) {
-    const goal = k.goal ? `<span class="ki-badge goal-${mxE(k.goal)}">${_GOAL_VI[k.goal] || mxE(k.goal)}</span>` : '';
+    // FV3-2/3: ưu tiên badge MỤC ĐÍCH (7 loại); degrade badge goal cũ cho đợt legacy chưa có purpose.
+    const goal = k.purpose ? `<span class="ki-badge purpose-${mxE(k.purpose)}">${_PURPOSE_VI[k.purpose] || mxE(k.purpose)}</span>`
+               : (k.goal ? `<span class="ki-badge goal-${mxE(k.goal)}">${_GOAL_VI[k.goal] || mxE(k.goal)}</span>` : '');
     const win = (k.window_start || k.window_end) ? `<span class="ki-win">🗓 ${mxE(k.window_start || '?')} → ${mxE(k.window_end || '?')}</span>` : '<span class="ki-win muted">chưa đặt kỳ</span>';
     const ft = k.focus_tier ? `<span class="ki-badge tier">⬆ ${mxE((k.focus_tier || '').toUpperCase())}</span>` : '';
     const fp = (k.focus_pillars || []).length ? `<span class="ki-fpstr muted">nhấn trụ: ${(k.focus_pillars || []).map(mxE).join(', ')}</span>` : '';
     const fm = k.funnel_map || {};
     const posts = fm.posts || [];
-    const body = posts.length ? kiFunnelHTML(fm)
+    const body = posts.length ? kiFunnelHTML(fm, k.id)
       : `<div class="ki-nofunnel"><p class="muted">Chưa có danh sách bài dự kiến.</p><button class="primary-btn sm" data-act="ki-funnel" data-id="${mxE(k.id)}">🎯 Max dựng danh sách bài</button></div>`;
     return `<section class="card ki-card">
       <div class="ki-card-head">
@@ -2161,9 +2168,13 @@
       <table class="ki-risk-tbl"><thead><tr><th>Rủi ro</th><th>Xác suất</th><th>Tác động</th><th>Phương án B</th></tr></thead>
       <tbody>${rows}</tbody></table></details>`;
   }
-  function kiFunnelHTML(fm) {
+  function kiFunnelHTML(fm, kid) {
     const posts = fm.posts || [];
     const ratio = fm.ratio || '';
+    // FV3-3: nguồn tỉ lệ — 'user' (con người chốt, Max không đè) vs 'derived' (Max suy từ mục đích).
+    const rsrc = fm.ratio_source === 'user'
+      ? '<span class="ki-rsrc user" title="Bạn chốt tay — Max không đè khi dựng lại">✋ bạn chỉnh</span>'
+      : (ratio ? '<span class="ki-rsrc" title="Max suy từ mục đích chiến dịch">🤖 Max suy</span>' : '');
     const byTier = { tofu: [], mofu: [], bofu: [] };
     posts.forEach(p => { if (byTier[p.tier]) byTier[p.tier].push(p); });
     const offers = fm.offers || {};
@@ -2177,7 +2188,7 @@
       </div>`;
     }).join('');
     return `<div class="ki-funnel">
-      ${ratio ? `<div class="ki-ratio"><span class="muted">Tỉ lệ phễu:</span> <b>${mxE(ratio)}</b> <span class="muted">(TOFU/MOFU/BOFU)</span></div>` : ''}
+      ${ratio ? `<div class="ki-ratio"><span class="muted">Tỉ lệ phễu:</span> <b>${mxE(ratio)}</b> <span class="muted">(TOFU/MOFU/BOFU)</span> ${rsrc} <button class="ghost-line xs" data-act="ki-ratio-edit" data-id="${mxE(kid || '')}" data-ratio="${mxE(ratio)}" title="Chỉnh tay tỉ lệ phễu">✎ sửa</button></div>` : ''}
       <div class="ki-tiers">${tiers}</div>
     </div>`;
   }
@@ -3713,7 +3724,8 @@
     if (act === 'ki-chip-fill') {   // bấm chip gợi ý → điền các ô (giữ ô người dùng đã gõ tay nếu có)
       const t = document.getElementById('kiTitle'); if (t) t.value = el.dataset.title || '';
       const a = document.getElementById('kiAngle'); if (a && !a.value.trim()) a.value = el.dataset.angle || '';
-      const g = document.getElementById('kiGoal'); if (g && el.dataset.goal) g.value = el.dataset.goal;
+      const g = document.getElementById('kiPurpose');   // FV3-3: gợi ý goal cũ → map sang purpose + bật preview tỉ lệ
+      if (g && el.dataset.goal) { g.value = _GOAL_TO_PURPOSE[el.dataset.goal] || ''; g.dispatchEvent(new Event('change')); }
       if (t) t.focus();
       return;
     }
@@ -3816,12 +3828,24 @@
           big_idea_id = rb.big_idea.id;
         }
         const r = await API.post('api/biz/key-idea/save', {
-          user_id: _bizUserId, title, angle: g('kiAngle').trim(), goal: g('kiGoal'),
+          user_id: _bizUserId, title, angle: g('kiAngle').trim(), purpose: g('kiPurpose'),   // FV3-3: mục đích thay goal
           window_start: g('kiWs'), window_end: g('kiWe'), focus_tier: g('kiFocusTier'), focus_pillars,
           big_idea_id });
         if (r.error) { _fail(r.error); return; }
         _kiAddOpen = false; await refreshBiz(); toast('⚡ Đã tạo chiến dịch'); route();
       } catch (e) { _fail('Không tạo được chiến dịch — thử lại sau.'); }
+      return;
+    }
+    if (act === 'ki-ratio-edit') {   // FV3-3: user chốt tay tỉ lệ phễu (human-override) → ratio_source='user'
+      if (!apiAvailable || !M.bizEnabled) { toast('Bật backend để chỉnh tỉ lệ'); return; }
+      const kid = el.dataset.id;
+      const v = prompt('Tỉ lệ phễu TOFU/MOFU/BOFU (vd 20/30/50) — Max sẽ bám đúng, không đè:', el.dataset.ratio || '');
+      if (v == null) return;
+      try {
+        const r = await API.post('api/biz/funnel-ratio/save', { user_id: _bizUserId, id: kid, ratio: v });
+        if (r.error) { toast(r.error); return; }
+        await refreshBiz(); toast('✋ Đã chốt tỉ lệ — Max sẽ bám theo'); route();
+      } catch (e) { toast('Không lưu được tỉ lệ — thử lại sau.'); }
       return;
     }
     if (act === 'ki-import-legacy') {   // B4: nhập campaigns_v2 cũ → key_ideas

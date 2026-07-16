@@ -371,6 +371,10 @@ async def biz_data(user_id=None) -> dict:
         out["bizBigIdeas"] = (_ie9.get("big_ideas") if isinstance(_ie9, dict) else []) or []
     except Exception:
         out["bizBigIdeas"] = []
+    # FV3-2/3: menu 7 mục đích chiến dịch + tỉ lệ phễu suy sẵn + câu why → FE dropdown + preview (§3.1/3.2).
+    out["bizPurposes"] = [{"key": k, "label": _KI_PURPOSE_VI[k],
+                           "ratio": _PURPOSE_RATIO[k], "why": _PURPOSE_RATIO_WHY.get(k, "")}
+                          for k in _KI_PURPOSES]
     # N-07b: Playbook lệch chiến lược? (playbook bám synthesis_id cũ ≠ synthesis hiện hành) → FE badge.
     try:
         _ie6 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -3401,6 +3405,52 @@ def _norm_purpose(p) -> str:
     return p if p in _KI_PURPOSES else ""
 
 
+# FV3-3: tỉ lệ phễu DERIVED TỪ purpose (doc §3.2) — hạt giống, LLM/user chỉnh ±. Thay _GOAL_RATIO 4 dòng.
+# Là derived-state (WIRING §2): Max suy + câu why; user kéo lệch → ratio_source="user", Max KHÔNG đè.
+_PURPOSE_RATIO = {
+    "branding": "70/25/5", "launch": "55/30/15", "demand": "30/50/20", "conversion": "20/30/50",
+    "retention": "10/35/55", "winback": "5/30/65", "advocacy": "40/35/25",
+}
+_PURPOSE_RATIO_WHY = {
+    "branding": "Xây thương hiệu → nặng ToFu vì mục tiêu là người lạ NHỚ mình.",
+    "launch": "Ra mắt → dồn ToFu phủ nhận biết sản phẩm mới, chừa BoFu hứng đơn đầu.",
+    "demand": "Kéo nhu cầu → nặng MoFu nuôi người quan tâm thành lead.",
+    "conversion": "Chốt đơn → nặng BoFu vì đang biến quan tâm thành tiền.",
+    "retention": "Giữ chân → gần như bỏ ToFu, xoay quanh khách đã có (MoFu/BoFu).",
+    "winback": "Kéo lại khách cũ → dồn BoFu đánh thức người từng mua.",
+    "advocacy": "Lan truyền → cân ToFu (viral) + MoFu (bằng chứng) để khách kể hộ.",
+}
+_DEFAULT_RATIO = "60/30/10"
+
+
+def _norm_ratio(v) -> str:
+    """Chuẩn hoá 'a/b/c' → 3 số nguyên (bỏ dấu cách/‰), tổng ép về 100. Rác/không đủ 3 số → ''."""
+    parts = re.findall(r"\d+", str(v or ""))
+    if len(parts) != 3:
+        return ""
+    nums = [max(0, int(x)) for x in parts]
+    s = sum(nums)
+    if s <= 0:
+        return ""
+    if s != 100:                                    # scale về 100 rồi bù sai số làm tròn vào ô lớn nhất
+        nums = [round(n * 100 / s) for n in nums]
+        d = 100 - sum(nums)
+        nums[nums.index(max(nums))] += d
+    return "/".join(str(n) for n in nums)
+
+
+def _purpose_ratio_hint(purpose: str = "", goal: str = "") -> tuple:
+    """FV3-3: (ratio, why) suy từ purpose. Degrade: purpose rỗng/lạ → goal cũ (_GOAL_RATIO) →
+    lưới cuối _DEFAULT_RATIO. why chỉ có khi suy được từ purpose (goal-fallback không kèm why)."""
+    p = _norm_purpose(purpose)
+    if p:
+        return _PURPOSE_RATIO[p], _PURPOSE_RATIO_WHY.get(p, "")
+    g = _norm_goal(goal)
+    if g and _GOAL_RATIO.get(g):
+        return _GOAL_RATIO[g], ""
+    return _DEFAULT_RATIO, ""
+
+
 # B6: mức xác suất/tác động cho Risk & Contingency (khoá "Bước 5"). Rác → ''.
 _RISK_LEVELS = ("thấp", "trung bình", "cao")
 
@@ -3948,11 +3998,20 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
         if focus_pillars:
             focus_bits.append("CHỈ nhấn trụ: " + ", ".join(focus_pillars[:8]))
         focus_line = ("ĐỢT NHẤN: " + " · ".join(focus_bits)) if focus_bits else ""
-        goal = _norm_goal(idea.get("goal"))
-        ratio_hint = _GOAL_RATIO.get(goal, "")
-        goal_line = (f"MỤC TIÊU đợt: {goal} → khung tỉ lệ phễu gợi ý {ratio_hint} (TOFU/MOFU/BOFU)"
-                     if ratio_hint else
-                     "MỤC TIÊU đợt: (chưa rõ) → TỰ SUY hình phễu từ ý lớn; không rõ dùng 60/30/10")
+        # FV3-3: tỉ lệ suy TỪ purpose (degrade goal cũ). Human-override: user đã chỉnh (ratio_source=user)
+        # thì GIỮ ratio đó làm khung, Max KHÔNG đè (WIRING §2 — con người thắng).
+        purpose = _norm_purpose(idea.get("purpose"))
+        _fm_old = idea.get("funnel_map") if isinstance(idea.get("funnel_map"), dict) else {}
+        _user_locked = _fm_old.get("ratio_source") == "user" and bool(_norm_ratio(_fm_old.get("ratio")))
+        if _user_locked:
+            ratio_hint = _norm_ratio(_fm_old.get("ratio"))
+            ratio_why = ""
+            goal_line = (f"MỤC TIÊU đợt: {_KI_PURPOSE_VI.get(purpose, purpose) or '(chưa rõ)'} → tỉ lệ phễu "
+                         f"do NGƯỜI DÙNG chốt {ratio_hint} (TOFU/MOFU/BOFU) — BÁM đúng, không tự đổi.")
+        else:
+            ratio_hint, ratio_why = _purpose_ratio_hint(purpose, idea.get("goal"))
+            goal_line = (f"MỤC TIÊU đợt: {_KI_PURPOSE_VI.get(purpose, purpose) or '(chưa rõ)'} → khung tỉ lệ "
+                         f"phễu gợi ý {ratio_hint} (TOFU/MOFU/BOFU)" + (f" — {ratio_why}" if ratio_why else ""))
         from tools.llm_router import call as router_call, TaskType
         import json as _json
         system = (
@@ -4029,9 +4088,14 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                                   "note": "(degrade — chưa có đề xuất AI)"})
             if not posts:
                 return {"error": "Chưa dựng được danh sách bài — thử lại."}
-        if not ratio:
-            ratio = ratio_hint or "60/30/10"
-        fmap = {"ratio": ratio, "posts": posts, "offers": offers}   # B6-B: offer/tầng ở funnel_map
+        # FV3-3: user đã chốt tỉ lệ → BÁM ratio_hint (=ratio người dùng), giữ source=user. Ngược lại lấy
+        # ratio LLM (chuẩn hoá), degrade về khung suy-từ-purpose; source=derived.
+        if _user_locked:
+            ratio, ratio_source = ratio_hint, "user"
+        else:
+            ratio = _norm_ratio(ratio) or ratio_hint or _DEFAULT_RATIO
+            ratio_source = "derived"
+        fmap = {"ratio": ratio, "ratio_source": ratio_source, "posts": posts, "offers": offers}  # B6-B: offer/tầng ở funnel_map
         idea["funnel_map"] = fmap
         if risks:                                                    # B6-A: risks ở cấp đợt (giữ nếu gen mới rỗng? — ghi đè khi có)
             idea["risks"] = risks
@@ -4041,6 +4105,48 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
         return {"ok": True, "funnel_map": fmap, "risks": idea.get("risks", [])}
     except Exception as e:
         logger.warning("biz.gen_funnel_map_for_idea failed: %s", e)
+        return {"error": str(e)}
+
+
+async def save_funnel_ratio(user_id=None, id: str = "", ratio: str = "") -> dict:
+    """FV3-3: user CHỐT TAY tỉ lệ phễu 1 đợt (human-override, WIRING §2). Ghi funnel_map.ratio +
+    ratio_source='user' → gen_funnel_map_for_idea sau đó BÁM đúng, Max không đè.
+    ratio rác (không đủ 3 số) → lỗi. Chưa có funnel_map → tạo tối thiểu (chỉ ratio, posts rỗng)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        kid = str(id or "").strip()
+        if not kid:
+            return {"error": "Thiếu id key idea."}
+        r = _norm_ratio(ratio)
+        if not r:
+            return {"error": "Tỉ lệ phải là 3 số (vd 60/30/10)."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        ideas = extra.get("key_ideas") if isinstance(extra.get("key_ideas"), list) else []
+        idea = next((it for it in ideas if isinstance(it, dict) and str(it.get("id")) == kid), None)
+        if idea is None:
+            return {"error": "Không tìm thấy key idea."}
+        fm = idea.get("funnel_map") if isinstance(idea.get("funnel_map"), dict) else {}
+        if not isinstance(fm, dict):
+            fm = {}
+        fm.setdefault("posts", [])
+        fm["ratio"] = r
+        fm["ratio_source"] = "user"
+        idea["funnel_map"] = fm
+        idea["updated_at"] = time.time()
+        extra["key_ideas"] = ideas
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "funnel_map": fm}
+    except Exception as e:
+        logger.warning("biz.save_funnel_ratio failed: %s", e)
         return {"error": str(e)}
 
 
