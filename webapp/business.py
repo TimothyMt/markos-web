@@ -365,6 +365,12 @@ async def biz_data(user_id=None) -> dict:
     except Exception:
         out["bizKeyIdeas"] = []
         out["bizContentMatrix"] = {}
+    # FV3: big ideas (ý lớn gom nhiều chiến dịch theo mùa) → FE render tab Chiến dịch (mxSpikeInner).
+    try:
+        _ie9 = (out.get("bizProfile") or {}).get("intake_extra") or {}
+        out["bizBigIdeas"] = (_ie9.get("big_ideas") if isinstance(_ie9, dict) else []) or []
+    except Exception:
+        out["bizBigIdeas"] = []
     # N-07b: Playbook lệch chiến lược? (playbook bám synthesis_id cũ ≠ synthesis hiện hành) → FE badge.
     try:
         _ie6 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -3565,10 +3571,12 @@ async def suggest_key_ideas(user_id=None, n: int = 5) -> dict:
 async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str = "",
                         source: str = "user", source_ref: str = "", goal: str = "",
                         window_start: str = "", window_end: str = "", status: str = "",
-                        focus_tier: str = "", focus_pillars=None, risks=None) -> dict:
+                        focus_tier: str = "", focus_pillars=None, risks=None,
+                        big_idea_id: str = "") -> dict:
     """T4: user chốt/sửa 1 key idea (từ đề xuất Max hoặc tự viết) + đặt kỳ hạn đợt.
     Append/update intake_extra.key_ideas (dedupe theo id); window rỗng → status draft.
     B2.1: đợt nhấn — focus_tier (đẩy tầng phễu nào) + focus_pillars (nhấn trụ nào), non-binding.
+    FV3-1: big_idea_id = FK mềm tới big idea (chỉ ghi nếu big idea TỒN TẠI, không thì "").
     Additive — KHÔNG đụng funnel_map/campaigns cũ."""
     if not available():
         return {"error": "Chưa cấu hình Supabase."}
@@ -3597,6 +3605,11 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
         ft = str(focus_tier or "").strip().lower()
         ft = ft if ft in _KI_TIERS else ""          # đợt nhấn tầng nào (rác → '' = suy từ goal)
         fp = [str(x).strip()[:160] for x in focus_pillars if str(x).strip()] if isinstance(focus_pillars, list) else []
+        # FV3-1: FK mềm tới big idea — chỉ nhận nếu trỏ big idea TỒN TẠI, không thì "" (không rớt key_idea).
+        _bii = str(big_idea_id or "").strip()
+        _bis = extra.get("big_ideas") if isinstance(extra.get("big_ideas"), list) else []
+        if _bii and not any(isinstance(b, dict) and str(b.get("id")) == _bii for b in _bis):
+            _bii = ""
         meta = {
             "title": title,
             "angle": str(angle or "").strip()[:220],
@@ -3606,6 +3619,7 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
             "window_start": ws, "window_end": we,
             "status": st,
             "focus_tier": ft, "focus_pillars": fp[:8],
+            "big_idea_id": _bii,
             "updated_at": now,
         }
         if risks is not None:            # B6-A: chỉ đụng risks khi FE gửi (tránh xoá risks Max nháp lúc chỉ sửa meta)
@@ -3613,7 +3627,10 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
         kid = str(id or "").strip()
         found = next((it for it in ideas if isinstance(it, dict) and str(it.get("id")) == kid), None) if kid else None
         if found is not None:
+            if not str(big_idea_id or "").strip():   # không truyền FK → giữ FK cũ (như risks), đừng xoá
+                meta.pop("big_idea_id", None)
             found.update(meta)            # giữ funnel_map + created_at cũ (chỉ đổi meta)
+            found.setdefault("big_idea_id", "")
             key_idea = found
         else:
             kid = kid or f"{int(now)}-{(re.sub(r'[^a-z0-9]+', '-', title.lower())[:24].strip('-') or 'idea')}"
@@ -3678,6 +3695,119 @@ async def migrate_campaigns_to_key_ideas(user_id=None) -> dict:
         return {"ok": True, "migrated": migrated, "skipped": skipped}
     except Exception as e:
         logger.warning("biz.migrate_campaigns_to_key_ideas failed: %s", e)
+        return {"error": str(e)}
+
+
+async def save_big_idea(user_id=None, id: str = "", title: str = "", angle: str = "",
+                        source_ref: str = "", season: str = "") -> dict:
+    """FV3-1: tạo/sửa 1 big idea. Append/update intake_extra.big_ideas dedupe theo id (mẫu y hệt save_key_idea).
+    Title trống → lỗi. Trả {"ok": True, "big_idea": {...}}."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        title = str(title or "").strip()[:140]
+        if not title:
+            return {"error": "Ý lớn trống — cần tiêu đề."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        big_ideas = extra.get("big_ideas") if isinstance(extra.get("big_ideas"), list) else []
+        if not isinstance(big_ideas, list):
+            big_ideas = []
+        now = time.time()
+        bid = str(id or "").strip()
+        found = next((it for it in big_ideas if isinstance(it, dict) and str(it.get("id")) == bid), None) if bid else None
+        meta = {
+            "title": title,
+            "angle": str(angle or "").strip()[:220],
+            "source_ref": str(source_ref or "").strip()[:160],
+            "season": str(season or "").strip()[:60],
+            "updated_at": now,
+        }
+        if found is not None:
+            found.update(meta)
+            big_idea = found
+        else:
+            bid = bid or f"{int(now)}-{(re.sub(r'[^a-z0-9]+', '-', title.lower())[:24].strip('-') or 'bi')}"
+            big_idea = {"id": bid, **meta, "created_at": now}
+            big_ideas.append(big_idea)
+        extra["big_ideas"] = big_ideas
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "big_idea": big_idea}
+    except Exception as e:
+        logger.warning("biz.save_big_idea failed: %s", e)
+        return {"error": str(e)}
+
+
+async def derive_big_ideas(user_id=None) -> dict:
+    """FV3-1: migration ADDITIVE + IDEMPOTENT. Với mỗi key_ideas[i] CHƯA CÓ big_idea_id,
+    mint 1 big idea từ title/angle/source_ref của nó rồi back-link.
+    Chạy lại lần 2 = 0 thay đổi (idempotent: bỏ qua key_idea đã có big_idea_id).
+    KHÔNG gộp trùng ở lần này (1 chiến dịch cũ → 1 big idea; user gộp tay sau).
+    Trả {"ok": True, "derived": n, "skipped": m}."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        ideas = extra.get("key_ideas") if isinstance(extra.get("key_ideas"), list) else []
+        if not isinstance(ideas, list):
+            ideas = []
+        big_ideas = extra.get("big_ideas") if isinstance(extra.get("big_ideas"), list) else []
+        if not isinstance(big_ideas, list):
+            big_ideas = []
+        # index existing big_ideas by id
+        bi_by_id = {str(it.get("id")): it for it in big_ideas if isinstance(it, dict) and it.get("id")}
+        derived, skipped = 0, 0
+        now = time.time()
+        for ki in ideas:
+            if not isinstance(ki, dict):
+                skipped += 1
+                continue
+            if str(ki.get("big_idea_id") or "").strip():
+                skipped += 1
+                continue
+            # mint new big idea from this key_idea
+            title = str(ki.get("title") or "").strip()[:140]
+            if not title:
+                skipped += 1
+                continue
+            angle = str(ki.get("angle") or "").strip()[:220]
+            source_ref = str(ki.get("source_ref") or "").strip()[:160]
+            bid = f"{int(now)}-{(re.sub(r'[^a-z0-9]+', '-', title.lower())[:24].strip('-') or 'bi')}"
+            bi = {
+                "id": bid,
+                "title": title,
+                "angle": angle,
+                "source_ref": source_ref,
+                "season": "",
+                "created_at": now,
+                "updated_at": now,
+            }
+            big_ideas.append(bi)
+            bi_by_id[bid] = bi
+            ki["big_idea_id"] = bid
+            derived += 1
+        if derived:
+            extra["big_ideas"] = big_ideas
+            extra["key_ideas"] = ideas
+            await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "derived": derived, "skipped": skipped}
+    except Exception as e:
+        logger.warning("biz.derive_big_ideas failed: %s", e)
         return {"error": str(e)}
 
 
