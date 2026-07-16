@@ -3451,6 +3451,87 @@ def _purpose_ratio_hint(purpose: str = "", goal: str = "") -> tuple:
     return _DEFAULT_RATIO, ""
 
 
+# ════ FV3-4a: TỪ ĐIỂN KÊNH — 1 NGUỒN slug chuẩn (doc §3.3 Bước 1) ════
+# Trước đây "kênh" nói ở 4 nơi, không nơi nào là nguồn (bet_choices.channel text · current_channels text ·
+# posts[].channel LLM chế · top_channels theo ngành). CHANNELS = producer duy nhất để #4b-4d ràng ⊆ được.
+# key = slug (không lặp field slug). aliases: khớp LỎNG text người/LLM cũ → slug. tiers: kênh này làm tốt tầng nào.
+# write_spec: gom từ agents/post_actions._ADAPT_SYSTEM (5 kênh cũ) + bổ sung 7 kênh SME VN (KHÔNG bịa prompt mỏng).
+# Paid/organic GÁC LẠI (doc §3.3) — chưa đụng. 12 kênh:
+CHANNELS = {
+    "facebook_group": {   # đặt TRƯỚC facebook để "facebook group" khớp đúng (đặc thù thắng chung chung)
+        "label": "Facebook Group", "aliases": ["facebook group", "fb group", "hội nhóm", "cộng đồng fb", "nhóm facebook"],
+        "tiers": ("tofu", "mofu"), "formats": ["bài thảo luận", "câu hỏi", "chia sẻ kinh nghiệm"],
+        "write_spec": "Giọng thành viên, KHÔNG quảng cáo lộ; mở bằng câu hỏi / kinh nghiệm thật; tránh spam link."},
+    "facebook": {
+        "label": "Facebook", "aliases": ["fb", "fanpage", "fan page", "meta"],
+        "tiers": ("tofu", "mofu", "bofu"), "formats": ["bài viết 150-300 chữ", "ảnh/album", "video ngắn", "livestream"],
+        "write_spec": "Storytelling 150-300 chữ, hook mạnh 1-2 câu đầu, emoji vừa phải, CTA rõ (inbox / để lại SĐT)."},
+    "instagram": {
+        "label": "Instagram", "aliases": ["ig", "insta", "reels", "story", "stories"],
+        "tiers": ("tofu", "mofu"), "formats": ["ảnh vuông", "carousel", "Reels 15-30s", "Story"],
+        "write_spec": "Visual-first, caption ngắn, hashtag 5-10, Reels hook 3s đầu."},
+    "tiktok_shop": {   # TRƯỚC tiktok để "tiktok shop" khớp đúng
+        "label": "TikTok Shop", "aliases": ["tiktok shop", "tts", "giỏ hàng tiktok", "live bán hàng"],
+        "tiers": ("mofu", "bofu"), "formats": ["video gắn giỏ hàng", "livestream bán", "review sản phẩm"],
+        "write_spec": "Gắn sản phẩm rõ, demo / review thật, ưu đãi giới hạn, CTA 'chốt đơn trong live'."},
+    "tiktok": {
+        "label": "TikTok", "aliases": ["tik tok", "tóp tóp"],
+        "tiers": ("tofu", "mofu"), "formats": ["video 15-30s", "video 60s", "livestream"],
+        "write_spec": "Hook 3s đầu cực mạnh, nhịp nhanh, bám trend sound, CTA 'Follow'."},
+    "shopee": {
+        "label": "Shopee", "aliases": ["sàn tmđt", "gian hàng", "lazada", "sàn"],
+        "tiers": ("bofu",), "formats": ["ảnh sản phẩm", "mô tả SP", "voucher", "livestream Shopee"],
+        "write_spec": "Tiêu đề chứa từ khoá tìm kiếm, mô tả gạch đầu dòng lợi ích, ảnh sáng, đẩy voucher / flash sale."},
+    "youtube": {
+        "label": "YouTube", "aliases": ["yt", "video dài", "shorts"],
+        "tiers": ("tofu", "mofu"), "formats": ["video 5-10 phút", "Shorts", "hướng dẫn", "review"],
+        "write_spec": "Tiêu đề + thumbnail tò mò, 15s đầu giữ chân, chương mục rõ, CTA subscribe."},
+    "zalo_oa": {
+        "label": "Zalo OA", "aliases": ["zalo", "oa", "zns", "broadcast zalo"],
+        "tiers": ("mofu", "bofu"), "formats": ["broadcast", "tin nhắn ZNS", "bài viết OA"],
+        "write_spec": "Thân mật, ngắn <200 chữ, gần như không hook; link / nút đặt hàng rõ; CTA 'nhắn ngay'."},
+    "website_seo": {
+        "label": "Website / SEO", "aliases": ["website", "web", "blog", "seo", "landing", "google search"],
+        "tiers": ("tofu", "mofu", "bofu"), "formats": ["bài blog SEO", "landing page", "trang sản phẩm"],
+        "write_spec": "Bám từ khoá tìm kiếm, cấu trúc H2/H3, trả đúng ý định tìm kiếm, CTA + internal link."},
+    "email": {
+        "label": "Email", "aliases": ["mail", "newsletter", "edm"],
+        "tiers": ("mofu", "bofu"), "formats": ["newsletter", "email chăm sóc", "email ưu đãi"],
+        "write_spec": "Subject line mở tò mò, personalization, 1 CTA button chính, ngắn gọn quét nhanh."},
+    "offline": {
+        "label": "Offline / tại điểm", "aliases": ["tại chỗ", "cửa hàng", "poster", "standee", "tờ rơi", "sự kiện", "event", "pr điểm bán"],
+        "tiers": ("mofu", "bofu"), "formats": ["standee / poster", "tờ rơi", "sự kiện", "trải nghiệm tại điểm"],
+        "write_spec": "Thông điệp 1 câu đọc-lướt-hiểu, ưu đãi tại điểm rõ, kèm QR / kênh online để ĐO."},
+    "kol_pr": {
+        "label": "KOL / PR / Báo", "aliases": ["kol", "koc", "influencer", "pr", "báo chí", "seeding", "booking"],
+        "tiers": ("tofu", "mofu"), "formats": ["bài review KOL", "booking KOC", "bài PR báo", "seeding"],
+        "write_spec": "Brief góc bám USP + điều được/không được nói; để KOL giữ giọng thật; chèn 1 CTA / đường đo (mã / link riêng)."},
+}
+
+
+def channel_slug(text) -> str:
+    """FV3-4a: khớp LỎNG text tự do / LLM chế → slug kênh chuẩn. Không khớp → '' (caller degrade, §3.3 Bước 4).
+    Luật: chuỗi khoá (slug/label/alias) DÀI NHẤT là substring của text thắng — 'facebook group' thắng 'facebook',
+    'tiktok shop' thắng 'tiktok' (đặc thù thắng chung chung, không phụ thuộc thứ tự dict)."""
+    s = str(text or "").strip().lower()
+    if not s:
+        return ""
+    if s in CHANNELS:
+        return s
+    best_slug, best_len = "", 0
+    for slug, spec in CHANNELS.items():
+        for k in [slug, str(spec.get("label") or "").lower()] + [str(a).lower() for a in (spec.get("aliases") or [])]:
+            if k and k in s and len(k) > best_len:
+                best_slug, best_len = slug, len(k)
+    return best_slug
+
+
+def channel_label(slug) -> str:
+    """slug → nhãn hiển thị; slug lạ → ''."""
+    spec = CHANNELS.get(str(slug or "").strip().lower())
+    return spec["label"] if spec else ""
+
+
 # B6: mức xác suất/tác động cho Risk & Contingency (khoá "Bước 5"). Rác → ''.
 _RISK_LEVELS = ("thấp", "trung bình", "cao")
 
