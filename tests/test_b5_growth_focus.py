@@ -1,7 +1,7 @@
 """Regression test B5 — #4 Hướng tăng trưởng trọng tâm (growth_focus).
 
 Chạy KHÔNG cần key/DB: _spine_anchor + _validate_growth_focus là HÀM THUẦN (không load DB);
-save_spine dùng stub storage.v2 (như test_b4).
+save_strategy_input dùng stub storage.v2 (như test_b4).
 
 Chốt điều dễ vỡ:
   ① enum: acquisition/conversion/retention/referral hợp lệ · junk/rỗng → ''.
@@ -9,7 +9,7 @@ Chốt điều dễ vỡ:
   ③ bỏ trống + có stage → GỢI Ý từ stage (launch→acquisition), gắn nhãn "GỢI Ý" (soft).
   ④ bỏ trống + không stage → KHÔNG có dòng growth.
   ⑤ EVAL Test-3: anchor(focus=conversion) ≠ anchor(no focus) — bơm vào mà output đổi.
-  ⑥ save_spine: persist growth_focus hợp lệ · junk → '' · giữ human value (không đè bằng máy đoán).
+  ⑥ save_strategy_input: persist growth_focus hợp lệ · junk → '' · giữ human value (không đè bằng máy đoán).
 
 Chạy:  python3 tests/test_b5_growth_focus.py   (exit 0 = pass)
 """
