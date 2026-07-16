@@ -375,6 +375,9 @@ async def biz_data(user_id=None) -> dict:
     out["bizPurposes"] = [{"key": k, "label": _KI_PURPOSE_VI[k],
                            "ratio": _PURPOSE_RATIO[k], "why": _PURPOSE_RATIO_WHY.get(k, "")}
                           for k in _KI_PURPOSES]
+    # FV3-4a/b: từ điển kênh → FE map slug→label (hiển thị bài) + menu kênh chiến dịch (#4c).
+    out["bizChannels"] = [{"slug": s, "label": v["label"], "tiers": list(v["tiers"]),
+                           "formats": list(v["formats"])} for s, v in CHANNELS.items()]
     # N-07b: Playbook lệch chiến lược? (playbook bám synthesis_id cũ ≠ synthesis hiện hành) → FE badge.
     try:
         _ie6 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -2646,8 +2649,10 @@ def _build_keyidea_bands(key_ideas, anchor, horizon_weeks: int, idx_camp: dict, 
                 wk, dy = fw, slot_i % 7
             key = f"oc|{cid}|{phase}"
             role = str(p.get("role") or "")
+            # FV3-4b: channel giờ là slug → hiện NHÃN (degrade: channel_raw / giá trị cũ) cho tiêu đề dễ đọc.
+            _ch_disp = channel_label(p.get("channel")) or str(p.get("channel_raw") or p.get("channel") or "")
             post = {"week": wk, "day": dy, "phase": phase, "icon": _KI_TIER_ICON.get(tk, "📌"),
-                    "hint": role, "title": (f"{p.get('channel','')}: {role}".strip(": ")[:80] or phase),
+                    "hint": role, "title": (f"{_ch_disp}: {role}".strip(": ")[:80] or phase),
                     "channel": str(p.get("channel") or ""), "pillar": str(p.get("pillar") or ""),
                     "tier": tier, "sibling_group": str(p.get("sibling_group") or ""), "key": key}
             card = idx_camp.get((cid, phase))
@@ -4098,7 +4103,9 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
         system = (
             "Bạn là Content Strategist. Cho 1 Ý LỚN (đợt nội dung), dựng DANH SÁCH BÀI DỰ KIẾN theo phễu "
             "TOFU (khơi/nhận biết) → MOFU (nuôi/thuyết phục) → BOFU (chốt), phân bổ theo MỤC TIÊU đợt. "
-            "Mỗi bài: tier (tofu/mofu/bofu) · kênh ĐÍCH DANH (vd 'Reels 15s') · vai trò (1 câu: bài này làm "
+            "Mỗi bài: tier (tofu/mofu/bofu) · channel (1 NỀN TẢNG — DÙNG ĐÚNG TÊN trong 'Kênh hợp lệ' đã cho, "
+            "KHÔNG kèm định dạng) · format (ĐỊNH DẠNG cụ thể tách riêng, vd 'video ngắn 15s' · 'bài viết dài' · "
+            "'livestream' · 'carousel') · vai trò (1 câu: bài này làm "
             "gì trong phễu) · pillar (TRỤ thông điệp bài này thuộc về — CHỌN trong danh sách trụ đã cho, "
             "để trống nếu không rõ) · sibling_group (mã nhóm để GỘP 1 nội dung repurpose sang nhiều nền tảng: "
             "các bài cùng lõi khác nền tảng dùng CHUNG 1 mã vd 's1'; bài đơn để trống). "
@@ -4115,7 +4122,7 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
             'Output JSON DUY NHẤT: {"ratio":"<vd 60/30/10>",'
             '"offers":{"tofu":"","mofu":"","bofu":""},'
             '"risks":[{"risk":"","likelihood":"thấp|trung bình|cao","impact":"thấp|trung bình|cao","backup":""}],'
-            '"posts":[{"tier":"tofu|mofu|bofu","channel":"",'
+            '"posts":[{"tier":"tofu|mofu|bofu","channel":"","format":"",'
             '"role":"","pillar":"","sibling_group":"","note":""}]}'
         )
         vdo = ", ".join(str(x) for x in (voice.get("do") or [])[:4])
@@ -4128,6 +4135,9 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 + (f"# {focus_line}\n" if focus_line else "")
                 + f"# Kỳ hạn đợt\n{idea.get('window_start','') or '(chưa đặt)'} → {idea.get('window_end','') or '(chưa đặt)'}\n"
                 f"# Kênh đang dùng\n{cur_channels or '(đề xuất kênh hợp archetype)'}\n"
+                # FV3-4b: cấp menu kênh chuẩn để LLM dùng đúng tên → channel_slug khớp; format tách riêng.
+                "# Kênh hợp lệ (dùng ĐÚNG tên này cho 'channel', đừng ghép định dạng vào)\n"
+                + "\n".join(f"- {v['label']}" for v in CHANNELS.values()) + "\n"
                 f"# Giọng NÊN\n{vdo or '(theo thương hiệu)'}\n"
                 + (f"# TRỤ thông điệp (chọn pillar cho mỗi bài trong đây)\n" + "\n".join(f"- {t}" for t in known_pillars[:8]) + "\n"
                    if known_pillars else "")
@@ -4148,11 +4158,18 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 tier = str(p.get("tier") or "").strip().lower()
                 if tier not in _KI_TIERS:          # lọc tier rác (lỗi funnel cũ: nhãn "TOFU|MOFU")
                     continue
-                ch = str(p.get("channel") or "").strip()[:60]
+                ch_raw = str(p.get("channel") or "").strip()[:60]
                 role = str(p.get("role") or "").strip()[:160]
-                if not (ch and role):              # bỏ post thiếu khoá downstream cần
+                if not (ch_raw and role):          # bỏ post thiếu khoá downstream cần
                     continue
-                posts.append({"tier": tier, "channel": ch, "role": role,
+                # FV3-4b: tách kênh (slug chuẩn) khỏi format. Kênh lạ (channel_slug='') → giữ raw + cờ guessed
+                # để #4c gán kênh chính chiến dịch. format LLM để trống → gợi ý format đầu của kênh (không khoá cứng).
+                slug = channel_slug(ch_raw)
+                fmt = str(p.get("format") or "").strip()[:60]
+                if not fmt and slug:
+                    fmt = (CHANNELS[slug]["formats"] or [""])[0]
+                posts.append({"tier": tier, "channel": slug, "channel_raw": ch_raw,
+                              "channel_guessed": slug == "", "format": fmt, "role": role,
                               "pillar": _match_pillar(p.get("pillar"), known_pillars),  # khớp lỏng trụ; lạ → ''
                               "sibling_group": str(p.get("sibling_group") or "").strip()[:24],
                               "note": str(p.get("note") or "").strip()[:160]})
@@ -4161,10 +4178,13 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
         # CHỐNG cụt-im-lặng: posts rỗng sau validate → degrade tối thiểu từ messaging pillars
         if not posts:
             _ch0 = (cur_channels.split(",")[0].strip()[:60] if cur_channels else "") or "Facebook"
+            _slug0 = channel_slug(_ch0) or "facebook"          # FV3-4b: kênh degrade cũng về slug chuẩn
+            _fmt0 = (CHANNELS[_slug0]["formats"] or [""])[0]
             for p in ((msg or {}).get("pillars") or [])[:3]:
                 terr = str((p or {}).get("territory") or "").strip()
                 if terr:
-                    posts.append({"tier": "tofu", "channel": _ch0,
+                    posts.append({"tier": "tofu", "channel": _slug0, "channel_raw": _ch0,
+                                  "channel_guessed": False, "format": _fmt0,
                                   "role": f"Giới thiệu lãnh địa: {terr}", "pillar": terr, "sibling_group": "",
                                   "note": "(degrade — chưa có đề xuất AI)"})
             if not posts:
