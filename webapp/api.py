@@ -285,7 +285,8 @@ async def biz_key_idea_save(request):
         window_start=d.get("window_start", ""), window_end=d.get("window_end", ""), status=d.get("status", ""),
         focus_tier=d.get("focus_tier", ""), focus_pillars=d.get("focus_pillars"),
         risks=d.get("risks"),   # B6-A: human override rủi ro & dự phòng (None nếu FE không gửi)
-        big_idea_id=d.get("big_idea_id", ""))   # FV3-1: FK mềm tới big idea
+        big_idea_id=d.get("big_idea_id", ""),   # FV3-1: FK mềm tới big idea
+        purpose=d.get("purpose", ""))           # FV3-2: mục đích chiến dịch (7 loại §3.1)
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -322,6 +323,15 @@ async def biz_big_ideas_derive(request):
     Trả {"ok": True, "derived": n, "skipped": m}."""
     d = await request.json()
     res = await biz.derive_big_ideas(d.get("user_id"))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_purposes_derive(request):
+    """FV3-2: migration ADDITIVE + IDEMPOTENT. Với mỗi key_ideas[i] CHƯA CÓ purpose,
+    suy từ goal cũ (_KI_GOAL_TO_PURPOSE) rồi ghi vào; goal giữ nguyên. Không map được → để trống.
+    Trả {"ok": True, "derived": n, "skipped": m}."""
+    d = await request.json()
+    res = await biz.derive_purposes(d.get("user_id"))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -637,6 +647,7 @@ def api_routes() -> list:
         Route("/api/biz/key-ideas/import-legacy",   biz_key_ideas_import_legacy, methods=["POST"]),
         Route("/api/biz/big-idea/save",             biz_big_idea_save, methods=["POST"]),
         Route("/api/biz/big-ideas/derive",          biz_big_ideas_derive, methods=["POST"]),
+        Route("/api/biz/purposes/derive",           biz_purposes_derive, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),
