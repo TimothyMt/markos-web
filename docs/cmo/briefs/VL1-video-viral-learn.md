@@ -1,153 +1,127 @@
-# Slice VL1 — "Học từ video viral" (mổ video ngắn → công thức → gen bài)
+# Slice VL1 — "Học từ video viral": nối skill đã có vào Max + vá đường tải + chồng cụm/công thức
 
-> **Mục tiêu:** biến 1 video ngắn viral (TikTok/Reel/Short/FB, **mọi nền tảng**) thành **công thức lặp lại được** để founder tự đẻ bài của mình — bám Thông điệp. Một cỗ máy bóc tách chung nuôi **3 lăng kính**: **B** học công thức (anchor) · **A** soi đối thủ · **C** soi video mình.
-> **Đọc trước:** `AGENTS.md` (luật môi trường Windows/pager/Edit) + `CLAUDE.md` + `docs/cmo/WIRING.md` + `docs/cmo/00-PLAN.md` (4 tầng).
-> **Tự tìm code bằng grep tên hàm** (ĐỪNG tin số dòng — brief này cố ý KHÔNG ghi số dòng):
-> ```
-> git grep -n "def gen_calendar_post\|def _messaging_anchor_from\|def biz_data" -- webapp/
-> git grep -n "hook" -- webapp/business.py        # khối taxonomy hook trong system prompt gen bài
-> git grep -n "insert_skill_run\|get_latest_skill_run" -- webapp/ storage/
-> ```
-> Cần quét caller thì quét **cả `tests/`**, không chỉ `web/` + `webapp/`.
-> **Branch:** cắt nhánh mới **từ `staging`** (vd `feature/video-viral-learn`); PR `--base staging`. KHÔNG commit thẳng `main`/`staging`, KHÔNG tự merge.
-> **FE 1 nguồn:** sửa thẳng `web/app.js` · `web/styles.css` · `web/index.html` — **không mirror đi đâu cả** (standalone đã khai tử).
+> **⚠️ ĐỌC MỤC NÀY TRƯỚC — nếu không sẽ xây lại thứ đã tồn tại.**
+> Repo **ĐÃ CÓ** skill `viral_video_analyzer` hoàn chỉnh (9 section, chất lượng cao):
+> - `agents/operational_prompts.py` → `VIRAL_VIDEO_ANALYZER_SYSTEM` — prompt 9 section: hook breakdown (**9 công thức**), story structure + nhận diện framework, pacing/re-hook, verbal pattern, emotional trigger + cognitive bias, CTA design (8 loại), **8.1 template fill-in-the-blank**, replication risk, variation ideas, production brief (shot list + 3 script hoàn chỉnh).
+> - `agents/operational_skills_config.py` → `ViralVideoAnalyzerSkill` (class, thời bot — dùng `Session`).
+> - `tools/krillin_client.py` — transcript + segments + timestamp (KrillinAI → Whisper API → user paste).
+> - `tools/video_vision.py` — ffmpeg keyframes + Claude vision (shot type, on-screen text).
+>
+> **VL1 KHÔNG viết lại prompt phân tích.** CLAUDE.md: *"business.py tái dùng prompt bot (`agents.operational_prompts`) qua import lazy/try-except — đây là **chủ ý để giữ chất lượng, đừng thay bằng prompt tự chế mỏng**."*
 
-## Bối cảnh + feasibility (ĐÃ chứng minh bằng prototype)
-Prototype `reel_analyzer.py` (scratchpad) đã chạy **end-to-end trên 2 Facebook Reel thật**: gendownload tải video → Gemini "xem" (hình+audio+chữ overlay) → nhả JSON bóc tách 2 tầng đúng schema. Feasibility ✅. Những **bẫy đã phát hiện** (đưa vào code luôn):
-- **gendownload chặn UA mặc định** → phải gửi header `User-Agent: Mozilla/5.0`, không thì **403**.
-- gendownload trả `title` nhét sẵn view+reaction ("15K views · 186 reactions"), `duration` để `null` (nằm trong URL param) → **phải parse tay**, đừng giả định field sạch.
-- Gemini Files API: `upload` → chờ `state==ACTIVE` → `generate_content(response_mime_type="application/json")`, model `gemini-2.5-pro`. **SDK sync** → trong code async phải bọc `asyncio.to_thread` hoặc dùng `client.aio`.
+## Mục tiêu — lấp 5 khoảng trống THẬT
+Skill đã giỏi nhưng **founder không với tới được**, và **đường tải video của nó hỏng**. VL1 lấp đúng những chỗ đó:
 
-## Nguồn dữ liệu (3 lớp — degrade contract)
-| Tầng | Nguồn | Đảm bảo | Key |
-|---|---|---|---|
-| Tải + bóc tách sáng tạo (hook/cấu trúc/nhịp/transcript) | **gendownload** (free) + **Gemini** | ✅ LUÔN có, mọi nền tảng | `GEMINI_API_KEY` (đã có) |
-| Stats công khai (share/like/comment-**rate**) | **ScrapeCreators** | ⚠️ tuỳ nền tảng: đủ TikTok/IG, chỉ view ở FB | `SCRAPECREATORS_API_KEY` (mới, env — KHÔNG vào DB) |
-| Retention curve (watch-through/drop-off) | — | ❌ không nguồn nào, trừ lăng kính C (user tự dán analytics) | — |
-
-**Luật degrade:** thiếu ScrapeCreators (nền tảng không hỗ trợ / hết credit / thiếu key) → ③ rơi về ② (chỉ cụm user dán) → rơi về ① (chỉ seed). **Function không bao giờ chết.**
-
-## Kiến trúc lưu trữ (KHÔNG đổi schema DB)
-| Dữ liệu | Kho | Ghi chú |
+| # | Khoảng trống thật | Vì sao |
 |---|---|---|
-| Bản bóc tách 1 video (atom) + cụm ③ | `skill_runs` (`video_analysis`, `video_cluster`) | artifact lớn, append-only, versioned |
-| **Thư viện công thức** (`cong_thuc` ô-điền, tái dùng) | `intake_extra.video_formulas` (list) | config nhỏ, founder curate; **derived-state** |
-| Config nguồn (nền tảng chính, cap độ sâu) | `intake_extra` | KHÔNG cột mới |
+| **1** | **Skill không nối vào web app** | `git grep viral_video_analyzer -- webapp/ web/` → **0 kết quả**; cũng KHÔNG có trong `OPS_SKILL_TASK_TYPES` của router. Code thời bot mắc kẹt trong `agents/` |
+| **2** | **Đường tải video hỏng** | `krillin._ensure_local_file()` chỉ `httpx.GET` thẳng URL → với `facebook.com/reel/123` nó tải về **trang HTML login**, không phải video. Đường `KRILLIN_BINARY` thì code tự thú *"Giả định convention… nếu binary khác CLI shape cần adapt"* = **chưa verify** |
+| **3** | Không có stats tương tác | share/save/comment-rate → lọc "thật hay vs may mắn" |
+| **4** | Chỉ phân tích **1 video** | công thức n=1 = đoán; cần **cụm** mới đáng tin |
+| **5** | Kết quả là báo cáo HTML, **không chảy vào gen bài** | `accumulate_to_report=False`; công thức 8.1 không ai tiêu thụ |
 
-`video_formulas[i]` = derived-state (Max tự rút) → theo WIRING luật derived-state:
-```json
-{ "id": "...", "loai": "<hook-slug 10-taxonomy>", "template": "Mình đã kiếm được [TIỀN] trong [THỜI_GIAN] khi làm [NGHỀ]",
-  "cac_o_dien": ["TIỀN","THỜI_GIAN","NGHỀ"], "nganh_ap_dung": ["nail","spa"],
-  "confidence": 0.0, "updated": "<iso>", "why": ["<tín hiệu>"], "by": "max|human", "source_video_id": "..." }
+## Quyết định nền (đã chốt — đừng lật)
+- **Engine "xem" = Gemini** (thay `krillin` + `video_vision`): 1 call đa phương thức, **không cần ffmpeg, không cần KRILLIN_BINARY** (Railway đỡ phải cài binary; krillin CLI chưa verify). Gemini trả **đúng shape** mà prompt 9-section đang chờ (transcript có timestamp + visual block) → **prompt giữ nguyên, chỉ thay engine**. Đã chứng minh bằng prototype trên 2 FB Reel thật.
+- **Hook taxonomy chuẩn = 9 công thức trong `VIRAL_VIDEO_ANALYZER_SYSTEM`** (đã tôi luyện, có VN context). **KHÔNG** đụng 5 nhóm hook của `gen_calendar_post` (tránh xung đột 3 chiều). Cầu nối map 9→5 khi cần set `hook_style`; chất lượng bài đến từ **template 8.1**, không từ nhãn hook.
+- **Lưu trữ (không đổi schema):** artifact → `skill_runs` (`video_analysis`, `video_cluster`); thư viện công thức → `intake_extra.video_formulas` (**derived-state**: `confidence/updated/why/by`; `by:"human"` → Max không đè).
+- **Degrade contract 3 tầng:** ① tải + phân tích sáng tạo (gendownload+Gemini) = **LUÔN có** · ② stats công khai (ScrapeCreators) = **tuỳ nền tảng** (đủ TikTok/IG, chỉ view ở FB) · ③ retention curve = **KHÔNG nguồn nào** (đừng đi tìm).
+
+## Đọc trước + cách tự định vị code
+`AGENTS.md` (luật môi trường) · `CLAUDE.md` · `docs/cmo/WIRING.md`. **Tự grep, brief này cố ý KHÔNG ghi số dòng:**
 ```
-`by:"human"` (founder sửa/pin) → Max **KHÔNG tự đè**. Confidence thấp → giữ, cờ "cần thêm mẫu". Lật A→B→A → freeze + cờ review.
-
-## Hook taxonomy — 10 loại, SINGLE SOURCE OF TRUTH (khoá seam)
-Định nghĩa **1 hằng số** dùng chung cho **analysis `loai_hook` ↔ generation `hook_style` ↔ FE dropdown** → producer=consumer khớp enum theo thiết kế (hết seam lệch 5↔10). Đặt ở `webapp/business.py` (hoặc `tools/` nếu dùng chung):
-```python
-HOOK_TAXONOMY = [  # (slug, nhãn VN, mô tả sắc cho prompt)
-  ("curiosity","Tò mò","khe tò mò/paradox/câu hỏi tiết lộ"),
-  ("contrarian","Tương phản","đảo niềm tin phổ biến"),
-  ("emotional","Cảm xúc","chạm pain thật"),
-  ("authority","Góc chuyên gia","POV người trong nghề"),
-  ("storytelling","Kể chuyện","kéo vào câu chuyện/đồng cảm trải nghiệm"),
-  ("listicle","Danh sách","N cách / N lỗi / N bước"),
-  ("how-to","Hướng dẫn","giải pháp tức thì, làm được ngay"),
-  ("challenge","Thách thức","đố/thử thách, dám xem tiếp"),
-  ("trend-jacking","Bắt trend","mượn sóng format/audio đang nóng"),
-  ("visual-interrupt","Ngắt hình","hành động/hình gây khựng, không chỉ lời"),
-]
+git grep -n "VIRAL_VIDEO_ANALYZER_SYSTEM" -- agents/
+git grep -n "class ViralVideoAnalyzerSkill" -- agents/
+git grep -n "def extract_transcript\|def _ensure_local_file" -- tools/krillin_client.py
+git grep -n "def gen_calendar_post\|def _messaging_anchor_from\|def biz_data" -- webapp/
+git grep -n "OPS_SKILL_TASK_TYPES" -- tools/llm_router.py
 ```
-Nguồn: taxonomy research (FluxNote 10-type, đối chiếu 2 reel thật). 5 nhãn đầu là 5 nhóm VN cũ (founder quen).
+Quét caller phải quét **cả `tests/`**.
+**Branch:** cắt từ `staging`, PR `--base staging`. KHÔNG tự merge. **FE 1 nguồn** (`web/app.js`…), không mirror.
 
-## Sổ hợp đồng WIRING (khoá xuyên component)
+## Sổ hợp đồng WIRING
 | Khoá | Kiểu | Consumer | Producer | Status |
 |---|---|---|---|---|
-| `skill_runs['video_analysis']` | JSON blob | FE (view), F3 cụm, F4 rút formula | **F2** `analyze_video` | ✅ build |
-| `skill_runs['video_cluster']` | JSON blob | FE (view A), F4 | **F3** `discover_cluster` | ✅ build |
-| `intake_extra.video_formulas` | list[obj] | **F5** `gen_calendar_post`, FE thư viện | **F4** `extract_formulas` (+ founder curate) | ✅ build; derived-state |
-| `loai_hook` / `hook_style` | slug ∈ `HOOK_TAXONOMY` | F2 analysis + F5 gen | `HOOK_TAXONOMY` (1 hằng) | ✅ khớp 2 đầu by design |
+| `local_path` + `meta` | dict | F2 | **F1** `extract_media` | ✅ build |
+| transcript block + visual block | str (shape krillin/video_vision) | prompt 9-section (đã có) | **F2** Gemini watcher | ✅ build — shape PHẢI khớp cái prompt đang chờ |
+| `skill_runs['video_analysis']` | blob | FE, F6 | **F3** | ✅ build |
+| `OPS_SKILL_TASK_TYPES['viral_video_analyzer']` | TaskType | router `_run_skill` | **F3** (thêm entry) | ❌ **thiếu producer hiện tại** → F3 vá |
+| `stats{view,like,comment,share,save}` | obj **nullable** | F5 lọc, FE | **F4** ScrapeCreators | ⚠️ nullable — consumer PHẢI degrade |
+| `skill_runs['video_cluster']` | blob | FE, F6 | **F5** | ✅ build |
+| `intake_extra.video_formulas` | list[obj] | **F6** `gen_calendar_post`, FE | **F6** + founder curate | ✅ derived-state |
 | `formula_id` | str | `gen_calendar_post` | FE nút "Viết bài từ công thức" | ✅ |
-| `stats` (view/like/comment/share) | obj nullable | F3 lọc rate, FE | ScrapeCreators (F3) / gendownload title (parse) | ⚠️ nullable — consumer PHẢI degrade khi null |
 
 ---
 
-## F1 — `extract_media(url)` : gendownload → file video + metadata
-**Phân tích mối nối:** ĐỌC `url` (từ FE/F3). GHI: trả dict `{title, source, view, reactions, duration, formats, local_path}` (không lưu DB — F2 tiêu thụ trực tiếp). Derived-state? Không. Degrade: gendownload lỗi → `{error}`; thiếu format video → thử audio.
-```python
-async def extract_media(url: str) -> dict:
-    # POST https://gendownload.com/api/extract  header UA browser (KHÔNG thì 403)
-    # parse title → tách view/reactions (regex "([\d.,KM]+) views"); duration từ formats/param
-    # chọn format SD (nhẹ, đủ Gemini) → tải về temp (UA browser) → local_path
-    # return {title, source, view, reactions, duration, formats, local_path}
-```
-Verify: chạy thật trên 1 URL TikTok + 1 FB reel, in `source/view/local_path size`.
+## F1 — `extract_media(url)` : vá đường tải (gendownload)
+**Mối nối:** ĐỌC `url`. GHI: trả dict cho F2 (không chạm DB). Derived-state? Không. Degrade: lỗi → `{"ok": False, "error"}`, **KHÔNG raise**.
+**Sự thật đã kiểm (đừng khám phá lại):**
+- `POST https://gendownload.com/api/extract` body `{"url":"..."}` → JSON `{title, thumbnail, source, formats[]}`.
+- ⚠️ **Chặn UA mặc định của Python → 403.** Phải gửi `User-Agent: Mozilla/5.0` cho **cả extract lẫn tải file**.
+- ⚠️ `duration` = null; **view/reactions bị nhét trong chuỗi `title`** (`"15K views · 186 reactions | <caption>"`) → phải parse ("15K"/"1.2M" → số).
+- Đã test thật: FB Reel 83s → SD mp4 ~2.8MB.
+**Contract:** `async def extract_media(url) -> {"ok", "source", "title", "caption", "view", "reactions", "duration", "thumbnail", "local_path"}`.
+**Đặt ở:** `tools/video_source.py` (mới) — đúng pattern tích hợp ngoài. Dùng `httpx` (đã có, **đừng thêm dep**).
 
-## F2 — `analyze_video(local_path, meta)` : Gemini bóc tách 2 tầng
-**Phân tích mối nối:** ĐỌC `local_path`+`meta` (F1). GHI `skill_runs['video_analysis']` (JSON). Derived-state? **Có** — tầng Chẩn đoán → mỗi field mang `confidence`+`why`; **view là số cứng duy nhất**, phần còn lại là giả thuyết về phần sáng tạo. Degrade: Gemini empty/safety → lưu Mô tả, Chẩn đoán = null + cờ.
-- **Router:** hàm hiện tại (`_call_gemini_pro`) chỉ nhận text system/user → **F2 thêm đường video**: hoặc thêm `call_video(file, prompt)` vào `tools/llm_router.py` (Files API, bọc `asyncio.to_thread`/`client.aio`), hoặc gọi trực tiếp trong business (lazy import `google.genai`). Ưu tiên đặt ở router cho nhất quán.
-- **Prompt:** schema 2 tầng (6 Mô tả + 6 Chẩn đoán) + `cong_thuc`(ô-điền) + `thu_thuat`(mảng); `loai_hook ∈ HOOK_TAXONOMY`; ép `response_mime_type=application/json`. **Cấm bịa số** (giữ luật prompt hiện có).
-```
-mo_ta:  hook{cau_mo, loai_hook∈slug}, transcript, cau_truc[{beat:Hook|Problem|Solution|CTA, giay, nhiem_vu}], cta, chu_tren_man_hinh[]
-chan_doan (mỗi field {value, confidence, why}): co_che_hook, cam_xuc{loai,arousal,so_dinh}, nhip_giu_chan, payoff, ly_do_share_save, don_bay_trend, yeu_to_con_nguoi, do_moc
-stats: {view, like, comment, share, save, source} (nullable)
-cong_thuc: {loai, template, cac_o_dien[], nganh_ap_dung[]}
-thu_thuat: [mo_i_nhu_sai, cta_vong_ho, chong_bang_chung, ...]
-```
-Verify: chạy trên video F1 tải, in JSON, kiểm parse + `loai_hook` ∈ slug.
+## F2 — Gemini watcher : thay krillin + video_vision, GIỮ prompt
+**Mối nối:** ĐỌC `local_path` (F1). GHI: trả **transcript block + visual block đúng shape prompt 9-section đang chờ** (xem `krillin_client.format_transcript_for_prompt` + `video_vision.extract_visual_analysis` để khớp). Derived-state? Không (F3 mới suy). Degrade: Gemini lỗi/safety → rơi về `krillin_client` cũ; cả hai lỗi → cho user paste transcript (skill vẫn chạy).
+- Thêm đường video vào `tools/llm_router.py` (Files API: upload → chờ `state==ACTIVE` → `generate_content`). **SDK sync** → bọc `asyncio.to_thread` hoặc `client.aio`. Model `gemini-2.5-pro`.
+- Trả dict **cùng shape** `krillin_client.extract_transcript` (`transcript, segments[{start,end,text}], duration_seconds, language, source, local_video_path`) → prompt 9-section dùng được **không sửa gì**.
 
-## F3 — `discover_cluster(seed_url|handle, depth)` : nấc ③ auto-discovery (reuse last30days pattern)
-**Phân tích mối nối:** ĐỌC `seed_url`/`handle`. GHI `skill_runs['video_cluster']`. Derived-state? Không (chỉ gom+xếp). Degrade: thiếu ScrapeCreators → chỉ seed (①) hoặc cụm user dán (②).
-- **Discovery (ScrapeCreators):** `/v3/tiktok/profile/videos` (theo handle) + `/search/keyword` + `/search/hashtag`. FB: `/v1/facebook/profile/reels` / `/v1/facebook/post`.
-- **Bộ lọc chất lượng (đã chốt A):** tính **share-rate + like-rate + comment-rate** (÷view) từ stats; `save` cơ hội. **Đảo trọng số** cho virality (khác reference last30days chấm engagement 10%). Lọc **TRƯỚC** khi tải+Gemini.
-- **Bao chi phí (pattern last30days `pipeline.py`):** 3 tier độ sâu (quick/default/deep) + **ENRICH_LIMIT nhỏ** (Gemini-xem seed + top 2-3 đã lọc, phần còn lại **transcript+stats only**) + **budget đồng hồ** (~240s) → hết budget rơi về nomination-only + **cache theo `video_id`**. Fan-out song song có cap workers.
-```python
-DEPTH = {"quick":{"cap":4}, "default":{"cap":8}, "deep":{"cap":12}}   # tuỳ chỉnh
-# seed → discover N → stats-rate filter → top-K → F1+F2 (đắt) cho seed+top2-3; còn lại transcript+stats
-```
-Verify: chạy 1 handle TikTok, in số video discover / sau lọc / số Gemini-xem thật.
+## F3 — Nối skill vào web app ⭐ (khoảng trống lớn nhất — sau F3 tính năng đã DÙNG ĐƯỢC)
+**Mối nối:** ĐỌC profile + `synthesis` (từ `skill_runs`, để tailor công thức — xem `ViralVideoAnalyzerSkill.build_context` làm mẫu). GHI `skill_runs['video_analysis']` + thêm entry vào `OPS_SKILL_TASK_TYPES`. Degrade: thiếu synthesis → vẫn chạy với profile.
+- `webapp/business.py`: `async def analyze_viral_video(user_id, url, platform="", niche_context="", creator_persona="", why_picked="")` — **lazy import** `agents.operational_prompts.VIRAL_VIDEO_ANALYZER_SYSTEM`, dựng user message theo dữ liệu web-era (KHÔNG dùng `Session` thời bot), gọi F1+F2 rồi router, lưu skill_run.
+- `webapp/api.py`: handler + `Route(...)` trong `api_routes()`.
+- `tools/llm_router.py`: thêm `"viral_video_analyzer": TaskType.OPS_ANALYSIS` (hoặc TaskType hợp lý — **tự quyết + giải thích**). Thiếu entry → rơi `GENERIC_CREATIVE`, dồn tải Sonnet.
+- `biz_data()`: expose `bizVideoAnalyses` (theo pattern `bizMessaging`).
 
-## F4 — `extract_formulas(analysis_or_cluster)` : rút thư viện công thức
-**Phân tích mối nối:** ĐỌC `video_analysis`/`video_cluster` (F2/F3). GHI `intake_extra.video_formulas` (append/merge). Derived-state? **Có** → `{confidence,updated,why,by}`; founder pin/sửa (`by:"human"`) Max không đè. Degrade: cụm mỏng → formula confidence thấp + cờ "cần thêm mẫu".
-- Từ 1 atom → formula *dự kiến* (confidence thấp). Từ cụm → formula *đáng tin* (confidence theo #video cùng mẫu / N).
+## F4 — ScrapeCreators stats (tuỳ chọn, degrade an toàn)
+**Mối nối:** GHI `stats` (nullable) vào analysis. Degrade: thiếu `SCRAPECREATORS_API_KEY`/nền tảng không hỗ trợ → `stats=None`, mọi consumer vẫn chạy.
+- `tools/scrapecreators.py` (mới, `httpx`). TikTok `/v2/tiktok/video` → `statistics{play_count, digg_count, comment_count, share_count, collect_count}`; `/v3/tiktok/profile/videos?handle=`; `/search/keyword`; `/search/hashtag`. FB `/v1/facebook/post` (by url — stats mỏng, thường chỉ view).
+- Skill có sẵn field `engagement_data` trong intake → đây là chỗ bơm số thật vào.
 
-## F5 — cầu `formula → gen_calendar_post` + nâng hook 5→10
-**Phân tích mối nối:** ĐỌC `intake_extra.video_formulas[formula_id]` (F4). GHI `skill_runs['calendar_post']` (như cũ). Degrade: `formula_id` rỗng → gen như hiện tại (0 hồi quy).
-- Thêm param `formula_id: str = ""` vào `gen_calendar_post`. Thêm helper `_formula_anchor_from(extra, formula_id)` (**gương** `_messaging_anchor_from`) → prepend block *"# CÔNG THỨC VIDEO — mượn cấu trúc/hook, KHÔNG sao chép; bẻ theo Thông điệp"*.
-- **LUẬT thứ tự:** khối Công thức đặt **DƯỚI** khối Thông điệp (Thông điệp thắng — giữ voice, chống chỏi giọng hook lạ).
-- **Nâng hook 5→10:** trong system prompt `gen_calendar_post` hiện có một khối liệt kê **5 nhóm hook cứng** (Tò mò · Trái ngược · Cảm xúc · Góc chuyên gia · Đồng cảm) — **tự grep tìm**, thay bằng render từ `HOOK_TAXONOMY`. FE dropdown `hook_style` → 10 option (value=slug, label=VN). Tự kiểm còn chỗ nào hardcode 5 nhóm không (quét cả `tests/`).
+## F5 — Cụm ③ auto-discovery (nặng nhất — làm CUỐI)
+**Mối nối:** GHI `skill_runs['video_cluster']`. Degrade ③→②(cụm user dán)→①(chỉ seed).
+- Lọc chất lượng: **share-rate + like-rate + comment-rate** (÷view); saves cơ hội. *(Reference `last30days/signals.py` chấm engagement chỉ 10% và KHÔNG chấm share — ta làm khác vì ta mổ viral.)*
+- **Bao chi phí** (pattern `last30days/scripts/lib/pipeline.py` — đọc code thật): tier độ sâu · `MAX_SOURCE_FETCHES` · `ENRICH_LIMIT`+workers+**budget đồng hồ** · **prune trước enrich** · hết budget → nomination-only, không chết · cache theo `video_id`.
+- **RÀNG BUỘC CỨNG:** stats rẻ lọc rộng; **Gemini-xem-video đắt chỉ cho số ít đã lọc** (seed + top 2-3). Nở N lần bước đắt = FAIL.
 
-## FE — tab "Học từ video viral" (surface A, một cửa vào)
-**Phân tích mối nối:** ĐỌC `bizVideoAnalyses`/`bizVideoFormulas` (expose ở `biz_data`, key `bizXxx`). GHI: gọi route dán URL. Derived-state? Không (FE).
-- Vòng: **dán 1 URL seed** (③ nở cụm) *hoặc* dán nhiều URL thủ công → bóc tách + thư viện công thức → nút **"Viết bài từ công thức này"** mở `gen_calendar_post(formula_id=…)` (cạnh dropdown `hook_style` 10 loại).
-- 3 lăng kính = 3 view trên cùng surface: B (công thức) mặc định · A (soi đối thủ — bản tóm) · C (dán video mình + tuỳ chọn analytics).
-- `biz_data()` thêm `out["bizVideoFormulas"]`/`out["bizVideoAnalyses"]` (theo đúng pattern `bizXxx` sẵn có — grep `bizMessaging` xem mẫu).
+## F6 — Thư viện công thức + cầu sang `gen_calendar_post`
+**Mối nối:** ĐỌC section **8.1 template fill-in-the-blank** từ `video_analysis` → GHI `intake_extra.video_formulas` (derived-state). Consumer = `gen_calendar_post`. Degrade: `formula_id` rỗng → gen như cũ (0 hồi quy).
+- Thêm param `formula_id: str = ""` + helper `_formula_anchor_from(extra, formula_id)` (**gương** `_messaging_anchor_from`) → prepend block *"# CÔNG THỨC VIDEO — mượn cấu trúc, KHÔNG sao chép; bẻ theo Thông điệp"*.
+- **LUẬT thứ tự:** khối Công thức đặt **DƯỚI** khối Thông điệp (Thông điệp thắng — giữ giọng).
+- **KHÔNG đụng taxonomy 5 nhóm hook** của `gen_calendar_post`. Cần set `hook_style` thì map 9→5 bằng bảng cố định.
+
+## FE — tab "Học từ video viral"
+Dán 1 URL seed (F5 nở cụm) *hoặc* nhiều URL thủ công → xem phân tích 9 section + thư viện công thức → nút **"Viết bài từ công thức này"** → `gen_calendar_post(formula_id=…)`. 3 lăng kính = 3 view: **B** công thức (mặc định) · **A** soi đối thủ (bản tóm) · **C** soi video mình.
 
 ---
 
-## Verify chung (dán output THẬT vào mỗi commit — theo AGENTS.md)
+## Thứ tự build
+```
+F1 → F2 → F3 ⭐(tới đây tính năng ĐÃ DÙNG ĐƯỢC — dừng lại đánh giá thật trước khi đi tiếp)
+   → FE → F6 → F4 → F5 (nặng nhất, cuối)
+```
+
+## Verify (dán output THẬT vào mỗi commit — theo AGENTS.md)
 ```
 python -m py_compile webapp/business.py webapp/api.py
 node --check web/app.js
 ```
-- Windows: dùng `python` (fallback `py`), **không** `python3`. Git luôn `git --no-pager`. Không có `grep`/`head`/`tail` → dùng `git grep -n`.
-- Không có key/DB → verify tĩnh (compile/parse JSON mẫu); hành vi runtime khai rõ "chờ key thật", ĐỪNG khai đã test.
+- Windows: `python` (không `python3`); `git --no-pager`; không có `grep`/`head`/`tail` → `git grep -n`.
+- F1/F2: chạy thật **≥2 nền tảng** (1 FB reel + 1 TikTok), in source/view/đường dẫn/kích thước.
+- Không có key/DB → verify tĩnh, **khai rõ** "chưa verify runtime"; ĐỪNG khai đã test.
 
-## Cấu hình mới (env — KHÔNG vào DB)
-- `SCRAPECREATORS_API_KEY` (F3, tuỳ chọn — thiếu thì degrade). `GEMINI_API_KEY` (đã có). gendownload: không key.
-- Thêm `requests`/dùng `urllib` sẵn; `google-genai` đã cài (1.0.0).
-
-## Mở — chốt SAU khi có runtime thật (đừng làm sớm)
-- Tinh chỉnh `ENRICH_LIMIT`/budget theo latency Gemini thật (video dài > 2 phút?).
-- Lăng kính C: schema nhận analytics user tự dán (retention curve) — chỉ khi có nhu cầu.
-- Coverage ScrapeCreators theo từng nền tảng (test thật TikTok/IG/YT/FB).
-- Formula confidence formula (bao nhiêu/N video → mức tin) — hiệu chỉnh khi có dữ liệu.
+## Cấu hình (env — KHÔNG vào DB)
+`GEMINI_API_KEY` (đã có) · `SCRAPECREATORS_API_KEY` (F4, tuỳ chọn) · gendownload: không key. `google-genai` + `httpx` đã có.
 
 ## Không làm
-- KHÔNG đổi schema DB (mọi khoá mới → `intake_extra`/`skill_runs`). KHÔNG bịa số trong output AI. KHÔNG hardcode ví dụ 1 ngành (sản phẩm đa ngành).
-- **KHÔNG Write đè cả file** `business.py`/`app.js` (rất lớn — đè = mất nội dung). Chỉ **Edit chèn/xoá có mục tiêu**.
-- KHÔNG để consumer đọc `stats`/`save` mà không degrade khi null. KHÔNG truyền `loai_hook` ngoài `HOOK_TAXONOMY`.
-- 1 function = 1 commit → push → **chờ cổng review PASS mới sang function sau**. KHÔNG tự merge.
-```
-Thứ tự build: F1 → F2 → (verify feasibility lại) → F4 → F5 → FE → F3 (nặng nhất, cuối).
-```
+- **KHÔNG viết lại prompt phân tích** — tái dùng `VIRAL_VIDEO_ANALYZER_SYSTEM` (lazy import). Không chế prompt mỏng.
+- **KHÔNG đụng 5 nhóm hook** của `gen_calendar_post`. **KHÔNG** đổi schema DB. **KHÔNG** bịa số.
+- **KHÔNG Write đè cả file** (`business.py`/`app.js` rất lớn) — chỉ **Edit chèn có mục tiêu**.
+- KHÔNG để consumer đọc `stats` mà không degrade khi null. KHÔNG đi tìm retention curve (không tồn tại).
+- 1 function = 1 commit → push → **chờ review PASS mới sang function sau**. KHÔNG tự merge.
+
+## Mở — chốt sau khi có runtime thật
+- Gemini watcher vs krillin+vision: so chất lượng thật rồi mới quyết bỏ hẳn 2 tool cũ hay giữ làm fallback.
+- `ViralVideoAnalyzerSkill` (class thời bot) sau khi F3 nối web: giữ hay dọn? — chốt sau, đừng xoá sớm.
+- Số cap/budget F5 theo latency Gemini thật.
