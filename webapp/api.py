@@ -284,7 +284,8 @@ async def biz_key_idea_save(request):
         source=d.get("source", "user"), source_ref=d.get("source_ref", ""), goal=d.get("goal", ""),
         window_start=d.get("window_start", ""), window_end=d.get("window_end", ""), status=d.get("status", ""),
         focus_tier=d.get("focus_tier", ""), focus_pillars=d.get("focus_pillars"),
-        risks=d.get("risks"))   # B6-A: human override rủi ro & dự phòng (None nếu FE không gửi)
+        risks=d.get("risks"),   # B6-A: human override rủi ro & dự phòng (None nếu FE không gửi)
+        big_idea_id=d.get("big_idea_id", ""))   # FV3-1: FK mềm tới big idea
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -299,6 +300,28 @@ async def biz_content_matrix_gen(request):
     """B2.1 — dựng MA TRẬN NỘI DUNG thường trực (trụ × phễu × nền tảng) — nền cho đợt nhấn."""
     d = await request.json()
     res = await biz.gen_content_matrix(d.get("user_id"))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_big_idea_save(request):
+    """FV3-1: tạo/sửa 1 big idea. Append/update intake_extra.big_ideas dedupe theo id (mẫu y hệt save_key_idea).
+    Title trống → lỗi. Trả {"ok": True, "big_idea": {...}}."""
+    d = await request.json()
+    res = await biz.save_big_idea(
+        d.get("user_id"), id=d.get("id", ""), title=d.get("title", ""), angle=d.get("angle", ""),
+        source_ref=d.get("source_ref", ""), season=d.get("season", "")
+    )
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_big_ideas_derive(request):
+    """FV3-1: migration ADDITIVE + IDEMPOTENT. Với mỗi key_ideas[i] CHƯA CÓ big_idea_id,
+    mint 1 big idea từ title/angle/source_ref của nó rồi back-link.
+    Chạy lại lần 2 = 0 thay đổi (idempotent: bỏ qua key_idea đã có big_idea_id).
+    KHÔNG gộp trùng ở lần này (1 chiến dịch cũ → 1 big idea; user gộp tay sau).
+    Trả {"ok": True, "derived": n, "skipped": m}."""
+    d = await request.json()
+    res = await biz.derive_big_ideas(d.get("user_id"))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -612,6 +635,8 @@ def api_routes() -> list:
         Route("/api/biz/key-idea/funnel",          biz_key_idea_funnel, methods=["POST"]),
         Route("/api/biz/content-matrix/gen",        biz_content_matrix_gen, methods=["POST"]),
         Route("/api/biz/key-ideas/import-legacy",   biz_key_ideas_import_legacy, methods=["POST"]),
+        Route("/api/biz/big-idea/save",             biz_big_idea_save, methods=["POST"]),
+        Route("/api/biz/big-ideas/derive",          biz_big_ideas_derive, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),
