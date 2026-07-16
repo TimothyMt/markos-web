@@ -1548,7 +1548,7 @@
       <div class="cal-post-cta">${p.saved?'✓ Đã duyệt · xem/sửa':'⚡ Tạo bài'}</div></div>`;
   const campCard = (p) => `<div class="cal-post clickable ${p.saved?'saved':''}" data-act="slot-open" data-slot="${encodeURIComponent(JSON.stringify({track:'camp', campaignId:p.camp.campaignId, phase:p.phase||'', title:p.title, pillar:(p.pillar||`${p.icon||'🔴'} ${p.phase||'Đợt'}`), funnel:p.camp.name, week:p.week, day:p.day, key:p.key||'', angles:[p.hint||p.title], tier:p.tier||'', sibling_group:p.sibling_group||'', track_role:p.hint||'', saved:p.saved, post:p.post}))}" style="--accent:${p.camp.color}" title="${p.saved?'Đã duyệt — bấm để xem/sửa':'Bấm để soạn bài chiến dịch'}">
       <div class="cal-post-top"><span class="trk camp" style="--c:${p.camp.color}">${p.camp.name}</span><span class="pill-tag c4">${p.phase||'Convert'}</span>${p.sibling_group?'<span class="pill-tag" title="Repurpose — 1 nội dung, nhiều nền tảng">🔁</span>':''}${p.saved?'<span class="slot-done">✓</span>':''}</div>
-      ${p.channel?`<p class="cal-post-topiclbl">📱 ${p.channel}</p>`:''}
+      ${p.channel?`<p class="cal-post-topiclbl">📱 ${mxE(chLabel(p.channel) || p.channel)}</p>`:''}
       <p class="cal-post-title">${p.title}</p>${p.camp.offer?`<span class="cal-offer">🎁 ${p.camp.offer}</span>`:''}
       <div class="cal-post-cta">${p.saved?'✓ Đã duyệt · xem/sửa':'⚡ Tạo bài'}</div></div>`;
   // M-A: always-on giờ là slot theo (tuần,ngày) khi có dữ liệu thật; mock cũ = mảng phẳng 7 ô.
@@ -1986,6 +1986,8 @@
   function kiList() { return (window.MOCK && M.bizKeyIdeas) || []; }
   function biList() { return (window.MOCK && M.bizBigIdeas) || []; }   // FV3-1: ý lớn gom nhiều chiến dịch
   function plList() { return (window.MOCK && M.bizPurposes) || []; }   // FV3-2/3: menu 7 mục đích + ratio/why suy sẵn
+  function chList() { return (window.MOCK && M.bizChannels) || []; }   // FV3-4a/b: từ điển kênh (slug/label/tiers/formats)
+  function chLabel(slug) { const c = chList().find(x => x.slug === slug); return c ? c.label : ''; }   // slug → nhãn
   function mxTrus() {   // trụ = messaging.pillars (đa ngành); bổ sung trụ xuất hiện trong cells
     const m = (window.MOCK && M.bizMessaging) || {};
     const out = [];
@@ -2195,8 +2197,12 @@
   function kiPostHTML(p) {
     const pill = p.pillar ? `<span class="ki-pillar">${mxE(p.pillar)}</span>` : '';
     const sib = p.sibling_group ? `<span class="ki-sib" title="Repurpose — 1 nội dung, nhiều nền tảng">🔁 ${mxE(p.sibling_group)}</span>` : '';
+    // FV3-4b: kênh = slug chuẩn → nhãn (degrade: raw LLM cũ / slug); format tách riêng; cờ Max-đoán-kênh.
+    const chTxt = chLabel(p.channel) || p.channel_raw || p.channel || '';
+    const guess = p.channel_guessed ? ` <span class="ki-chguess" title="Max đoán kênh — chưa chuẩn, chốt lại ở chiến dịch">⚠</span>` : '';
+    const fmt = p.format ? `<span class="ki-fmt">${mxE(p.format)}</span>` : '';
     return `<div class="ki-post">
-      <span class="ki-ch">${mxE(p.channel)}</span>
+      <span class="ki-ch">${mxE(chTxt)}${guess}</span>${fmt}
       <span class="ki-prole">${mxE(p.role)}</span>
       ${pill}${sib}
     </div>`;
