@@ -1981,6 +1981,7 @@
   }
   function cmHas() { return cmCells().length > 0; }
   function kiList() { return (window.MOCK && M.bizKeyIdeas) || []; }
+  function biList() { return (window.MOCK && M.bizBigIdeas) || []; }   // FV3-1: ý lớn gom nhiều chiến dịch
   function mxTrus() {   // trụ = messaging.pillars (đa ngành); bổ sung trụ xuất hiện trong cells
     const m = (window.MOCK && M.bizMessaging) || {};
     const out = [];
@@ -2065,7 +2066,30 @@
         <p class="muted">Chiến dịch = cao điểm ngắn: 1 <b>ý lớn</b> đẩy mạnh 1 tầng phễu (hoặc vài trụ) trong 1 kỳ hạn. Max đề xuất từ kho góc đánh, bạn chốt.</p>
         <div class="empty-actions"><button class="primary-btn" data-act="ki-add-toggle">＋ Chiến dịch mới</button></div></div></section>`;
     }
-    return brandNudge() + legacyBanner + composer + `<div class="ki-list">${ideas.map(kiCardHTML).join('')}</div>`;
+    // FV3-1: nhóm chiến dịch theo big idea. Degrade: chưa có big idea → phẳng như cũ.
+    const bigIdeas = biList();
+    if (!bigIdeas.length) {
+      return brandNudge() + legacyBanner + composer + `<div class="ki-list">${ideas.map(kiCardHTML).join('')}</div>`;
+    }
+    const biMap = new Map(bigIdeas.map(b => [String(b.id), { b, list: [] }]));
+    const ungrouped = [];
+    ideas.forEach(k => {
+      const bid = String(k.big_idea_id || '').trim();
+      (bid && biMap.has(bid) ? biMap.get(bid).list : ungrouped).push(k);
+    });
+    let groups = '';
+    biMap.forEach(({ b, list }) => {
+      if (!list.length) return;
+      groups += `<section class="ki-bi-group">
+        <div class="ki-bi-head">💡 <strong>${mxE(b.title)}</strong>${b.angle ? `<span class="muted"> — ${mxE(b.angle)}</span>` : ''}${b.season ? `<span class="ki-bi-season">${mxE(b.season)}</span>` : ''}</div>
+        <div class="ki-list">${list.map(kiCardHTML).join('')}</div></section>`;
+    });
+    if (ungrouped.length) {
+      groups += `<section class="ki-bi-group ki-bi-none">
+        <div class="ki-bi-head muted">📦 <strong>Chưa gắn ý lớn</strong></div>
+        <div class="ki-list">${ungrouped.map(kiCardHTML).join('')}</div></section>`;
+    }
+    return brandNudge() + legacyBanner + composer + groups;
   }
   function kiComposer() {
     const trus = mxTrus();
@@ -2089,6 +2113,16 @@
       <div class="ki-comp-row">
         <label>Từ ngày <input id="kiWs" type="date" class="occ-inp"></label>
         <label>Đến ngày <input id="kiWe" type="date" class="occ-inp"></label>
+      </div>
+      <div class="ki-comp-row">
+        <label>Ý lớn <select id="kiBigIdea" class="occ-inp" onchange="document.getElementById('kiBigNewWrap').style.display=this.value==='__new__'?'block':'none'">
+          <option value="">— không gắn —</option>
+          ${biList().map(b => `<option value="${mxE(b.id)}">${mxE(b.title)}</option>`).join('')}
+          <option value="__new__">＋ Ý lớn mới</option>
+        </select></label>
+      </div>
+      <div id="kiBigNewWrap" style="display:none">
+        <input id="kiBigNew" class="occ-inp full" placeholder="Tên ý lớn mới (1 câu)" maxlength="140">
       </div>
       <div class="ki-focus-pills"><span class="muted">Nhấn trụ:</span> ${trus.map(t => `<label class="ki-pill"><input type="checkbox" class="ki-fp" value="${mxE(t.territory)}"> ${t.icon} ${mxE(t.territory)}</label>`).join('') || '<span class="muted">(chưa có trụ — dựng Thông điệp trước)</span>'}</div>
       <div class="ki-comp-act"><button class="primary-btn" data-act="ki-add-save">✅ Tạo đợt</button></div>
@@ -3770,13 +3804,24 @@
       if (!title) { toast('Nhập ý lớn của đợt'); return; }
       const focus_pillars = Array.from(document.querySelectorAll('.ki-fp:checked')).map(c => c.value);
       const orig = el.textContent; el.disabled = true; el.textContent = '⏳ Đang tạo…';
+      const _fail = m => { toast(m); el.disabled = false; el.textContent = orig; };
       try {
+        // FV3-1: gắn big idea — chọn có sẵn, hoặc '__new__' tạo mới trước rồi lấy id.
+        let big_idea_id = g('kiBigIdea');
+        if (big_idea_id === '__new__') {
+          const newTitle = g('kiBigNew').trim();
+          if (!newTitle) { _fail('Nhập tên ý lớn mới (hoặc chọn “— không gắn —”)'); return; }
+          const rb = await API.post('api/biz/big-idea/save', { user_id: _bizUserId, title: newTitle });
+          if (!rb || rb.error || !(rb.big_idea && rb.big_idea.id)) { _fail((rb && rb.error) || 'Không tạo được ý lớn mới'); return; }
+          big_idea_id = rb.big_idea.id;
+        }
         const r = await API.post('api/biz/key-idea/save', {
           user_id: _bizUserId, title, angle: g('kiAngle').trim(), goal: g('kiGoal'),
-          window_start: g('kiWs'), window_end: g('kiWe'), focus_tier: g('kiFocusTier'), focus_pillars });
-        if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
+          window_start: g('kiWs'), window_end: g('kiWe'), focus_tier: g('kiFocusTier'), focus_pillars,
+          big_idea_id });
+        if (r.error) { _fail(r.error); return; }
         _kiAddOpen = false; await refreshBiz(); toast('⚡ Đã tạo chiến dịch'); route();
-      } catch (e) { toast('Không tạo được chiến dịch — thử lại sau.'); el.disabled = false; el.textContent = orig; }
+      } catch (e) { _fail('Không tạo được chiến dịch — thử lại sau.'); }
       return;
     }
     if (act === 'ki-import-legacy') {   // B4: nhập campaigns_v2 cũ → key_ideas
