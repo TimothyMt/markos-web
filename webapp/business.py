@@ -3466,6 +3466,100 @@ def _purpose_ratio_hint(purpose: str = "", goal: str = "") -> tuple:
     return _DEFAULT_RATIO, ""
 
 
+# ════ FV3-5: HÀNH TRÌNH KHÁCH — mắt xích nối tỉ lệ với danh sách bài (doc §4.1) ════
+# journey[] = [{stage, trigger, barrier, content_role}]; mỗi posts[] trỏ về 1 stage (seam).
+# Bài không gỡ rào cản nào = bài thừa (LLM cắt lúc dựng; code CHỈ ràng seam + degrade, KHÔNG hard-cut
+# vì lỗi đặt-tên-stage của LLM không đáng để xoá bài tốt — WIRING: có đường degrade khi input thô).
+_JOURNEY_STAGES = ("nhận biết", "tìm hiểu", "cân nhắc", "mua", "quay lại")
+# Cắt theo archetype ngành: hàng mua-cảm-xúc-nhanh thì "tìm hiểu/cân nhắc" gần như biến mất.
+_JOURNEY_BY_ARCHETYPE = {
+    "impulse":        ("nhận biết", "mua", "quay lại"),
+    "demand_gen":     ("nhận biết", "tìm hiểu", "cân nhắc", "mua", "quay lại"),
+    "trust_building": ("nhận biết", "tìm hiểu", "cân nhắc", "mua", "quay lại"),
+}
+# alias mềm → stage chuẩn (LLM hay viết awareness/consideration/mua hàng…)
+_JOURNEY_ALIAS = {
+    "awareness": "nhận biết", "nhan biet": "nhận biết", "biết đến": "nhận biết", "khơi": "nhận biết",
+    "tìm hiểu": "tìm hiểu", "tim hieu": "tìm hiểu", "khám phá": "tìm hiểu", "research": "tìm hiểu",
+    "cân nhắc": "cân nhắc", "can nhac": "cân nhắc", "consideration": "cân nhắc", "so sánh": "cân nhắc",
+    "đắn đo": "cân nhắc", "mua": "mua", "mua hàng": "mua", "chốt": "mua", "conversion": "mua",
+    "quyết định": "mua", "purchase": "mua", "quay lại": "quay lại", "quay lai": "quay lại",
+    "giữ chân": "quay lại", "retention": "quay lại", "trung thành": "quay lại", "loyalty": "quay lại",
+}
+# tofu/mofu/bofu → thứ tự ưu tiên stage để DEGRADE post thiếu journey_stage (snap vào journey có sẵn)
+_TIER_STAGE_PREF = {
+    "tofu": ("nhận biết", "tìm hiểu", "cân nhắc", "mua", "quay lại"),
+    "mofu": ("cân nhắc", "tìm hiểu", "mua", "nhận biết", "quay lại"),
+    "bofu": ("mua", "quay lại", "cân nhắc", "tìm hiểu", "nhận biết"),
+}
+
+
+def _journey_stages_for_archetype(archetype: str = "") -> tuple:
+    """Danh sách stage NÊN CÓ theo archetype (menu cấp cho LLM). Lạ/rỗng → full 5 stage."""
+    a = str(archetype or "").strip().lower()
+    return _JOURNEY_BY_ARCHETYPE.get(a, _JOURNEY_STAGES)
+
+
+def _norm_journey_stage(s) -> str:
+    """Chuẩn hoá 1 chuỗi tự do → 1 stage chuẩn (khớp trực tiếp → alias → substring). Lạ → ''."""
+    t = str(s or "").strip().lower()
+    if not t:
+        return ""
+    for st in _JOURNEY_STAGES:
+        if t == st:
+            return st
+    if t in _JOURNEY_ALIAS:
+        return _JOURNEY_ALIAS[t]
+    for k, st in _JOURNEY_ALIAS.items():        # khớp lỏng: chứa từ khoá
+        if k in t:
+            return st
+    for st in _JOURNEY_STAGES:
+        if st in t:
+            return st
+    return ""
+
+
+def _snap_stage_to_journey(js: str, tier: str, journey_stages) -> str:
+    """Đảm bảo seam: mỗi post trỏ về 1 stage HỢP LỆ. js hợp lệ & có trong journey → giữ.
+    Ngược lại degrade theo tier (ưu tiên stage gần tầng phễu) trong các stage journey đang có.
+    journey rỗng → trả stage suy từ tier (vẫn thông tin, không có journey để chiếu)."""
+    stages = [s for s in (journey_stages or []) if s in _JOURNEY_STAGES]
+    if js and js in _JOURNEY_STAGES and (not stages or js in stages):
+        return js
+    pref = _TIER_STAGE_PREF.get(str(tier or "").strip().lower(), _JOURNEY_STAGES)
+    if stages:
+        for st in pref:
+            if st in stages:
+                return st
+        return stages[0]
+    return pref[0]
+
+
+def _norm_journey(val, allowed_stages) -> list:
+    """FV3-5: chuẩn hoá journey[] LLM → [{stage,trigger,barrier,content_role}].
+    stage chuẩn hoá + PHẢI trong allowed_stages (cắt theo archetype); dedupe theo stage; giữ thứ tự
+    canonical (nhận biết→…→quay lại). Mục thiếu stage → bỏ. barrier rỗng vẫn giữ (rào cản có thể mỏng)."""
+    allowed = [s for s in (allowed_stages or _JOURNEY_STAGES) if s in _JOURNEY_STAGES]
+    allowset = set(allowed) or set(_JOURNEY_STAGES)
+    seen, by_stage = set(), {}
+    if isinstance(val, list):
+        for it in val:
+            if not isinstance(it, dict):
+                continue
+            st = _norm_journey_stage(it.get("stage"))
+            if not st or st not in allowset or st in seen:
+                continue
+            seen.add(st)
+            by_stage[st] = {
+                "stage": st,
+                "trigger": str(it.get("trigger") or "").strip()[:160],
+                "barrier": str(it.get("barrier") or "").strip()[:200],
+                "content_role": str(it.get("content_role") or it.get("role") or "").strip()[:200],
+            }
+    # giữ thứ tự canonical theo allowed
+    return [by_stage[s] for s in allowed if s in by_stage]
+
+
 # ════ FV3-4a: TỪ ĐIỂN KÊNH — 1 NGUỒN slug chuẩn (doc §3.3 Bước 1) ════
 # Trước đây "kênh" nói ở 4 nơi, không nơi nào là nguồn (bet_choices.channel text · current_channels text ·
 # posts[].channel LLM chế · top_channels theo ngành). CHANNELS = producer duy nhất để #4b-4d ràng ⊆ được.
@@ -4113,14 +4207,21 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
         industry = prof.get("industry") or ""
         cur_channels = prof.get("current_channels") or ""
         synth = await _latest_content(uid, "synthesis")
+        cust = await _latest_content(uid, "customer_insight")     # FV3-5: rào cản LẤY TỪ T3 (nỗi đau thật)
         msg = extra.get("messaging") if isinstance(extra.get("messaging"), dict) else {}
         voice = (msg or {}).get("voice") if isinstance((msg or {}).get("voice"), dict) else {}
         arche = ""
+        arche_slug = ""
+        ind_barriers = []                                          # FV3-5: rào cản mặc định của ngành (backup)
         try:
-            from frameworks.industry_context import get_purchase_archetype, ARCHETYPE_LABEL
-            arche = ARCHETYPE_LABEL.get(get_purchase_archetype(industry) or "", "") or (get_purchase_archetype(industry) or "")
+            from frameworks.industry_context import get_purchase_archetype, ARCHETYPE_LABEL, get_industry_context
+            arche_slug = get_purchase_archetype(industry) or ""
+            arche = ARCHETYPE_LABEL.get(arche_slug, "") or arche_slug
+            _ctx = get_industry_context(industry)
+            ind_barriers = [str(b).strip() for b in (getattr(_ctx, "buyer_barriers", None) or []) if str(b).strip()][:6]
         except Exception:
             pass
+        allowed_stages = _journey_stages_for_archetype(arche_slug)  # FV3-5: cắt journey theo archetype
         # khung góc đánh từ struct (degrade → messaging pillars)
         angle_ctx = []
         for s in _playbook_segments(extra):
@@ -4194,11 +4295,19 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
             # B6-A: Risk & Contingency — rủi ro triển khai đợt + phương án dự phòng.
             "Thêm 'risks' = 2-4 rủi ro triển khai đợt (vd chi phí/kênh/creative không ăn), mỗi rủi ro có likelihood + "
             "impact ('thấp'|'trung bình'|'cao') + backup (phương án B cụ thể). Thực tế, không sáo rỗng.\n"
+            # FV3-5: HÀNH TRÌNH khách — mắt xích nối tỉ lệ với danh sách bài (doc §4.1).
+            "Thêm 'journey' = HÀNH TRÌNH khách qua đợt này: mỗi chặng {stage, trigger, barrier, content_role}. "
+            "CHỈ dùng stage trong 'Chặng hợp lệ' đã cho (đã cắt theo ngành). trigger = cái đẩy khách sang chặng "
+            "sau. barrier = RÀO CẢN giữ khách lại — LẤY TỪ nỗi đau THẬT ở phần Khách/nghiên cứu, KHÔNG bịa. "
+            "content_role = kiểu nội dung gỡ ĐÚNG rào cản đó.\n"
+            "Mỗi bài PHẢI gắn 'journey_stage' = 1 chặng trong 'journey' (bài này phục vụ chặng nào, gỡ rào cản "
+            "chặng đó). BÀI KHÔNG GỠ RÀO CẢN NÀO = bài thừa → ĐỪNG đưa vào (thà ít bài đúng vai còn hơn rải đủ số).\n"
             'Output JSON DUY NHẤT: {"ratio":"<vd 60/30/10>",'
             '"offers":{"tofu":"","mofu":"","bofu":""},'
             '"risks":[{"risk":"","likelihood":"thấp|trung bình|cao","impact":"thấp|trung bình|cao","backup":""}],'
+            '"journey":[{"stage":"","trigger":"","barrier":"","content_role":""}],'
             '"posts":[{"tier":"tofu|mofu|bofu","channel":"","format":"",'
-            '"role":"","pillar":"","sibling_group":"","note":""}]}'
+            '"role":"","pillar":"","journey_stage":"","sibling_group":"","note":""}]}'
         )
         vdo = ", ".join(str(x) for x in (voice.get("do") or [])[:4])
         # ma trận nội dung nền (bối cảnh — đợt nhấn chồng lên, không dựng lại)
@@ -4215,6 +4324,12 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 "# Kênh hợp lệ (CHỈ chọn trong đây cho 'channel', đừng ghép định dạng vào)\n"
                 + "\n".join(f"- {lbl}" for lbl in camp_menu) + "\n"
                 f"# Giọng NÊN\n{vdo or '(theo thương hiệu)'}\n"
+                # FV3-5: chặng hành trình HỢP LỆ (đã cắt theo archetype) + nguồn rào cản (T3 + ngành)
+                + "# Chặng hợp lệ cho 'journey' & 'journey_stage' (CHỈ dùng đúng tên trong đây)\n"
+                + "\n".join(f"- {st}" for st in allowed_stages) + "\n"
+                + (f"# Nỗi đau/insight khách (T3 — rào cản LẤY TỪ ĐÂY, không bịa)\n{cust[:1600]}\n" if cust.strip() else "")
+                + ("# Rào cản thường gặp của ngành (backup nếu T3 mỏng)\n" + "\n".join(f"- {b}" for b in ind_barriers) + "\n"
+                   if ind_barriers else "")
                 + (f"# TRỤ thông điệp (chọn pillar cho mỗi bài trong đây)\n" + "\n".join(f"- {t}" for t in known_pillars[:8]) + "\n"
                    if known_pillars else "")
                 + ("# Ma trận nội dung nền (đợt nhấn chồng lên)\n" + "\n".join(cm_lines) + "\n" if cm_lines else "")
@@ -4222,12 +4337,14 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 + (f"\n# Chiến lược\n{synth[:1200]}" if synth.strip() else ""))
         res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=2600)
         raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
-        posts, ratio, offers, risks = [], "", {}, []
+        posts, ratio, offers, risks, journey = [], "", {}, [], []
         try:
             data = _json.loads(raw)
             ratio = str(data.get("ratio") or "")[:20]
             offers = _norm_offers(data.get("offers"))     # B6-B: offer theo tầng
             risks = _norm_risks(data.get("risks"))          # B6-A: rủi ro + dự phòng
+            journey = _norm_journey(data.get("journey"), allowed_stages)  # FV3-5: hành trình khách (cắt theo archetype)
+            _jstages = [j["stage"] for j in journey]
             for p in (data.get("posts") or []):
                 if not isinstance(p, dict):
                     continue
@@ -4247,9 +4364,12 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 fmt = str(p.get("format") or "").strip()[:60]
                 if not fmt and slug:
                     fmt = (CHANNELS[slug]["formats"] or [""])[0]
+                # FV3-5: ràng bài vào 1 chặng hành trình (seam). LLM ghi lạ/thiếu → snap theo tier vào journey có sẵn.
+                jstage = _snap_stage_to_journey(_norm_journey_stage(p.get("journey_stage")), tier, _jstages)
                 posts.append({"tier": tier, "channel": slug, "channel_raw": ch_raw,
                               "channel_guessed": guessed, "format": fmt, "role": role,
                               "pillar": _match_pillar(p.get("pillar"), known_pillars),  # khớp lỏng trụ; lạ → ''
+                              "journey_stage": jstage,
                               "sibling_group": str(p.get("sibling_group") or "").strip()[:24],
                               "note": str(p.get("note") or "").strip()[:160]})
         except Exception as e:
@@ -4259,12 +4379,14 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
             _ch0 = (cur_channels.split(",")[0].strip()[:60] if cur_channels else "") or "Facebook"
             _slug0 = channel_slug(_ch0) or "facebook"          # FV3-4b: kênh degrade cũng về slug chuẩn
             _fmt0 = (CHANNELS[_slug0]["formats"] or [""])[0]
+            _jstage0 = _snap_stage_to_journey("", "tofu", [j["stage"] for j in journey])  # FV3-5: bài degrade cũng có chặng
             for p in ((msg or {}).get("pillars") or [])[:3]:
                 terr = str((p or {}).get("territory") or "").strip()
                 if terr:
                     posts.append({"tier": "tofu", "channel": _slug0, "channel_raw": _ch0,
                                   "channel_guessed": False, "format": _fmt0,
-                                  "role": f"Giới thiệu lãnh địa: {terr}", "pillar": terr, "sibling_group": "",
+                                  "role": f"Giới thiệu lãnh địa: {terr}", "pillar": terr,
+                                  "journey_stage": _jstage0, "sibling_group": "",
                                   "note": "(degrade — chưa có đề xuất AI)"})
             if not posts:
                 return {"error": "Chưa dựng được danh sách bài — thử lại."}
@@ -4275,7 +4397,8 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
         else:
             ratio = _norm_ratio(ratio) or ratio_hint or _DEFAULT_RATIO
             ratio_source = "derived"
-        fmap = {"ratio": ratio, "ratio_source": ratio_source, "posts": posts, "offers": offers}  # B6-B: offer/tầng ở funnel_map
+        fmap = {"ratio": ratio, "ratio_source": ratio_source, "journey": journey,  # FV3-5: hành trình khách (rào cản từ T3)
+                "posts": posts, "offers": offers}  # B6-B: offer/tầng ở funnel_map
         idea["funnel_map"] = fmap
         if risks:                                                    # B6-A: risks ở cấp đợt (giữ nếu gen mới rỗng? — ghi đè khi có)
             idea["risks"] = risks
