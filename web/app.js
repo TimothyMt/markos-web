@@ -2242,8 +2242,20 @@
     }).join('');
     return `<div class="ki-funnel">
       ${ratio ? `<div class="ki-ratio"><span class="muted">Tỉ lệ phễu:</span> <b>${mxE(ratio)}</b> <span class="muted">(TOFU/MOFU/BOFU)</span> ${rsrc} <button class="ghost-line xs" data-act="ki-ratio-edit" data-id="${mxE(kid || '')}" data-ratio="${mxE(ratio)}" title="Chỉnh tay tỉ lệ phễu">✎ sửa</button></div>` : ''}
+      ${kiJourneyHTML(fm.journey)}
       <div class="ki-tiers">${tiers}</div>
     </div>`;
+  }
+  // FV3-5: hành trình khách — mỗi chặng nêu RÀO CẢN (từ T3) + nội dung gỡ. Read-only; bài gắn journey_stage.
+  function kiJourneyHTML(journey) {
+    const J = Array.isArray(journey) ? journey.filter(j => j && j.stage) : [];
+    if (!J.length) return '';
+    const rows = J.map(j => `<div class="ki-jrow">
+      <span class="ki-jstage">${mxE(j.stage)}</span>
+      ${j.barrier ? `<span class="ki-jbar" title="Rào cản giữ khách lại (từ nghiên cứu khách)">⛔ ${mxE(j.barrier)}</span>` : ''}
+      ${j.content_role ? `<span class="ki-jrole" title="Nội dung gỡ rào cản này">→ ${mxE(j.content_role)}</span>` : ''}
+    </div>`).join('');
+    return `<div class="ki-journey"><div class="ki-journey-h muted">🧭 Hành trình khách — nội dung gỡ đúng rào cản</div>${rows}</div>`;
   }
   function kiPostHTML(p) {
     const pill = p.pillar ? `<span class="ki-pillar">${mxE(p.pillar)}</span>` : '';
@@ -2252,10 +2264,12 @@
     const chTxt = chLabel(p.channel) || p.channel_raw || p.channel || '';
     const guess = p.channel_guessed ? ` <span class="ki-chguess" title="Max đoán kênh — chưa chuẩn, chốt lại ở chiến dịch">⚠</span>` : '';
     const fmt = p.format ? `<span class="ki-fmt">${mxE(p.format)}</span>` : '';
+    // FV3-5: chặng hành trình bài này phục vụ (ràng bài vào 1 stage — bài không gỡ rào cản nào đã bị cắt lúc dựng).
+    const stg = p.journey_stage ? `<span class="ki-jstg" title="Chặng hành trình bài này phục vụ">🧭 ${mxE(p.journey_stage)}</span>` : '';
     return `<div class="ki-post">
       <span class="ki-ch">${mxE(chTxt)}${guess}</span>${fmt}
       <span class="ki-prole">${mxE(p.role)}</span>
-      ${pill}${sib}
+      ${stg}${pill}${sib}
     </div>`;
   }
 
