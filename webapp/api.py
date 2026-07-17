@@ -190,7 +190,8 @@ async def biz_calendar_gen(request):
                                       d.get("framework", ""), d.get("phase", ""),
                                       d.get("campaign_gap", ""), d.get("objective", ""),
                                       d.get("track_role", ""), d.get("tier", ""),
-                                      d.get("sibling_group", ""), d.get("channel", ""))
+                                      d.get("sibling_group", ""), d.get("channel", ""),
+                                      d.get("slot_key", ""))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -201,7 +202,10 @@ async def biz_calendar_post_save(request):
                                        d.get("content", ""), bool(d.get("delete")),
                                        d.get("track", ""), d.get("pillar_id", ""),
                                        d.get("campaign_id", ""), d.get("phase", ""),
-                                       d.get("week"), d.get("day"))
+                                       d.get("week"), d.get("day"),
+                                       d.get("journey_stage", ""), d.get("barrier_ref", ""),
+                                       d.get("content_brief", ""), d.get("material", ""),
+                                       d.get("offer_ref", ""), d.get("status", ""))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 

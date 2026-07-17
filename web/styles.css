@@ -765,6 +765,25 @@ body.chat-mode #view { height: calc(100vh - 64px); }
 .slot-axis select { font:inherit; font-size:13.5px; padding:8px 10px; border:1px solid var(--stroke);
   border-radius:8px; background:var(--panel); color:var(--txt); }
 @media (max-width:560px){ .slot-axes { flex-direction:column; } }
+/* FV3-7 (§5): khối brief nội dung trong modal ô lịch — Lịch quyết NÓI GÌ + cổng cứng duyệt. */
+.brief-box { margin-top:14px; padding:12px; border:1px solid var(--stroke); border-radius:10px;
+  background:var(--panel-2, var(--panel)); }
+.brief-head { display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:8px; }
+.brief-head .brief-st { margin-left:auto; }
+.brief-st { font-size:11.5px; padding:2px 8px; border-radius:10px; white-space:nowrap; }
+.brief-st-draft { background:rgba(230,170,20,.16); color:#b6820c; }
+.brief-st-approved { background:rgba(30,170,90,.16); color:#1a8f4d; }
+.brief-field { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); margin-top:8px; }
+.brief-field input, .brief-field select, .brief-what { font:inherit; font-size:13.5px; padding:8px 10px;
+  border:1px solid var(--stroke); border-radius:8px; background:var(--panel); color:var(--txt);
+  box-sizing:border-box; width:100%; }
+.brief-what { resize:vertical; line-height:1.4; }
+.brief-field input:focus, .brief-field select:focus, .brief-what:focus { outline:none; border-color:var(--primary); }
+.brief-row { display:flex; gap:12px; }
+.brief-row .brief-field { flex:1; }
+.brief-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+.primary-btn.sm.is-locked { opacity:.6; }
+@media (max-width:560px){ .brief-row { flex-direction:column; } }
 .cal-arc-legend { flex-basis:100%; font-size:12px; color:var(--muted); margin-top:2px; }
 /* M-E: khay bài chưa xếp lịch (orphan) */
 .cal-orphans { border:1px solid var(--amber,#e0a106); background:rgba(224,161,6,.07);

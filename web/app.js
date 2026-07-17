@@ -2995,6 +2995,23 @@
              pillar_id: s.pillarId || '', campaign_id: s.campaignId || '',
              phase: s.phase || '', week: s.week, day: s.day };
   }
+  // FV3-7 (§5): lưu/duyệt BRIEF ô lịch (không gửi content → merge mềm giữ bài đã có). status=approved mở cổng gen.
+  async function _persistBrief(el, status) {
+    const ov = document.getElementById('bizModal');
+    if (!ov || !_slotCtx || !_slotCtx.key) { toast('Thiếu thông tin ô'); return; }
+    const v = id => ((ov.querySelector('#' + id) || {}).value || '').trim();
+    const orig = el.textContent; el.disabled = true; el.textContent = status === 'approved' ? '⏳ Đang duyệt…' : '⏳ Đang lưu…';
+    try {
+      const r = await API.post('api/biz/calendar/post-save', {
+        user_id: _bizUserId, ..._slotSaveRef(),
+        content_brief: v('briefWhat'), journey_stage: v('briefStage'), barrier_ref: v('briefBarrier'),
+        material: v('briefMaterial'), offer_ref: v('briefOffer'), status });
+      if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
+      await refreshBiz();
+      openSlotModal(_slotCtx);   // vẽ lại: badge + prefill + cổng gen theo status mới
+      toast(status === 'approved' ? '✓ Đã duyệt brief — tạo bài được rồi' : '💾 Đã lưu nháp brief');
+    } catch (e) { toast('Không lưu được — thử lại sau.'); el.disabled = false; el.textContent = orig; }
+  }
   const _DAYNAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
   function _ensureBizModal() { showModal('', '', null); return document.getElementById('bizModal'); }
   // M-D Pha 2: 2 trục soạn bài — Góc khai thác (value lens) × Cách mở (hook style)
@@ -3016,6 +3033,13 @@
     // Pha 1: chủ đề = ô text sửa được (điền sẵn topic cụ thể), kèm chip gợi ý; góc khai thác = kế thừa từ trụ.
     const topicDef = slot.topic || (angles[0] || slot.title || '');
     const angleLens = slot.angleLens || [];
+    // FV3-7 (§5): brief ô này (nói gì · chặng · rào cản · chất liệu · offer) + CỔNG CỨNG duyệt.
+    const _b = (M.bizCalendarBriefs || {})[slot.key || ''] || {};
+    const _bst = _b.status === 'approved' ? 'approved' : 'draft';
+    const _JSTAGES = ['nhận biết', 'tìm hiểu', 'cân nhắc', 'mua', 'quay lại'];   // khớp _JOURNEY_STAGES backend
+    const _OFFERS = [['', '— tầng offer —'], ['tofu', 'TOFU · khơi'], ['mofu', 'MOFU · thuyết phục'], ['bofu', 'BOFU · chốt']];
+    const _opt = (val, cur, label) => `<option value="${E(val)}"${val === (cur || '') ? ' selected' : ''}>${E(label != null ? label : val)}</option>`;
+    const _cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
     ov.querySelector('.modal-body').innerHTML = `
       <p class="muted" style="margin:0 0 8px"><b>💡 Chủ đề</b> bài này (sửa thoải mái) — Max viết theo:</p>
       <input id="slotTopic" class="slot-topic" value="${E(topicDef)}" placeholder="vd: 3 sai lầm khi chọn nhà cung cấp khiến mất tiền oan">
@@ -3026,10 +3050,30 @@
           <select id="slotLens">${lensList.map(l => `<option ${l === lensDef ? 'selected' : ''}>${E(l)}</option>`).join('')}</select></label>
         <label class="slot-axis"><span>Cách mở (hook)</span>
           <select id="slotHook">${HOOK_STYLES.map(h => `<option>${E(h)}</option>`).join('')}</select></label>
+      </div>
+      <div class="brief-box">
+        <div class="brief-head"><b>📋 Brief nội dung</b> <small class="muted">Lịch quyết NÓI GÌ</small>
+          <span class="brief-st brief-st-${_bst}">${_bst === 'approved' ? '🟢 Đã duyệt' : '🟡 Nháp'}</span></div>
+        <label class="brief-field"><span>🎯 Bài này NÓI GÌ <small class="muted">· 1-2 dòng luận điểm, không phải câu chữ</small></span>
+          <textarea id="briefWhat" class="brief-what" rows="2" placeholder="vd: kể ca khách kích ứng 3 lần → soi da trước khi làm là bắt buộc">${E(_b.content_brief || '')}</textarea></label>
+        <div class="brief-row">
+          <label class="brief-field"><span>Chặng hành trình</span>
+            <select id="briefStage">${_opt('', _b.journey_stage, '— chặng —')}${_JSTAGES.map(s => _opt(s, _b.journey_stage, _cap(s))).join('')}</select></label>
+          <label class="brief-field"><span>Tầng offer</span>
+            <select id="briefOffer">${_OFFERS.map(([v, l]) => _opt(v, _b.offer_ref, l)).join('')}</select></label>
+        </div>
+        <label class="brief-field"><span>Rào cản bài này gỡ</span>
+          <input id="briefBarrier" type="text" value="${E(_b.barrier_ref || '')}" placeholder="vd: sợ lại kích ứng"></label>
+        <label class="brief-field"><span>Chất liệu có thật <small class="muted">· trống = Max KHÔNG bịa</small></span>
+          <input id="briefMaterial" type="text" value="${E(_b.material || '')}" placeholder="vd: ca khách thật — founder xác nhận"></label>
+        <div class="brief-actions">
+          <button class="ghost-line sm" data-act="slot-brief-save">💾 Lưu nháp</button>
+          <button class="primary-btn sm" data-act="slot-brief-approve">✓ Duyệt brief</button>
+        </div>
       </div>`;
     const foot = ov.querySelector('.modal-foot'); foot.style.display = 'flex';
-    foot.innerHTML = `<div class="rate-group"><span class="muted">${E(slot.pillar || '')}${slot.funnel ? ' · ' + E(slot.funnel) : ''}</span></div>
-      <div class="modal-foot-r"><button class="primary-btn sm" data-act="slot-gen">⚡ Tạo bài</button></div>`;
+    foot.innerHTML = `<div class="rate-group"><span class="muted">${_bst === 'approved' ? '✓ brief đã duyệt — tạo bài được' : '🔒 duyệt brief để mở tạo bài'}</span></div>
+      <div class="modal-foot-r"><button class="primary-btn sm${_bst === 'approved' ? '' : ' is-locked'}" data-act="slot-gen">⚡ Tạo bài</button></div>`;
     ov.classList.add('show');
   }
   // Khung TEXT sửa được (t2) + Lưu & Duyệt ngay tại ô (t1). wasSaved=đang xem bài đã lưu.
@@ -3604,6 +3648,9 @@
       const angle = ((ov.querySelector('#slotTopic') || {}).value || '').trim()
         || _slotCtx.topic || _slotCtx.title || '';
       if (!angle) { toast('Nhập chủ đề bài'); return; }
+      // FV3-7 CỔNG CỨNG (§5): chỉ tạo khi brief ô này đã DUYỆT (backend cũng chặn — đây là lưới sớm đỡ tốn call).
+      const _cb = (M.bizCalendarBriefs || {})[_slotCtx.key || ''] || {};
+      if (_cb.status !== 'approved') { toast('🔒 Duyệt brief trước khi tạo bài'); return; }
       const value_lens = (ov.querySelector('#slotLens') || {}).value || _slotCtx.value_lens || '';
       const hook_style = (ov.querySelector('#slotHook') || {}).value || '';
       const orig = el.textContent; el.disabled = true; el.textContent = '⏳ Đang viết…';
@@ -3616,7 +3663,7 @@
           campaign_gap: _slotCtx.campaign_gap || '', objective: _slotCtx.objective || '',
           track_role: _slotCtx.track_role || '',
           tier: _slotCtx.tier || '', sibling_group: _slotCtx.sibling_group || '',
-          channel: _slotCtx.channel || '' });
+          channel: _slotCtx.channel || '', slot_key: _slotCtx.key || '' });
         if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
         showSlotResult(r.content, r.run_id); refreshBiz();
       } catch (e) { toast('Không tạo được bài — thử lại sau.'); el.disabled = false; el.textContent = orig; }
@@ -3652,6 +3699,8 @@
       } catch (e) { toast('Không bỏ được — thử lại sau.'); }
       return;
     }
+    if (act === 'slot-brief-save') { _persistBrief(el, 'draft'); return; }        // FV3-7: lưu brief nháp
+    if (act === 'slot-brief-approve') { _persistBrief(el, 'approved'); return; }  // FV3-7: duyệt brief → mở gen
     if (act === 'portfolio-open') { openPortfolio(); return; }
     if (act === 'pf-gen') {   // M-F (F2): Max đề xuất danh mục từ roadmap
       if (!apiAvailable || !M.bizEnabled) { toast('Bật backend để Max đề xuất'); return; }
