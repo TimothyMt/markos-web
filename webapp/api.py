@@ -352,6 +352,13 @@ async def biz_campaign_channels_save(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+async def biz_channel_promote(request):
+    """FV3-4d: BƠM NGƯỢC — thêm 1 kênh đang đánh lệch vào TRẦN chiến lược (bet_choices.channel)."""
+    d = await request.json()
+    res = await biz.promote_channel_to_strategy(d.get("user_id"), slug=d.get("slug", ""))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 async def biz_key_ideas_import_legacy(request):
     """B4 — nhập campaigns_v2 cũ → key_ideas (chiến dịch Layered). Additive, idempotent, không xoá đồ cũ."""
     d = await request.json()
@@ -667,6 +674,7 @@ def api_routes() -> list:
         Route("/api/biz/purposes/derive",           biz_purposes_derive, methods=["POST"]),
         Route("/api/biz/funnel-ratio/save",         biz_funnel_ratio_save, methods=["POST"]),
         Route("/api/biz/key-idea/channels/save",    biz_campaign_channels_save, methods=["POST"]),
+        Route("/api/biz/channel/promote",           biz_channel_promote, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),

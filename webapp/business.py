@@ -379,11 +379,15 @@ async def biz_data(user_id=None) -> dict:
     out["bizChannels"] = [{"slug": s, "label": v["label"], "tiers": list(v["tiers"]),
                            "formats": list(v["formats"])} for s, v in CHANNELS.items()]
     # FV3-4c: TRẦN kênh chiến lược ① (slug) → FE tick sẵn trong composer + badge kênh ngoài trần.
+    # FV3-4d: kênh LỆCH (nhiều đợt đánh ngoài trần) → FE nudge + nút bơm ngược lên chiến lược.
     try:
         _iec = (out.get("bizProfile") or {}).get("intake_extra") or {}
-        out["bizChannelCeiling"] = _ceiling_channel_slugs(_iec, out.get("bizProfile") or {})
+        _profc = out.get("bizProfile") or {}
+        out["bizChannelCeiling"] = _ceiling_channel_slugs(_iec, _profc)
+        out["bizChannelDrift"] = detect_channel_drift(_iec, _profc)
     except Exception:
         out["bizChannelCeiling"] = []
+        out["bizChannelDrift"] = []
     # N-07b: Playbook lệch chiến lược? (playbook bám synthesis_id cũ ≠ synthesis hiện hành) → FE badge.
     try:
         _ie6 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -3575,6 +3579,33 @@ def _ceiling_channel_slugs(extra, prof) -> list:
     return slugs
 
 
+_DRIFT_MIN = 2      # FV3-4d: ≥ ngần này đợt dùng 1 kênh ngoài trần mới coi là "lệch" (không nhắc phép thử 1 lần)
+_DRIFT_CAP = 3      # nhắc tối đa ngần này kênh (nguyên tắc #6: ranked + capping, không nhồi)
+
+
+def detect_channel_drift(extra, prof) -> list:
+    """FV3-4d (doc §3.3 Bước 5): dò kênh LỆCH — kênh nhiều đợt đang đánh mà KHÔNG có trong trần ①.
+    Gộp cả 2 hướng lệch: user cố ý chọn ngoài trần · trần bị bỏ 1 kênh mà đợt vẫn dùng — cùng 1 dấu hiệu.
+    Trần rỗng → [] (chưa có chiến lược thì không có gì để lệch). Ranked theo số đợt, cap _DRIFT_CAP.
+    Trả [{slug, label, count, campaigns:[title...]}] cho FE nudge + nút bơm ngược."""
+    extra = extra if isinstance(extra, dict) else {}
+    ceil = set(_ceiling_channel_slugs(extra, prof))
+    if not ceil:
+        return []
+    ideas = extra.get("key_ideas") if isinstance(extra.get("key_ideas"), list) else []
+    hits = {}
+    for ki in ideas:
+        if not isinstance(ki, dict):
+            continue
+        for s in _norm_channels(ki.get("channels")):
+            if s not in ceil:
+                hits.setdefault(s, []).append(str(ki.get("title") or ki.get("id") or "")[:80])
+    drift = [{"slug": s, "label": channel_label(s) or s, "count": len(v), "campaigns": v[:5]}
+             for s, v in hits.items() if len(v) >= _DRIFT_MIN]
+    drift.sort(key=lambda x: -x["count"])
+    return drift[:_DRIFT_CAP]
+
+
 # B6: mức xác suất/tác động cho Risk & Contingency (khoá "Bước 5"). Rác → ''.
 _RISK_LEVELS = ("thấp", "trung bình", "cao")
 
@@ -4332,6 +4363,41 @@ async def save_campaign_channels(user_id=None, id: str = "", channels=None) -> d
         return {"ok": True, "channels": slugs, "off": off}
     except Exception as e:
         logger.warning("biz.save_campaign_channels failed: %s", e)
+        return {"error": str(e)}
+
+
+async def promote_channel_to_strategy(user_id=None, slug: str = "") -> dict:
+    """FV3-4d (doc §3.3 Bước 5): BƠM NGƯỢC — user chọn 'đổi chiến lược' cho 1 kênh đang đánh lệch →
+    thêm kênh vào TRẦN ① (bet_choices.channel). Ceiling suy lại tự có kênh này → hết lệch.
+    Idempotent: kênh đã trong trần → không thêm lại. Trả trần mới (slug)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        s = channel_slug(slug)
+        if not s:
+            return {"error": "Kênh không hợp lệ."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        if s in set(_ceiling_channel_slugs(extra, prof)):     # đã trong trần → idempotent
+            return {"ok": True, "ceiling": _ceiling_channel_slugs(extra, prof), "added": False}
+        bc = extra.get("bet_choices") if isinstance(extra.get("bet_choices"), dict) else {}
+        if not isinstance(bc, dict):
+            bc = {}
+        chans = bc.get("channel") if isinstance(bc.get("channel"), list) else []
+        chans = [str(x) for x in chans] + [channel_label(s)]   # thêm nhãn chuẩn vào trần text
+        bc["channel"] = chans
+        extra["bet_choices"] = bc
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "ceiling": _ceiling_channel_slugs(extra, prof), "added": True}
+    except Exception as e:
+        logger.warning("biz.promote_channel_to_strategy failed: %s", e)
         return {"error": str(e)}
 
 
