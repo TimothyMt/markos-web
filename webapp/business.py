@@ -364,10 +364,13 @@ async def biz_data(user_id=None) -> dict:
         out["bizContentMatrix"] = (_ie8.get("content_matrix") if isinstance(_ie8, dict) else {}) or {}
         # FV3-6: lát cắt (trụ × dạng) + biệt danh founder đặt (overlay tên, không phải trục mới).
         out["bizTracks"] = tracks_view(_ie8 if isinstance(_ie8, dict) else {})
+        # FV3-7: brief từng ô lịch (§5) → FE badge nháp/duyệt + prefill modal + cổng gen.
+        out["bizCalendarBriefs"] = calendar_briefs_view(_ie8 if isinstance(_ie8, dict) else {})
     except Exception:
         out["bizKeyIdeas"] = []
         out["bizContentMatrix"] = {}
         out["bizTracks"] = []
+        out["bizCalendarBriefs"] = {}
     # FV3: big ideas (ý lớn gom nhiều chiến dịch theo mùa) → FE render tab Chiến dịch (mxSpikeInner).
     try:
         _ie9 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -531,15 +534,62 @@ def _post_key(track: str, pillar_id: str, campaign_id: str, phase: str,
     return f"aw|{pillar_id}|{week}|{day}"
 
 
+_POST_STATUS = ("draft", "approved")
+
+
+def _norm_post_status(s) -> str:
+    """FV3-7: status ô lịch = cổng cứng brief. Chỉ 'approved' là hợp lệ mở gen; lạ/thiếu → 'draft'."""
+    return "approved" if str(s or "").strip().lower() == "approved" else "draft"
+
+
+def _effective_post_status(entry) -> str:
+    """Trạng thái brief HIỆU LỰC cho cổng gen. Ưu tiên status đã lưu; back-compat: bài CŨ đã có content
+    (lưu trước FV3-7, không có status) coi như 'approved' để 'Tạo lại' không bị chặn oan."""
+    if not isinstance(entry, dict):
+        return ""
+    st = str(entry.get("status") or "").strip().lower()
+    if st in _POST_STATUS:
+        return st
+    return "approved" if (entry.get("content") or "").strip() else "draft"
+
+
+def calendar_briefs_view(extra) -> dict:
+    """FV3-7: map key ô → brief (§5) cho FE overlay lên lịch (badge nháp/duyệt + prefill modal).
+    Đọc thẳng intake_extra.calendar_posts (KHÔNG qua _normalize_saved vì brief nháp chưa có content)."""
+    posts = (extra or {}).get("calendar_posts") if isinstance(extra, dict) else None
+    posts = posts if isinstance(posts, dict) else {}
+    out = {}
+    for k, v in posts.items():
+        if not isinstance(v, dict):
+            continue
+        has_brief = any(str(v.get(f) or "").strip() for f in
+                        ("journey_stage", "barrier_ref", "content_brief", "material", "offer_ref"))
+        if not (has_brief or v.get("status") or (v.get("content") or "").strip()):
+            continue
+        out[k] = {"journey_stage": str(v.get("journey_stage") or ""),
+                  "barrier_ref": str(v.get("barrier_ref") or ""),
+                  "content_brief": str(v.get("content_brief") or ""),
+                  "material": str(v.get("material") or ""),
+                  "offer_ref": str(v.get("offer_ref") or ""),
+                  "status": _effective_post_status(v),
+                  "has_content": bool((v.get("content") or "").strip())}
+    return out
+
+
 async def save_calendar_post(user_id=None, slot_key: str = "", content: str = "",
                              delete: bool = False, track: str = "", pillar_id: str = "",
                              campaign_id: str = "", phase: str = "",
-                             week=None, day=None) -> dict:
-    """M-E (nâng từ M-C): lưu/duyệt bài tại ô lịch dưới dạng THẺ HẠNG NHẤT.
+                             week=None, day=None,
+                             journey_stage: str = "", barrier_ref: str = "",
+                             content_brief: str = "", material: str = "",
+                             offer_ref: str = "", status: str = "") -> dict:
+    """M-E (nâng từ M-C) + FV3-7: lưu ô lịch dưới dạng THẺ HẠNG NHẤT — content + BRIEF (§5).
 
-    value = {content, approved, track, ref:{pillarId|campaignId,phase}, place:{week,day,phase}}.
+    value = {content, approved, track, ref:{pillarId|campaignId,phase}, place:{week,day,phase},
+             journey_stage, barrier_ref, content_brief, material, offer_ref, status(draft|approved)}.
     key ổn định (_post_key) → đổi tên trụ / đổi cadence / đổi thứ tự KHÔNG mất bài (render
-    inject theo ref+place). delete=True → gỡ thẻ. slot_key = key cũ (back-compat / migration)."""
+    inject theo ref+place). delete=True → gỡ thẻ. slot_key = key cũ (back-compat / migration).
+    FV3-7: lưu được BRIEF nháp (chưa có content) — merge mềm, save brief KHÔNG xoá content & ngược lại."""
     if not available():
         return {"error": "Chưa cấu hình Supabase."}
     try:
@@ -566,16 +616,32 @@ async def save_calendar_post(user_id=None, slot_key: str = "", content: str = ""
             if slot_key and slot_key != key:
                 posts.pop(slot_key, None)   # dọn cả key cũ nếu khác
         else:
-            if not (content or "").strip():
-                return {"error": "Bài trống — không lưu."}
+            _brief_in = any((x or "").strip() for x in
+                            (content_brief, barrier_ref, material, offer_ref, journey_stage, status))
+            if not (content or "").strip() and not _brief_in:
+                return {"error": "Ô trống — chưa có bài lẫn brief để lưu."}
             def _int(v):
                 try: return int(v)
                 except Exception: return None
             ref = ({"campaignId": str(campaign_id), "phase": str(phase or "")} if tr == "camp"
                    else {"pillarId": str(pillar_id)})
-            posts[key] = {"content": content[:6000], "approved": True, "track": tr,
+            # FV3-7: merge mềm — giữ content khi chỉ lưu brief, giữ brief khi chỉ lưu content.
+            prev = posts.get(key) if isinstance(posts.get(key), dict) else {}
+            new_content = content[:6000] if (content or "").strip() else str(prev.get("content") or "")
+            _st = _norm_post_status(status) if (status or "").strip() \
+                else (prev.get("status") or ("approved" if new_content else "draft"))
+            _js = _norm_journey_stage(journey_stage) if (journey_stage or "").strip() \
+                else str(prev.get("journey_stage") or "")
+            _keep = lambda new, old: new.strip() if (new or "").strip() else str(prev.get(old) or "")
+            posts[key] = {"content": new_content, "approved": bool(new_content), "track": tr,
                           "ref": ref, "place": {"week": _int(week), "day": _int(day),
-                                                "phase": str(phase or "")}}
+                                                "phase": str(phase or "")},
+                          "journey_stage": _js,
+                          "barrier_ref": _keep(barrier_ref, "barrier_ref"),
+                          "content_brief": _keep(content_brief, "content_brief"),
+                          "material": _keep(material, "material"),
+                          "offer_ref": _keep(offer_ref, "offer_ref"),
+                          "status": _norm_post_status(_st)}
             if slot_key and slot_key != key:
                 posts.pop(slot_key, None)   # migration: bỏ bản key cũ trùng ô
         extra["calendar_posts"] = posts
@@ -4884,10 +4950,12 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
                             angle: str = "", value_lens: str = "", hook_style: str = "",
                             framework: str = "", phase: str = "",
                             campaign_gap: str = "", objective: str = "", track_role: str = "",
-                            tier: str = "", sibling_group: str = "", channel: str = "") -> dict:
-    """M1.2b + M-D: sinh 1 BÀI cho slot lịch — bám pillar (always-on) hoặc brief occasion.
+                            tier: str = "", sibling_group: str = "", channel: str = "",
+                            slot_key: str = "") -> dict:
+    """M1.2b + M-D + FV3-7: sinh 1 BÀI cho slot lịch — bám pillar (always-on) hoặc brief occasion.
     angle = CHỦ ĐỀ founder chọn; value_lens = GÓC KHAI THÁC; hook_style = CÁCH MỞ (1/5 nhóm);
-    framework = khung copywriting ẩn. Lưu skill_run `calendar_post`. Degrade {error}."""
+    framework = khung copywriting ẩn. Lưu skill_run `calendar_post`. Degrade {error}.
+    FV3-7 CỔNG CỨNG (§5): slot_key trỏ ô lịch — brief ô đó phải status=approved mới gen (không degrade)."""
     if not available():
         return {"error": "Chưa cấu hình Supabase."}
     try:
@@ -4902,6 +4970,12 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
         target = prof.get("target_customer") or ""
         product = prof.get("product_service") or ""
         _pe = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        # FV3-7 CỔNG CỨNG (§5): chỉ gen khi brief ô này đã DUYỆT (status=approved). Founder buộc đọc
+        # luận điểm trước khi tốn token — KHÔNG có đường degrade (khác các chặng khác, doc dòng 32/318).
+        _brief = (_pe.get("calendar_posts") or {}).get(slot_key) if slot_key else None
+        if _effective_post_status(_brief) != "approved":
+            return {"error": "🔒 Cần DUYỆT brief trước khi tạo bài. Mở ô lịch → điền brief "
+                             "(nói gì · chặng · rào cản) → bấm ✓ Duyệt brief, rồi mới ⚡ tạo."}
         msg_anchor = _messaging_anchor_from(_pe)   # THÔNG ĐIỆP nền ngầm — bài bám cốt lõi/giọng
         # Brand voice (nếu có) → giọng nhất quán
         voice_ctx = ""
@@ -4983,6 +5057,23 @@ async def gen_calendar_post(user_id=None, track: str = "always", pillar: str = "
             lines.append(f"Góc khai thác (value lens) BẮT BUỘC bám: {value_lens}")
         if (framework or "").strip():
             lines.append(f"Khung copywriting ẩn gợi ý: {framework}")
+        # FV3-7: brief §5 là "BÀI NÀY NÓI GÌ" — bơm lên đầu ngữ cảnh để gen bám đúng luận điểm đã duyệt
+        # (Lịch quyết NÓI GÌ · gen quyết NÓI THẾ NÀO). material rỗng → chốt chặn bịa dữ kiện.
+        if isinstance(_brief, dict):
+            _cb = str(_brief.get("content_brief") or "").strip()
+            _bar = str(_brief.get("barrier_ref") or "").strip()
+            _js = str(_brief.get("journey_stage") or "").strip()
+            _mat = str(_brief.get("material") or "").strip()
+            if _cb:
+                lines.insert(0, f"🎯 BÀI NÀY NÓI GÌ (brief ĐÃ DUYỆT — luận điểm chốt, bám SÁT): {_cb}")
+            if _bar:
+                lines.append(f"Rào cản bài này phải gỡ: {_bar}")
+            if _js:
+                lines.append(f"Chặng hành trình: {_js} — viết đúng vai trò chặng này.")
+            if _mat:
+                lines.append(f"Chất liệu CÓ THẬT (chỉ dùng đúng cái này): {_mat}")
+            elif _cb:
+                lines.append("KHÔNG có chất liệu thật kèm → TUYỆT ĐỐI không bịa ca khách/số/tên cụ thể.")
         ctx = "\n".join(lines)
         # Cách mở: founder chọn 1 hook style cụ thể → ép dùng; nếu không → để LLM tự chọn trong 5 nhóm.
         hook_rule = (f"\n🔴 CÁCH MỞ bài DÙNG ĐÚNG nhóm hook: {hook_style}." if (hook_style or "").strip()
