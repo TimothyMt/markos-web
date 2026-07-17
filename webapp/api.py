@@ -286,7 +286,8 @@ async def biz_key_idea_save(request):
         focus_tier=d.get("focus_tier", ""), focus_pillars=d.get("focus_pillars"),
         risks=d.get("risks"),   # B6-A: human override rủi ro & dự phòng (None nếu FE không gửi)
         big_idea_id=d.get("big_idea_id", ""),   # FV3-1: FK mềm tới big idea
-        purpose=d.get("purpose", ""))           # FV3-2: mục đích chiến dịch (7 loại §3.1)
+        purpose=d.get("purpose", ""),           # FV3-2: mục đích chiến dịch (7 loại §3.1)
+        channels=d.get("channels"))             # FV3-4c: kênh đợt (None nếu FE không gửi → giữ cũ)
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -340,6 +341,14 @@ async def biz_funnel_ratio_save(request):
     gen_funnel_map sau đó bám đúng, Max không đè."""
     d = await request.json()
     res = await biz.save_funnel_ratio(d.get("user_id"), id=d.get("id", ""), ratio=d.get("ratio", ""))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_campaign_channels_save(request):
+    """FV3-4c: sửa RIÊNG kênh 1 đợt (nút ✎ kênh trên thẻ). Kênh ngoài trần vẫn nhận (ý người thắng);
+    trả off = kênh ngoài trần để FE badge."""
+    d = await request.json()
+    res = await biz.save_campaign_channels(d.get("user_id"), id=d.get("id", ""), channels=d.get("channels"))
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
@@ -657,6 +666,7 @@ def api_routes() -> list:
         Route("/api/biz/big-ideas/derive",          biz_big_ideas_derive, methods=["POST"]),
         Route("/api/biz/purposes/derive",           biz_purposes_derive, methods=["POST"]),
         Route("/api/biz/funnel-ratio/save",         biz_funnel_ratio_save, methods=["POST"]),
+        Route("/api/biz/key-idea/channels/save",    biz_campaign_channels_save, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),

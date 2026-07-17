@@ -24,7 +24,9 @@ def _install_stubs():
 
     class _Profiles:
         async def get_profile(self, uid):
-            return {"industry": "Spa - thẩm mỹ", "current_channels": "Facebook, TikTok",
+            # current_channels rỗng + không bet_choices → trần ①=[] → đợt không kênh → kênh lạ KHÔNG bị gán
+            # (giữ #4b test thuần: split + guessed + raw. Hành vi "gán kênh chính đợt" là của #4c, test riêng).
+            return {"industry": "Spa - thẩm mỹ", "current_channels": "",
                     "intake_extra": _DB["intake_extra"]}
         async def upsert_profile(self, uid, intake_extra=None, **kw):
             if intake_extra is not None:

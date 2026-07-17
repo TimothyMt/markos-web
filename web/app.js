@@ -1965,6 +1965,7 @@
   // Layered: xương sống chạy đều (trụ × phễu × nền tảng) + chiến dịch cao điểm chồng lên.
   let _mxTab = 'base';               // 'base' = ma trận nền · 'spike' = đợt nhấn
   let _kiAddOpen = false;            // composer thêm đợt đang mở?
+  let _kiChEdit = '';                // FV3-4c: id đợt đang mở ô sửa kênh (inline trên thẻ)
   const _MX_TIERS = [['tofu', 'TOFU', 'khơi / nhận biết'], ['mofu', 'MOFU', 'nuôi / thuyết phục'], ['bofu', 'BOFU', 'chốt']];
   const _GOAL_VI = { awareness: 'Nhận biết', consideration: 'Cân nhắc', conversion: 'Chốt / Xả', retention: 'Giữ chân' };
   // FV3-2/3: 7 mục đích chiến dịch (nhãn badge — degrade khi bizPurposes chưa nạp). Nguồn chuẩn = backend.
@@ -1988,6 +1989,24 @@
   function plList() { return (window.MOCK && M.bizPurposes) || []; }   // FV3-2/3: menu 7 mục đích + ratio/why suy sẵn
   function chList() { return (window.MOCK && M.bizChannels) || []; }   // FV3-4a/b: từ điển kênh (slug/label/tiers/formats)
   function chLabel(slug) { const c = chList().find(x => x.slug === slug); return c ? c.label : ''; }   // slug → nhãn
+  function chCeiling() { return (window.MOCK && M.bizChannelCeiling) || []; }   // FV3-4c: trần chiến lược ① (slug)
+  // FV3-4c: ô chọn kênh (phương án A) — trong-trần tick sẵn ở trên, ngoài-trần vẫn chọn được + nhãn ⚠. domId để đọc riêng.
+  function channelPicker(selected, domId) {
+    const chs = chList();
+    if (!chs.length) return `<div id="${domId}" class="ki-ch4c-wrap"><span class="muted" style="font-size:12px">Chưa nạp từ điển kênh.</span></div>`;
+    const ceil = chCeiling(), sel = new Set(selected || []);
+    const chip = c => {
+      const off = ceil.length && ceil.indexOf(c.slug) < 0;
+      return `<label class="ki-ch4c${sel.has(c.slug) ? ' on' : ''}${off ? ' off' : ''}" data-slug="${mxE(c.slug)}" onclick="this.classList.toggle('on')"><span class="ki-ch4c-box"></span>${mxE(c.label)}${off ? ' <span class="ki-ch4c-off">⚠ ngoài chiến lược</span>' : ''}</label>`;
+    };
+    if (!ceil.length) return `<div id="${domId}" class="ki-ch4c-wrap">${chs.map(chip).join('')}</div>`;   // chưa có trần → phẳng
+    const inC = chs.filter(c => ceil.indexOf(c.slug) >= 0), other = chs.filter(c => ceil.indexOf(c.slug) < 0);
+    return `<div id="${domId}">
+      <div class="ki-ch4c-grp"><span class="ki-ch4c-h strat">Trong chiến lược ①</span><div class="ki-ch4c-wrap">${inC.map(chip).join('')}</div></div>
+      <div class="ki-ch4c-grp"><span class="ki-ch4c-h">Kênh khác</span><div class="ki-ch4c-wrap">${other.map(chip).join('')}</div></div>
+    </div>`;
+  }
+  function readChannels(domId) { return Array.from(document.querySelectorAll('#' + domId + ' .ki-ch4c.on')).map(e => e.dataset.slug); }
   function mxTrus() {   // trụ = messaging.pillars (đa ngành); bổ sung trụ xuất hiện trong cells
     const m = (window.MOCK && M.bizMessaging) || {};
     const out = [];
@@ -2132,6 +2151,8 @@
         <input id="kiBigNew" class="occ-inp full" placeholder="Tên ý lớn mới (1 câu)" maxlength="140">
       </div>
       <div class="ki-focus-pills"><span class="muted">Nhấn trụ:</span> ${trus.map(t => `<label class="ki-pill"><input type="checkbox" class="ki-fp" value="${mxE(t.territory)}"> ${t.icon} ${mxE(t.territory)}</label>`).join('') || '<span class="muted">(chưa có trụ — dựng Thông điệp trước)</span>'}</div>
+      <div class="ki-ch4c-sec"><div class="mini-label2">📡 Đợt này đánh kênh nào <span class="muted">(mặc định = trần chiến lược; kênh ngoài vẫn chọn được)</span></div>
+        ${channelPicker(chCeiling(), 'kiChannels')}</div>
       <div class="ki-comp-act"><button class="primary-btn" data-act="ki-add-save">✅ Tạo đợt</button></div>
     </section>`;
   }
@@ -2152,10 +2173,27 @@
         <div class="ki-meta">${goal}${ft} ${win}</div>
       </div>
       ${fp ? `<div class="ki-fprow">${fp}</div>` : ''}
+      ${kiChannelsRow(k)}
       ${posts.length ? `<div class="ki-funnel-act"><button class="ghost-line sm" data-act="ki-funnel" data-id="${mxE(k.id)}">↻ Dựng lại bài</button></div>` : ''}
       ${body}
       ${kiRisksHTML(k.risks)}
     </section>`;
+  }
+  // FV3-4c: hàng kênh đợt trên thẻ — hiện chip kênh (⚠ nếu ngoài trần) + nút ✎; đang sửa thì mở ô chọn inline.
+  function kiChannelsRow(k) {
+    const ceil = chCeiling(), chans = k.channels || [];
+    if (k.id === _kiChEdit) {
+      return `<div class="ki-ch4c-edit">
+        <div class="mini-label2">📡 Sửa kênh cho đợt <span class="muted">(kênh ngoài trần vẫn chọn được)</span></div>
+        ${channelPicker(chans.length ? chans : ceil, 'kiCh-' + k.id)}
+        <div class="ki-ch4c-act"><button class="primary-btn sm" data-act="ki-ch-save" data-id="${mxE(k.id)}">Lưu kênh</button>
+          <button class="ghost-line sm" data-act="ki-ch-edit" data-id="${mxE(k.id)}">Huỷ</button></div></div>`;
+    }
+    const chips = chans.length
+      ? chans.map(s => { const off = ceil.length && ceil.indexOf(s) < 0; return `<span class="ki-chchip${off ? ' off' : ''}">${mxE(chLabel(s) || s)}${off ? ' ⚠' : ''}</span>`; }).join('')
+      : '<span class="muted" style="font-size:12px">chưa đặt kênh</span>';
+    return `<div class="ki-chrow"><span class="muted">📡 Kênh:</span> ${chips}
+      <button class="ghost-line xs" data-act="ki-ch-edit" data-id="${mxE(k.id)}" title="Sửa kênh đợt">✎ kênh</button></div>`;
   }
   // B6-A: bảng Rủi ro & dự phòng (Max nháp khi dựng bài; ẩn nếu chưa có)
   function kiRisksHTML(risks) {
@@ -3836,10 +3874,26 @@
         const r = await API.post('api/biz/key-idea/save', {
           user_id: _bizUserId, title, angle: g('kiAngle').trim(), purpose: g('kiPurpose'),   // FV3-3: mục đích thay goal
           window_start: g('kiWs'), window_end: g('kiWe'), focus_tier: g('kiFocusTier'), focus_pillars,
+          channels: readChannels('kiChannels'),   // FV3-4c: kênh đợt (slug ⊆ trần; ngoài trần vẫn nhận)
           big_idea_id });
         if (r.error) { _fail(r.error); return; }
         _kiAddOpen = false; await refreshBiz(); toast('⚡ Đã tạo chiến dịch'); route();
       } catch (e) { _fail('Không tạo được chiến dịch — thử lại sau.'); }
+      return;
+    }
+    if (act === 'ki-ch-edit') {   // FV3-4c: mở/đóng ô sửa kênh inline trên thẻ đợt (thuần UI)
+      _kiChEdit = (_kiChEdit === el.dataset.id) ? '' : el.dataset.id; route(); return;
+    }
+    if (act === 'ki-ch-save') {   // FV3-4c: lưu riêng kênh đợt (ngoài trần vẫn nhận, Max không chặn)
+      if (!apiAvailable || !M.bizEnabled) { toast('Bật backend để lưu kênh'); return; }
+      const kid = el.dataset.id, chans = readChannels('kiCh-' + kid);
+      const orig = el.textContent; el.disabled = true; el.textContent = '⏳ Đang lưu…';
+      try {
+        const r = await API.post('api/biz/key-idea/channels/save', { user_id: _bizUserId, id: kid, channels: chans });
+        if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
+        _kiChEdit = ''; await refreshBiz();
+        toast((r.off && r.off.length) ? `📡 Đã lưu · ${r.off.length} kênh ngoài chiến lược` : '📡 Đã lưu kênh đợt'); route();
+      } catch (e) { toast('Không lưu được kênh — thử lại sau.'); el.disabled = false; el.textContent = orig; }
       return;
     }
     if (act === 'ki-ratio-edit') {   // FV3-3: user chốt tay tỉ lệ phễu (human-override) → ratio_source='user'
