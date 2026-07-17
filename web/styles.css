@@ -1221,6 +1221,20 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
   border-left:3px solid var(--primary); background:rgba(91,140,255,.08); }
 
 /* Chiến lược nền (Strategy Spine) — P0.1 F4 */
+/* FV3-8: ô nháp USP → Max truy ngược Dunford */
+.usp-derive { background:rgba(91,140,255,.06); border:1px solid rgba(91,140,255,.22);
+  border-radius:10px; padding:10px 12px; margin-bottom:12px; }
+.usp-derive-row { display:flex; gap:8px; align-items:center; }
+.usp-inp { flex:1; min-width:0; background:var(--panel); border:1px solid var(--stroke-2);
+  border-radius:8px; color:var(--txt); padding:8px 11px; font:inherit; font-size:13px; }
+.usp-inp:focus { border-color:var(--primary); outline:none; }
+.usp-hint { font-size:11.5px; margin:7px 0 0; }
+.usp-badge { display:inline-flex; align-items:center; gap:9px; margin-top:9px; font-size:12.5px;
+  border-radius:8px; padding:4px 10px; }
+.usp-badge.ok { color:var(--green); background:rgba(80,200,120,.12); }
+.usp-badge.med { color:#ffd479; background:rgba(255,183,77,.12); }
+.usp-badge.low { color:var(--amber); background:rgba(255,200,87,.1); }
+.usp-why { margin:7px 0 0; padding-left:18px; font-size:11.5px; color:var(--txt-2); line-height:1.5; }
 .spine-band .spine-grid { display:flex; flex-direction:column; gap:18px; }
 .spine-band .spine-col { display:flex; flex-direction:column; gap:8px; }
 .spine-band .spine-lbl { font-size:13px; font-weight:600; color:var(--txt); }

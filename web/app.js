@@ -1312,6 +1312,24 @@
       ${groups}`, { cls: 'span-12' });
   }
 
+  // FV3-8: đệm lượt "truy ngược USP" — null = chưa chạy. {confidence, why} sau khi Max derive.
+  // Lưu kèm khi save (con người chốt) → spine.positioning.confidence/why (derived-state, human-override).
+  let _uspDerive = null;
+  function posDeriveBadge() {
+    if (!_uspDerive) return '';
+    const c = _uspDerive.confidence;
+    const why = _uspDerive.why || {};
+    const wl = ['alternative', 'differentiator', 'statement']
+      .filter(k => why[k]).map(k => `<li>${mxE(why[k])}</li>`).join('');
+    if (c === 'high') {
+      return `<div class="usp-badge ok">✓ Đã xác nhận là định vị chắc</div>${wl ? `<ul class="usp-why">${wl}</ul>` : ''}`;
+    }
+    const lbl = c === 'med' ? '🟡 Tạm ổn — nên có đơn thật để chắc' : '⚠ Giả thuyết — research còn mỏng';
+    return `<div class="usp-badge ${c}">${lbl}
+      <button class="ghost-line xs" data-act="pos-confirm" title="Tôi xác nhận đây là định vị (nâng thành chắc)">✓ Tôi xác nhận</button></div>
+      ${wl ? `<ul class="usp-why">${wl}</ul>` : ''}`;
+  }
+
   // R2 P1: 1 FORM chiến lược — đặt cược (chip Max gợi ý) + mục tiêu/hướng/giá/năng lực (điền tay).
   // Thay Spine rời + Đặt cược rời. Lưu → save_strategy_input (fan-out bet_choices + spine).
   function strategyForm(collapsed) {
@@ -1342,6 +1360,14 @@
             <label class="fld"><span>Baseline</span><div class="input-row"><input id="stratBV" type="number" step="any" value="${b.value != null ? b.value : ''}" placeholder="Số"><input id="stratBU" value="${E(b.unit)}" placeholder="Đơn vị"><input id="stratBP" value="${E(b.period)}" placeholder="Kỳ"></div></label></div>
           <label class="fld"><span>Deadline</span><input id="stratDeadline" type="date" value="${E(o.deadline)}"></label></div>
         <div class="spine-col"><label class="spine-lbl">Định vị — bổ sung (tuỳ chọn)</label>
+          <div class="usp-derive">
+            <div class="usp-derive-row">
+              <input id="stratUspDraft" class="usp-inp" maxlength="200" placeholder="✍️ USP thô 1 câu (vd: chất lượng tốt, tận tâm)" value="${E(p.statement || '')}">
+              <button class="ghost-line sm" data-act="pos-derive" title="Max bám nghiên cứu đối thủ + khách, truy ngược ra định vị Dunford">🔎 Max truy ngược</button>
+            </div>
+            <div id="posDeriveOut">${posDeriveBadge()}</div>
+            <p class="usp-hint muted">Founder chỉ có USP trong đầu — Max lần ngược ra <b>khách thay thế bằng gì</b> + <b>bạn khác gì</b> rồi bạn xác nhận/sửa.</p>
+          </div>
           <div class="grid grid-2">
             <label class="fld"><span>Không có bạn, khách làm gì?</span><textarea id="stratAlt" rows="2" placeholder="vd: tự mua trôi nổi">${E(p.alternative)}</textarea></label>
             <label class="fld"><span>Bạn khác gì họ?</span><textarea id="stratDiff" rows="2" placeholder="vd: phác đồ chuẩn y khoa">${E(p.differentiator)}</textarea></label></div>
@@ -1377,7 +1403,8 @@
     const stage = (document.querySelector('input[name="stratStage"]:checked') || {}).value || '';
     return {
       market: chip('market'), segment: chip('segment'), channel: chip('channel'),
-      positioning: { statement: chip('positioning').join(' · '), alternative: val('stratAlt'), differentiator: val('stratDiff') },
+      positioning: { statement: chip('positioning').join(' · '), alternative: val('stratAlt'), differentiator: val('stratDiff'),
+        confidence: _uspDerive ? _uspDerive.confidence : 'high', why: _uspDerive ? _uspDerive.why : {} },
       price_posture: val('stratPrice'),
       stage, growth_focus: growth,
       objective: { outcome: val('stratOutcome'), metric: val('stratMetric'),
@@ -4116,6 +4143,32 @@
         toast('Đã chốt chiến lược — Max đang lập chiến lược + playbook…');
         await refreshBiz(); renderRail(); renderTopbar(); route();
       } catch (e) { toast('Không lập được chiến lược'); }
+      return;
+    }
+    if (act === 'pos-derive') {   // FV3-8: USP thô → Max truy ngược Dunford (điền alternative+differentiator, không lưu)
+      if (!apiAvailable || !M.bizEnabled) { toast('Bật backend để Max truy ngược'); return; }
+      const usp = ((document.getElementById('stratUspDraft') || {}).value || '').trim();
+      if (!usp) { toast('Nhập 1 câu USP thô đã'); return; }
+      const _t = el.textContent; el.disabled = true; el.textContent = '⏳ Max đang truy ngược…';
+      try {
+        const r = await API.post('api/biz/positioning/from-usp', { user_id: _bizUserId, usp });
+        el.disabled = false; el.textContent = _t;
+        if (r.error) { toast(r.error); return; }
+        const pr = r.proposal || {};
+        const setV = (id, v) => { const e = document.getElementById(id); if (e && v != null) e.value = v; };
+        setV('stratAlt', pr.alternative); setV('stratDiff', pr.differentiator);
+        // statement derived → điền ô định vị tự-ghi (betFree-positioning) để save đọc như thường
+        if (pr.statement) setV('betFree-positioning', pr.statement);
+        _uspDerive = { confidence: r.confidence || 'low', why: r.why || {} };
+        const out = document.getElementById('posDeriveOut'); if (out) out.innerHTML = posDeriveBadge();
+        toast(r.confidence === 'low' ? '🔎 Đã truy ngược — research mỏng, xác nhận/sửa giúp Max' : '🔎 Đã truy ngược — kiểm lại rồi lưu');
+      } catch (e) { el.disabled = false; el.textContent = _t; toast('Không truy ngược được — thử lại sau.'); }
+      return;
+    }
+    if (act === 'pos-confirm') {   // FV3-8: user xác nhận định vị giả thuyết → nâng thành 'chắc' (human-override)
+      if (_uspDerive) _uspDerive.confidence = 'high';
+      const out = document.getElementById('posDeriveOut'); if (out) out.innerHTML = posDeriveBadge();
+      toast('✓ Đã xác nhận định vị — nhớ bấm Lưu chiến lược');
       return;
     }
     if (act === 'strat-save') {   // R2: lưu form gộp KHÔNG lập lại (chỉnh mục tiêu/giá/hướng sau khi đã có synthesis)
