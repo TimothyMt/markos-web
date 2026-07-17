@@ -1540,8 +1540,10 @@
     try {
       const r = await API.get('api/biz/calendar' + bizQuery());
       const c = r && r.calendar;
-      _realCal = (c && (c.campaigns || c.alwaysOn || c.orphans)) ? c : null;
-      if (_realCal) route();   // re-render với dữ liệu thật
+      const next = (c && (c.campaigns || c.alwaysOn || c.orphans)) ? c : null;
+      const changed = JSON.stringify(next) !== JSON.stringify(_realCal);   // chặn vòng lặp mount→load→route
+      _realCal = next;
+      if (_realCal && changed) route();   // CHỈ re-render khi lịch thật ĐỔI (không phải mỗi lần mount)
     } catch (e) { _realCal = null; }
   }
   // M-E: khay "Bài chưa xếp lịch" — bài đã duyệt mà trụ/đợt đổi/bị bỏ; KHÔNG mất, founder xử.
