@@ -359,6 +359,14 @@ async def biz_channel_promote(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+async def biz_track_alias_save(request):
+    """FV3-6: đặt/xoá BIỆT DANH cho 1 lát cắt (trụ × dạng). alias rỗng → gỡ về tên máy. Overlay tên, không đụng trục."""
+    d = await request.json()
+    res = await biz.save_track_alias(d.get("user_id"), pillar=d.get("pillar", ""),
+                                     dang=d.get("dang", ""), alias=d.get("alias", ""))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 async def biz_key_ideas_import_legacy(request):
     """B4 — nhập campaigns_v2 cũ → key_ideas (chiến dịch Layered). Additive, idempotent, không xoá đồ cũ."""
     d = await request.json()
@@ -674,6 +682,7 @@ def api_routes() -> list:
         Route("/api/biz/purposes/derive",           biz_purposes_derive, methods=["POST"]),
         Route("/api/biz/funnel-ratio/save",         biz_funnel_ratio_save, methods=["POST"]),
         Route("/api/biz/key-idea/channels/save",    biz_campaign_channels_save, methods=["POST"]),
+        Route("/api/biz/track/alias/save",          biz_track_alias_save, methods=["POST"]),
         Route("/api/biz/channel/promote",           biz_channel_promote, methods=["POST"]),
         Route("/api/biz/rhythm/save",              biz_rhythm_save,    methods=["POST"]),
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),

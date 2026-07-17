@@ -1274,6 +1274,23 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
 .mx-cadence { font-size:11px; color:var(--muted); }
 .mx-note { margin-top:12px; font-size:12.5px; }
 
+/* FV3-6: Tuyến nội dung — biệt danh lát cắt (trụ × dạng) */
+.trk-card { margin-top:14px; }
+.trk-head { margin-bottom:12px; font-size:14px; }
+.trk-grp { padding:8px 0; }
+.trk-grp + .trk-grp { border-top:1px dashed var(--stroke); }
+.trk-pil { font-size:12.5px; font-weight:600; color:var(--txt-2); margin-bottom:7px; }
+.trk-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.trk-chip { display:inline-flex; align-items:center; gap:7px; font-size:12.5px;
+  background:var(--bg-2); border:1px solid var(--stroke); border-radius:9px; padding:5px 9px; }
+.trk-chip.named { border-color:rgba(124,77,255,.5); background:rgba(124,77,255,.1); }
+.trk-chip.editing { border-color:var(--primary); }
+.trk-ic { flex:none; }
+.trk-nm { font-weight:600; }
+.trk-dang { font-size:11px; }
+.trk-inp { background:var(--panel); border:1px solid var(--stroke-2); border-radius:6px;
+  color:var(--txt); padding:3px 7px; font-size:12.5px; min-width:150px; }
+
 /* ── Đợt nhấn (composer + card + funnel) ── */
 .ki-composer { border:1px solid var(--primary); }
 .ki-comp-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }

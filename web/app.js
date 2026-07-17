@@ -1966,6 +1966,7 @@
   let _mxTab = 'base';               // 'base' = ma trận nền · 'spike' = đợt nhấn
   let _kiAddOpen = false;            // composer thêm đợt đang mở?
   let _kiChEdit = '';                // FV3-4c: id đợt đang mở ô sửa kênh (inline trên thẻ)
+  let _trkEdit = '';                 // FV3-6: 'pillar§dang' của lát cắt đang mở ô đặt biệt danh
   const _MX_TIERS = [['tofu', 'TOFU', 'khơi / nhận biết'], ['mofu', 'MOFU', 'nuôi / thuyết phục'], ['bofu', 'BOFU', 'chốt']];
   const _GOAL_VI = { awareness: 'Nhận biết', consideration: 'Cân nhắc', conversion: 'Chốt / Xả', retention: 'Giữ chân' };
   // FV3-2/3: 7 mục đích chiến dịch (nhãn badge — degrade khi bizPurposes chưa nạp). Nguồn chuẩn = backend.
@@ -2080,7 +2081,43 @@
     }).join('');
     const house = m.core ? `<div class="mx-house">🏠 <b>Mái:</b> “${mxE(m.core)}” <span class="muted">— mọi ô bám cốt lõi này</span></div>` : '';
     return `${house}${mxMixBar()}<section class="card mx-card"><div class="mx-grid" style="--mx-cols:${_MX_TIERS.length}">${head}${rows}</div>
-      <p class="muted mx-note">Đây là <b>nền chạy đều</b> — không phải mọi ô đều cần bài. Chiến dịch (tab ⚡) đẩy cao điểm 1 tầng phễu across trụ theo kỳ.</p></section>`;
+      <p class="muted mx-note">Đây là <b>nền chạy đều</b> — không phải mọi ô đều cần bài. Chiến dịch (tab ⚡) đẩy cao điểm 1 tầng phễu across trụ theo kỳ.</p></section>${tracksInner()}`;
+  }
+  // FV3-6: TUYẾN = lát cắt (trụ × dạng) + BIỆT DANH. Chỉ đặt TÊN đè lên lát cắt có sẵn — trục vẫn là 2.
+  function trkList() { const t = (window.MOCK && M.bizTracks) || []; return Array.isArray(t) ? t : []; }
+  function tracksInner() {
+    const tracks = trkList();
+    if (!tracks.length) return '';
+    // nhóm theo trụ để founder thấy "1 trụ × các dạng đang chạy"
+    const byPil = {};
+    tracks.forEach(t => { (byPil[t.pillar] = byPil[t.pillar] || []).push(t); });
+    const groups = Object.entries(byPil).map(([pil, arr]) => `
+      <div class="trk-grp">
+        <div class="trk-pil">🏛️ ${mxE(pil)}</div>
+        <div class="trk-chips">${arr.map(trkChipHTML).join('')}</div>
+      </div>`).join('');
+    return `<section class="card trk-card">
+      <div class="trk-head"><b>🧵 Tuyến nội dung</b>
+        <span class="muted">— đặt biệt danh cho từng lát cắt (trụ × dạng). Chỉ là cái tên; trục vẫn là Trụ × Dạng.</span></div>
+      ${groups}</section>`;
+  }
+  function trkChipHTML(t) {
+    const id = t.pillar + '§' + t.dang;
+    if (_trkEdit === id) {
+      return `<span class="trk-chip editing">
+        <span class="trk-ic">${t.icon}</span>
+        <input id="trkAliasInp" class="trk-inp" maxlength="80" placeholder="${mxE(t.default_name)}" value="${mxE(t.alias || '')}">
+        <button class="ghost-line xs" data-act="trk-alias-save" data-pillar="${mxE(t.pillar)}" data-dang="${mxE(t.dang)}">✓</button>
+        <button class="ghost-line xs" data-act="trk-alias-edit" data-id="">✕</button>
+      </span>`;
+    }
+    const named = !!t.alias;
+    return `<span class="trk-chip ${named ? 'named' : ''}" title="${named ? 'Biệt danh — máy mặc định: ' + mxE(t.default_name) : 'Tên máy — bấm ✎ đặt biệt danh'}">
+      <span class="trk-ic">${t.icon}</span>
+      <span class="trk-nm">${mxE(t.display_name)}</span>
+      <span class="trk-dang muted">${mxE(t.dang_label)}</span>
+      <button class="ghost-line xs" data-act="trk-alias-edit" data-id="${mxE(t.pillar + '§' + t.dang)}" title="Đặt biệt danh">✎</button>
+    </span>`;
   }
   function kiLegacyCamps() {   // B4: campaigns_v2 cũ CHƯA nhập vào key_ideas (dedupe theo migrated_from)
     const camps = (window.MOCK && M.bizCampaigns) || [];
@@ -3931,6 +3968,22 @@
         if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
         await refreshBiz(); toast('📡 Đã thêm kênh vào chiến lược'); route();
       } catch (e) { toast('Không thêm được — thử lại sau.'); el.disabled = false; el.textContent = orig; }
+      return;
+    }
+    if (act === 'trk-alias-edit') {   // FV3-6: mở/đóng ô đặt biệt danh lát cắt (thuần UI)
+      _trkEdit = (_trkEdit === el.dataset.id) ? '' : (el.dataset.id || ''); route(); return;
+    }
+    if (act === 'trk-alias-save') {   // FV3-6: lưu/xoá biệt danh lát cắt (trụ × dạng) — rỗng = về tên máy
+      if (!apiAvailable || !M.bizEnabled) { toast('Bật backend để đặt biệt danh'); return; }
+      const inp = document.getElementById('trkAliasInp');
+      const alias = inp ? inp.value.trim() : '';
+      try {
+        const r = await API.post('api/biz/track/alias/save', { user_id: _bizUserId,
+          pillar: el.dataset.pillar, dang: el.dataset.dang, alias });
+        if (r.error) { toast(r.error); return; }
+        _trkEdit = ''; await refreshBiz();
+        toast(alias ? '🧵 Đã đặt biệt danh tuyến' : '🧵 Đã gỡ biệt danh — về tên máy'); route();
+      } catch (e) { toast('Không lưu được — thử lại sau.'); }
       return;
     }
     if (act === 'ki-ratio-edit') {   // FV3-3: user chốt tay tỉ lệ phễu (human-override) → ratio_source='user'
