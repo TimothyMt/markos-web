@@ -362,9 +362,12 @@ async def biz_data(user_id=None) -> dict:
         out["bizKeyIdeas"] = (_ie8.get("key_ideas") if isinstance(_ie8, dict) else []) or []
         # B2.1: ma trận nội dung thường trực (trụ × phễu × nền tảng) — nền cho đợt nhấn.
         out["bizContentMatrix"] = (_ie8.get("content_matrix") if isinstance(_ie8, dict) else {}) or {}
+        # FV3-6: lát cắt (trụ × dạng) + biệt danh founder đặt (overlay tên, không phải trục mới).
+        out["bizTracks"] = tracks_view(_ie8 if isinstance(_ie8, dict) else {})
     except Exception:
         out["bizKeyIdeas"] = []
         out["bizContentMatrix"] = {}
+        out["bizTracks"] = []
     # FV3: big ideas (ý lớn gom nhiều chiến dịch theo mùa) → FE render tab Chiến dịch (mxSpikeInner).
     try:
         _ie9 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -1608,6 +1611,99 @@ async def save_content_rhythm(user_id=None, rhythm=None) -> dict:
         return {"ok": True, **content_rhythm_view(norm)}
     except Exception as e:
         logger.warning("biz.save_content_rhythm failed: %s", e)
+        return {"error": str(e)}
+
+
+# ════ FV3-6: TUYẾN nội dung = lát cắt (trụ × dạng) + BIỆT DANH (doc §4.2) ════
+# KHÔNG đẻ trục thứ 3: 'tracks[]' chỉ là cái TÊN founder đè lên lát cắt (pillar × dang) CÓ SẴN.
+# Trục vẫn là 2 (trụ = nói chuyện gì · dạng = kể kiểu gì) → đường truy về Thông điệp còn nguyên.
+# Lưu intake_extra.tracks = [{pillar, dang, alias}]; alias rỗng → KHÔNG lưu (dùng tên máy ghép).
+def _norm_dang(d) -> str:
+    """Chuẩn hoá key dạng về 1 trong 6 CONTENT_DANG; lạ → ''."""
+    d = str(d or "").strip().lower()
+    return d if d in CONTENT_DANG else ""
+
+
+def track_default_name(pillar: str = "", dang: str = "") -> str:
+    """Tên MÁY ghép cho lát cắt: 'Trụ × Dạng-label'. Thiếu 1 vế → lấy vế còn lại."""
+    p = str(pillar or "").strip()
+    lbl = CONTENT_DANG[dang][1] if _norm_dang(dang) else ""
+    if p and lbl:
+        return f"{p} × {lbl}"
+    return p or lbl
+
+
+def _tracks_raw(extra) -> list:
+    t = extra.get("tracks") if isinstance(extra, dict) else None
+    return [it for it in t if isinstance(it, dict)] if isinstance(t, list) else []
+
+
+def track_alias(extra, pillar: str = "", dang: str = "") -> str:
+    """Biệt danh founder đặt cho lát cắt (pillar × dang), hoặc '' nếu chưa đặt."""
+    p, d = str(pillar or "").strip(), _norm_dang(dang)
+    if not p or not d:
+        return ""
+    for it in _tracks_raw(extra):
+        if str(it.get("pillar") or "").strip() == p and _norm_dang(it.get("dang")) == d:
+            return str(it.get("alias") or "").strip()
+    return ""
+
+
+def tracks_view(extra) -> list:
+    """FE: các lát cắt (trụ × DẠNG ĐANG BẬT) — mỗi lát kèm tên máy + biệt danh (nếu có).
+    Dạng bật lấy từ content_rhythm (degrade: bộ mặc định nếu chưa set). Trụ từ messaging.pillars.
+    Trụ rỗng → [] (chưa có Thông điệp thì chưa có lát cắt để đặt tên)."""
+    if not isinstance(extra, dict):
+        return []
+    msg = extra.get("messaging") if isinstance(extra.get("messaging"), dict) else {}
+    pillars = [str((p or {}).get("territory") or "").strip()
+               for p in (msg.get("pillars") or []) if str((p or {}).get("territory") or "").strip()]
+    rhythm = extra.get("content_rhythm") if isinstance(extra.get("content_rhythm"), dict) else {}
+    on_dangs = [k for k in CONTENT_DANG if isinstance(rhythm.get(k), dict) and rhythm[k].get("on")] \
+        if rhythm else [k for k, v in CONTENT_RHYTHM_DEFAULT.items() if v.get("on")]
+    if not on_dangs:                                      # rhythm set nhưng tắt hết → vẫn cho đặt tên bộ mặc định
+        on_dangs = [k for k, v in CONTENT_RHYTHM_DEFAULT.items() if v.get("on")]
+    out = []
+    for p in pillars:
+        for dk in on_dangs:
+            ic, lbl = CONTENT_DANG[dk][0], CONTENT_DANG[dk][1]
+            al = track_alias(extra, p, dk)
+            dn = track_default_name(p, dk)
+            out.append({"pillar": p, "dang": dk, "icon": ic, "dang_label": lbl,
+                        "default_name": dn, "alias": al, "display_name": al or dn})
+    return out
+
+
+async def save_track_alias(user_id=None, pillar: str = "", dang: str = "", alias: str = "") -> dict:
+    """FV3-6: ĐẶT/XOÁ biệt danh cho 1 lát cắt (pillar × dang). alias rỗng → gỡ về tên máy.
+    Chỉ overlay TÊN — KHÔNG đụng trục/gen. Upsert theo (pillar,dang), idempotent."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        p = str(pillar or "").strip()[:80]
+        d = _norm_dang(dang)
+        if not p or not d:
+            return {"error": "Thiếu trụ hoặc dạng hợp lệ."}
+        al = str(alias or "").strip()[:80]
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        tracks = [it for it in _tracks_raw(extra)
+                  if not (str(it.get("pillar") or "").strip() == p and _norm_dang(it.get("dang")) == d)]
+        if al:                                            # rỗng = xoá alias (không thêm lại)
+            tracks.append({"pillar": p, "dang": d, "alias": al})
+        extra["tracks"] = tracks
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "tracks": tracks, "pillar": p, "dang": d,
+                "alias": al, "default_name": track_default_name(p, d), "display_name": al or track_default_name(p, d)}
+    except Exception as e:
+        logger.warning("biz.save_track_alias failed: %s", e)
         return {"error": str(e)}
 # objective của sub → bộ tuyến mặc định (mix phễu theo mục tiêu)
 _OBJ_TRACKS = {
