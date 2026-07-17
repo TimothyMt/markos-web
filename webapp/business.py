@@ -1958,6 +1958,12 @@ async def save_strategy_input(user_id=None, payload=None) -> dict:
         segment = _list(p.get("segment"))
         stmt = _s(pos_in.get("statement"))
         pp = _validate_price_posture(p.get("price_posture") or pos_in.get("price_posture"))
+        # FV3-8: confidence + why-log định vị (nếu user chấp nhận đề xuất truy-ngược). Mặc định 'high' khi
+        # không kèm (user tự gõ = chắc). why: dict {alternative,differentiator,statement}.
+        _pos_conf = _norm_pos_confidence(pos_in.get("confidence")) if pos_in.get("confidence") else "high"
+        _pw = pos_in.get("why") if isinstance(pos_in.get("why"), dict) else {}
+        _pos_why = {k: str(_pw.get(k) or "").strip()[:200] for k in ("alternative", "differentiator", "statement")
+                    if str(_pw.get(k) or "").strip()}
 
         # ---- bet_choices (synthesis/playbook đọc — DEDUPE: định vị/giá/tệp lấy từ ô chung) ----
         bet = {
@@ -1979,8 +1985,13 @@ async def save_strategy_input(user_id=None, payload=None) -> dict:
                 "deadline": _ss(obj_in.get("deadline")),
             },
             "audience": {"who": " · ".join(segment), "pain": _s(aud_in.get("pain")), "where": _s(aud_in.get("where"))},
+            # FV3-8: định vị mang confidence + source + why-log (derived-state). Form save = con người CHỐT →
+            # source='user' (human-override thắng). confidence do user mang theo (chấp nhận đề xuất low → 'low',
+            # để T4-T5 gắn nhãn 'định vị = giả thuyết'); sửa tay/tự gõ → 'high'. why từ lượt truy ngược (nếu có).
             "positioning": {"alternative": _s(pos_in.get("alternative")), "differentiator": _s(pos_in.get("differentiator")),
-                            "statement": stmt, "price_posture": pp},
+                            "statement": stmt, "price_posture": pp, "source": "user",
+                            "confidence": _pos_conf, "updated": time.time(),
+                            "why": _pos_why},
             "constraint": {"people": _s(con_in.get("people")), "budget": _s(con_in.get("budget")), "capacity": _s(con_in.get("capacity"))},
         }
 
@@ -1991,13 +2002,93 @@ async def save_strategy_input(user_id=None, payload=None) -> dict:
         if segment:
             extra["wedge"] = " · ".join(segment)
         if stmt:
-            extra["usp_stance"] = "clear"
+            # FV3-8: nhãn giả thuyết khi confidence thấp → downstream (T4-T5) biết định vị chưa chắc.
+            _stance = "clear" if _pos_conf == "high" else "draft"
+            extra["usp_stance"] = _stance
             fields["usp"] = stmt[:400]
-            fields["usp_confidence"] = "clear"
+            fields["usp_confidence"] = _stance
         await profiles.upsert_profile(uid, **fields)
         return {"ok": True, "bet_choices": bet, "spine": spine}
     except Exception as e:
         logger.warning("biz.save_strategy_input failed: %s", e)
+        return {"error": str(e)}
+
+
+_POS_CONFIDENCE = ("high", "med", "low")
+
+
+def _norm_pos_confidence(c) -> str:
+    """Chuẩn hoá confidence định vị về {high,med,low}; lạ/rỗng → 'low' (an toàn: mặc định giả thuyết)."""
+    c = str(c or "").strip().lower()
+    return c if c in _POS_CONFIDENCE else "low"
+
+
+async def gen_positioning_from_usp(user_id=None, usp: str = "") -> dict:
+    """FV3-8 (doc §1.1): founder gõ USP THÔ 1 câu → Max TRUY NGƯỢC theo Dunford (bám T2 competitor +
+    T3 customer) → alternative + differentiator + statement cô đọng. KHÔNG persist — trả ĐỀ XUẤT để user
+    xác nhận/sửa (lưới an toàn §1.1), rồi save_strategy_input mới ghi (con người chốt = human-override).
+    - alternative: 3 dạng Dunford (đối thủ / khách TỰ LÀM / status quo) → LUÔN có ít nhất status quo, không rỗng.
+    - differentiator BÍ → RỖNG, KHÔNG bịa (§1.2 điểm 2).
+    - confidence hạ theo độ mỏng research; research mỏng → CAP 'low' ('định vị = giả thuyết', §1.2 điểm 3).
+    - why: câu why-log mỗi trường (derived-state, WIRING §2)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        usp_s = str(usp or "").strip()[:400]
+        if not usp_s:
+            return {"error": "Nhập 1 câu USP thô đã."}
+        comp = await _latest_content(uid, "competitor")
+        cust = await _latest_content(uid, "customer_insight")
+        thin = (len((comp or "").strip()) + len((cust or "").strip())) < 200   # research mỏng → cap confidence
+        from tools.llm_router import call as router_call, TaskType
+        import json as _json
+        system = (
+            "Bạn là Positioning Strategist theo April Dunford. Founder đưa 1 câu USP THÔ (tự khai, thường mơ hồ, "
+            "không neo vào ai). TRUY NGƯỢC: từ USP thô + nghiên cứu đối thủ/khách, rút ra:\n"
+            "- alternative: nếu KHÔNG có brand này, khách làm gì? 3 dạng HỢP LỆ: (a) đối thủ trực tiếp · (b) khách "
+            "TỰ LÀM (DIY) · (c) khách KHÔNG làm gì, chịu đựng (status quo). LUÔN chọn được ít nhất status quo — "
+            "KHÔNG để rỗng.\n"
+            "- differentiator: brand khác biệt THẬT ở đâu (onliness / white-space, bám đối thủ). BÍ thì để RỖNG, "
+            "KHÔNG bịa.\n"
+            "- statement: 1 câu định vị cô đọng (KHÁC USP thô — neo vào alternative + differentiator).\n"
+            "- confidence: 'high' nếu research đủ chứng cứ · 'med' vừa · 'low' nếu mỏng/suy đoán.\n"
+            "- why: 1 câu MỖI trường (vì sao rút vậy — bám dữ liệu nào). Trường rỗng → why rỗng.\n"
+            + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số / đối thủ không có trong nghiên cứu.\n"
+            'Output JSON DUY NHẤT: {"alternative":"","differentiator":"","statement":"",'
+            '"confidence":"high|med|low","why":{"alternative":"","differentiator":"","statement":""}}'
+        )
+        user = (f"# USP thô founder gõ\n{usp_s}\n"
+                f"# Đối thủ (T2)\n{(comp or '')[:1800] or '(chưa có)'}\n"
+                f"# Khách (T3)\n{(cust or '')[:1800] or '(chưa có)'}")
+        res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=900)
+        raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
+        alt = diff = stmt = ""
+        conf = "low"
+        why = {}
+        try:
+            data = _json.loads(raw)
+            alt = str(data.get("alternative") or "").strip()[:300]
+            diff = str(data.get("differentiator") or "").strip()[:300]     # bí → rỗng, không bịa
+            stmt = str(data.get("statement") or "").strip()[:400]
+            conf = _norm_pos_confidence(data.get("confidence"))
+            w = data.get("why") if isinstance(data.get("why"), dict) else {}
+            why = {k: str(w.get(k) or "").strip()[:200] for k in ("alternative", "differentiator", "statement")
+                   if str(w.get(k) or "").strip()}
+        except Exception as e:
+            logger.warning("gen_positioning_from_usp: parse thất bại: %s", e)
+        if not alt:                                # Dunford: luôn tụt được xuống status quo (không ô trống thật)
+            alt = "Khách hiện chịu đựng / chưa làm gì với vấn đề này"
+            why.setdefault("alternative", "Research mỏng — mặc định nấc status quo (Dunford)")
+        if thin:                                   # research mỏng → không cho confidence cao (§1.2)
+            conf = "low"
+        return {"ok": True, "usp": usp_s, "confidence": conf, "thin": thin, "why": why,
+                "proposal": {"alternative": alt, "differentiator": diff, "statement": stmt}}
+    except Exception as e:
+        logger.warning("biz.gen_positioning_from_usp failed: %s", e)
         return {"error": str(e)}
 
 

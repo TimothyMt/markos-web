@@ -403,6 +403,14 @@ async def biz_strategy_input_save(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+async def biz_positioning_from_usp(request):
+    """FV3-8 (§1.1) — founder gõ USP thô → Max truy ngược Dunford (alternative+differentiator+statement)
+    + confidence + why. KHÔNG persist — đề xuất để user xác nhận/sửa rồi mới lưu qua strategy-input."""
+    d = await request.json()
+    res = await biz.gen_positioning_from_usp(d.get("user_id"), usp=d.get("usp", ""))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 async def biz_master_plan(request):
     """S-10a — tạo campaign tổng (gap+wedge+USP) + đề xuất sub-campaign."""
     d = await request.json()
@@ -688,6 +696,7 @@ def api_routes() -> list:
         Route("/api/biz/messaging/gen",            biz_messaging_gen,  methods=["POST"]),
         Route("/api/biz/messaging/save",           biz_messaging_save, methods=["POST"]),
         Route("/api/biz/strategy-input/save",      biz_strategy_input_save, methods=["POST"]),
+        Route("/api/biz/positioning/from-usp",     biz_positioning_from_usp, methods=["POST"]),
         Route("/api/biz/campaign/master",          biz_master_plan,    methods=["POST"]),
         Route("/api/biz/campaign/sub",             biz_subcampaign,    methods=["POST"]),
         Route("/api/biz/campaign/sub-content",     biz_sub_content,    methods=["POST"]),
