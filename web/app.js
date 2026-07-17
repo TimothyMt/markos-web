@@ -2007,6 +2007,18 @@
     </div>`;
   }
   function readChannels(domId) { return Array.from(document.querySelectorAll('#' + domId + ' .ki-ch4c.on')).map(e => e.dataset.slug); }
+  function chDrift() { return (window.MOCK && M.bizChannelDrift) || []; }   // FV3-4d: kênh nhiều đợt đánh ngoài trần
+  // FV3-4d: nudge kênh trôi khỏi chiến lược (doc §3.3 Bước 5) — bơm ngược lên trần hoặc để nguyên (phép thử).
+  function driftNudge() {
+    const d = chDrift();
+    if (!d.length) return '';
+    const rows = d.map(x => `<div class="ki-drift-row">
+      <span>📡 <b>${mxE(x.label)}</b> — <b>${x.count}</b> đợt đang đánh nhưng <b>ngoài chiến lược</b>.</span>
+      <button class="ghost-line sm" data-act="ki-ch-promote" data-slug="${mxE(x.slug)}">＋ Thêm vào chiến lược</button>
+    </div>`).join('');
+    return `<div class="ki-drift"><div class="ki-drift-h">⚠ Kênh đang trôi khỏi chiến lược</div>${rows}
+      <div class="muted" style="font-size:11.5px">Thêm vào chiến lược để hết cảnh báo — hoặc để nguyên nếu chỉ là phép thử.</div></div>`;
+  }
   function mxTrus() {   // trụ = messaging.pillars (đa ngành); bổ sung trụ xuất hiện trong cells
     const m = (window.MOCK && M.bizMessaging) || {};
     const out = [];
@@ -2085,6 +2097,7 @@
          <span class="muted">— giữ nguyên đồ cũ, chỉ thêm bản sao để quản 1 chỗ.</span></div>`
       : '';
     const composer = _kiAddOpen ? kiComposer() : '';
+    const driftBanner = driftNudge();   // FV3-4d: nudge kênh trôi khỏi chiến lược (nếu có)
     if (!ideas.length && !_kiAddOpen) {
       return brandNudge() + legacyBanner + `<section class="card"><div class="empty-cta"><div class="empty-ic">⚡</div>
         <h3>Chưa có chiến dịch</h3>
@@ -2094,7 +2107,7 @@
     // FV3-1: nhóm chiến dịch theo big idea. Degrade: chưa có big idea → phẳng như cũ.
     const bigIdeas = biList();
     if (!bigIdeas.length) {
-      return brandNudge() + legacyBanner + composer + `<div class="ki-list">${ideas.map(kiCardHTML).join('')}</div>`;
+      return brandNudge() + driftBanner + legacyBanner + composer + `<div class="ki-list">${ideas.map(kiCardHTML).join('')}</div>`;
     }
     const biMap = new Map(bigIdeas.map(b => [String(b.id), { b, list: [] }]));
     const ungrouped = [];
@@ -2114,7 +2127,7 @@
         <div class="ki-bi-head muted">📦 <strong>Chưa gắn ý lớn</strong></div>
         <div class="ki-list">${ungrouped.map(kiCardHTML).join('')}</div></section>`;
     }
-    return brandNudge() + legacyBanner + composer + groups;
+    return brandNudge() + driftBanner + legacyBanner + composer + groups;
   }
   function kiComposer() {
     const trus = mxTrus();
@@ -3894,6 +3907,16 @@
         _kiChEdit = ''; await refreshBiz();
         toast((r.off && r.off.length) ? `📡 Đã lưu · ${r.off.length} kênh ngoài chiến lược` : '📡 Đã lưu kênh đợt'); route();
       } catch (e) { toast('Không lưu được kênh — thử lại sau.'); el.disabled = false; el.textContent = orig; }
+      return;
+    }
+    if (act === 'ki-ch-promote') {   // FV3-4d: bơm ngược — thêm kênh đang đánh lệch vào trần chiến lược
+      if (!apiAvailable || !M.bizEnabled) { toast('Bật backend để cập nhật chiến lược'); return; }
+      const orig = el.textContent; el.disabled = true; el.textContent = '⏳ Đang thêm…';
+      try {
+        const r = await API.post('api/biz/channel/promote', { user_id: _bizUserId, slug: el.dataset.slug });
+        if (r.error) { toast(r.error); el.disabled = false; el.textContent = orig; return; }
+        await refreshBiz(); toast('📡 Đã thêm kênh vào chiến lược'); route();
+      } catch (e) { toast('Không thêm được — thử lại sau.'); el.disabled = false; el.textContent = orig; }
       return;
     }
     if (act === 'ki-ratio-edit') {   // FV3-3: user chốt tay tỉ lệ phễu (human-override) → ratio_source='user'
