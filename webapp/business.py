@@ -378,6 +378,12 @@ async def biz_data(user_id=None) -> dict:
     # FV3-4a/b: từ điển kênh → FE map slug→label (hiển thị bài) + menu kênh chiến dịch (#4c).
     out["bizChannels"] = [{"slug": s, "label": v["label"], "tiers": list(v["tiers"]),
                            "formats": list(v["formats"])} for s, v in CHANNELS.items()]
+    # FV3-4c: TRẦN kênh chiến lược ① (slug) → FE tick sẵn trong composer + badge kênh ngoài trần.
+    try:
+        _iec = (out.get("bizProfile") or {}).get("intake_extra") or {}
+        out["bizChannelCeiling"] = _ceiling_channel_slugs(_iec, out.get("bizProfile") or {})
+    except Exception:
+        out["bizChannelCeiling"] = []
     # N-07b: Playbook lệch chiến lược? (playbook bám synthesis_id cũ ≠ synthesis hiện hành) → FE badge.
     try:
         _ie6 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -3537,6 +3543,38 @@ def channel_label(slug) -> str:
     return spec["label"] if spec else ""
 
 
+def _norm_channels(val) -> list:
+    """FV3-4c: list text/slug tự do → list slug chuẩn (khớp lỏng qua channel_slug), dedupe, bỏ '' , cap 12."""
+    if not isinstance(val, list):
+        return []
+    out = []
+    for x in val:
+        s = channel_slug(x)
+        if s and s not in out:
+            out.append(s)
+    return out[:12]
+
+
+def _ceiling_channel_slugs(extra, prof) -> list:
+    """FV3-4c: TRẦN kênh chiến lược ① (slug) — suy ON-THE-FLY, KHÔNG lưu key riêng (tránh trôi).
+    Degrade doc §3.3 Bước 6: bet_choices.channel → current_channels → top_channels[ngành]. Rỗng hết → []."""
+    extra = extra if isinstance(extra, dict) else {}
+    bc = extra.get("bet_choices") if isinstance(extra.get("bet_choices"), dict) else {}
+    src = bc.get("channel") if isinstance(bc.get("channel"), list) else []
+    slugs = _norm_channels(src)
+    if not slugs:
+        cur = str((prof or {}).get("current_channels") or "")
+        slugs = _norm_channels([x for x in re.split(r"[,\n;/]+", cur) if x.strip()])
+    if not slugs:
+        try:
+            from agents.campaign_scope_library import get_scope
+            top = (get_scope(str((prof or {}).get("industry") or "")) or {}).get("top_channels") or []
+            slugs = _norm_channels(top)
+        except Exception:
+            slugs = []
+    return slugs
+
+
 # B6: mức xác suất/tác động cho Risk & Contingency (khoá "Bước 5"). Rác → ''.
 _RISK_LEVELS = ("thấp", "trung bình", "cao")
 
@@ -3729,7 +3767,7 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
                         source: str = "user", source_ref: str = "", goal: str = "",
                         window_start: str = "", window_end: str = "", status: str = "",
                         focus_tier: str = "", focus_pillars=None, risks=None,
-                        big_idea_id: str = "", purpose: str = "") -> dict:
+                        big_idea_id: str = "", purpose: str = "", channels=None) -> dict:
     """T4: user chốt/sửa 1 key idea (từ đề xuất Max hoặc tự viết) + đặt kỳ hạn đợt.
     Append/update intake_extra.key_ideas (dedupe theo id); window rỗng → status draft.
     B2.1: đợt nhấn — focus_tier (đẩy tầng phễu nào) + focus_pillars (nhấn trụ nào), non-binding.
@@ -3784,6 +3822,8 @@ async def save_key_idea(user_id=None, id: str = "", title: str = "", angle: str 
         }
         if risks is not None:            # B6-A: chỉ đụng risks khi FE gửi (tránh xoá risks Max nháp lúc chỉ sửa meta)
             meta["risks"] = _norm_risks(risks)
+        if channels is not None:         # FV3-4c: kênh đợt (slug ⊆ trần); chỉ đụng khi FE gửi (partial-update an toàn)
+            meta["channels"] = _norm_channels(channels)
         kid = str(id or "").strip()
         found = next((it for it in ideas if isinstance(it, dict) and str(it.get("id")) == kid), None) if kid else None
         if found is not None:
@@ -4098,6 +4138,10 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
             ratio_hint, ratio_why = _purpose_ratio_hint(purpose, idea.get("goal"))
             goal_line = (f"MỤC TIÊU đợt: {_KI_PURPOSE_VI.get(purpose, purpose) or '(chưa rõ)'} → khung tỉ lệ "
                          f"phễu gợi ý {ratio_hint} (TOFU/MOFU/BOFU)" + (f" — {ratio_why}" if ratio_why else ""))
+        # FV3-4c: kênh hợp lệ cho bài (③ ⊆ ②) = kênh đợt; degrade → trần ① → tất cả 12. Kênh chính = phần tử đầu.
+        camp_channels = _norm_channels(idea.get("channels")) or _ceiling_channel_slugs(extra, prof)
+        camp_menu = [channel_label(s) for s in camp_channels] or [v["label"] for v in CHANNELS.values()]
+        camp_main = camp_channels[0] if camp_channels else ""
         from tools.llm_router import call as router_call, TaskType
         import json as _json
         system = (
@@ -4136,8 +4180,9 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 + f"# Kỳ hạn đợt\n{idea.get('window_start','') or '(chưa đặt)'} → {idea.get('window_end','') or '(chưa đặt)'}\n"
                 f"# Kênh đang dùng\n{cur_channels or '(đề xuất kênh hợp archetype)'}\n"
                 # FV3-4b: cấp menu kênh chuẩn để LLM dùng đúng tên → channel_slug khớp; format tách riêng.
-                "# Kênh hợp lệ (dùng ĐÚNG tên này cho 'channel', đừng ghép định dạng vào)\n"
-                + "\n".join(f"- {v['label']}" for v in CHANNELS.values()) + "\n"
+                # FV3-4c: chỉ cấp kênh CỦA ĐỢT (③⊆②) → LLM không rải ra ngoài; degrade → trần/tất cả.
+                "# Kênh hợp lệ (CHỈ chọn trong đây cho 'channel', đừng ghép định dạng vào)\n"
+                + "\n".join(f"- {lbl}" for lbl in camp_menu) + "\n"
                 f"# Giọng NÊN\n{vdo or '(theo thương hiệu)'}\n"
                 + (f"# TRỤ thông điệp (chọn pillar cho mỗi bài trong đây)\n" + "\n".join(f"- {t}" for t in known_pillars[:8]) + "\n"
                    if known_pillars else "")
@@ -4162,14 +4207,17 @@ async def gen_funnel_map_for_idea(user_id=None, id: str = "") -> dict:
                 role = str(p.get("role") or "").strip()[:160]
                 if not (ch_raw and role):          # bỏ post thiếu khoá downstream cần
                     continue
-                # FV3-4b: tách kênh (slug chuẩn) khỏi format. Kênh lạ (channel_slug='') → giữ raw + cờ guessed
-                # để #4c gán kênh chính chiến dịch. format LLM để trống → gợi ý format đầu của kênh (không khoá cứng).
+                # FV3-4b tách kênh (slug) khỏi format. FV3-4c: kênh lạ (channel_slug='') → GÁN kênh chính đợt
+                # (camp_main) + cờ guessed để FE badge/sửa; format trống → gợi ý format đầu của kênh (không khoá).
                 slug = channel_slug(ch_raw)
+                guessed = slug == ""
+                if guessed:
+                    slug = camp_main                      # gán kênh chính đợt (rỗng nếu đợt chưa có kênh)
                 fmt = str(p.get("format") or "").strip()[:60]
                 if not fmt and slug:
                     fmt = (CHANNELS[slug]["formats"] or [""])[0]
                 posts.append({"tier": tier, "channel": slug, "channel_raw": ch_raw,
-                              "channel_guessed": slug == "", "format": fmt, "role": role,
+                              "channel_guessed": guessed, "format": fmt, "role": role,
                               "pillar": _match_pillar(p.get("pillar"), known_pillars),  # khớp lỏng trụ; lạ → ''
                               "sibling_group": str(p.get("sibling_group") or "").strip()[:24],
                               "note": str(p.get("note") or "").strip()[:160]})
@@ -4248,6 +4296,42 @@ async def save_funnel_ratio(user_id=None, id: str = "", ratio: str = "") -> dict
         return {"ok": True, "funnel_map": fm}
     except Exception as e:
         logger.warning("biz.save_funnel_ratio failed: %s", e)
+        return {"error": str(e)}
+
+
+async def save_campaign_channels(user_id=None, id: str = "", channels=None) -> dict:
+    """FV3-4c: sửa RIÊNG danh sách kênh 1 đợt (nút ✎ kênh trên thẻ) — partial update, không đụng meta khác.
+    Chuẩn hoá về slug; kênh ngoài TRẦN ① vẫn NHẬN (ý người thắng, doc §3.3 Bước 4) — off_strategy tính
+    live phía đọc (không lưu cờ, tránh trôi). Trả {ok, channels, off} (off = kênh ngoài trần, cho FE badge)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        kid = str(id or "").strip()
+        if not kid:
+            return {"error": "Thiếu id key idea."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        ideas = extra.get("key_ideas") if isinstance(extra.get("key_ideas"), list) else []
+        idea = next((it for it in ideas if isinstance(it, dict) and str(it.get("id")) == kid), None)
+        if idea is None:
+            return {"error": "Không tìm thấy key idea."}
+        slugs = _norm_channels(channels)
+        idea["channels"] = slugs
+        idea["updated_at"] = time.time()
+        extra["key_ideas"] = ideas
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        ceil = _ceiling_channel_slugs(extra, prof)
+        off = [s for s in slugs if ceil and s not in ceil]     # kênh ngoài trần (live) — FE badge
+        return {"ok": True, "channels": slugs, "off": off}
+    except Exception as e:
+        logger.warning("biz.save_campaign_channels failed: %s", e)
         return {"error": str(e)}
 
 
