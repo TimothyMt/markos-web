@@ -19,6 +19,7 @@ window.MOCK = {
       { subhead: 'Chiến lược kênh' },
       { id: 'tactical', label: 'Cách đánh',           icon: '🔨' },
       { subhead: 'Sản xuất' },
+      { id: 'direction', label: 'Định hướng',          icon: '🎯' },
       { id: 'matrix',   label: 'Ma trận & Chiến dịch', icon: '🧱' },
       { id: 'calendar', label: 'Lịch nội dung',       icon: '🗓️' },
       { id: 'adscopy',  label: 'Quảng cáo (copy)',    icon: '🧲' },
