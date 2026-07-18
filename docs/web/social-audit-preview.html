@@ -1,0 +1,308 @@
+<title>Báo cáo kênh — Highlands Coffee (mẫu SocialLens)</title>
+<style>
+  :root{
+    --bg:#f4f5f7;--card:#fff;--ink:#1a1f36;--ink-2:#5b6479;--ink-3:#8a92a6;
+    --line:#e9ebf0;--line-2:#eef0f4;--blue:#2f6bff;--blue-soft:#eaf0ff;
+    --green:#22c55e;--shadow:0 1px 2px rgba(20,30,60,.05),0 1px 3px rgba(20,30,60,.04);--r:16px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:26px 20px 70px;position:relative}
+  a{color:var(--blue);text-decoration:none}.muted{color:var(--ink-2)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+  .pad{padding:20px}.mb{margin-bottom:14px}
+  .head{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px}
+  .fb{width:66px;height:66px;border-radius:50%;background:#c8102e;color:#fff;display:grid;place-items:center;
+    font-size:15px;font-weight:800;flex-shrink:0;text-align:center;line-height:1.1;letter-spacing:.02em}
+  .head h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+  .head .sub{margin:4px 0 0;color:var(--ink-2);font-size:14px}
+  .head-tools{margin-left:auto;display:flex;gap:8px}
+  .icobtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--ink-3);display:grid;place-items:center;cursor:pointer;font-size:15px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
+  .kpi{display:flex;align-items:center;gap:13px;padding:18px}
+  .kpi .ic{width:42px;height:42px;border-radius:12px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-size:19px;flex-shrink:0}
+  .kpi .l{color:var(--ink-2);font-size:13px;margin:0 0 3px}
+  .kpi .v{font-size:22px;font-weight:800;margin:0;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .kpi .v.sm{font-size:15px;font-weight:700}
+  .ctitle{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;margin:0 0 16px}
+  .ctools{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .selpill{border:1px solid var(--line);border-radius:9px;padding:6px 11px;font-size:13px;color:var(--ink-2);background:#fff}
+  .pgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+  .agrid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+  .pcell{border:1px solid var(--line);border-radius:12px;padding:13px;display:flex;flex-direction:column;gap:9px;min-height:120px}
+  .pcell .t{display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:14px}
+  .pcell .tx{font-size:12px;color:var(--ink-2);line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+  .pcell .m{display:flex;gap:12px;color:var(--ink-2);font-size:12.5px;font-variant-numeric:tabular-nums}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:7px;padding:2px 8px;font-size:11px;color:var(--ink-2)}
+  .tags{display:flex;gap:5px;flex-wrap:wrap}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);display:inline-block}
+  .charts3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .tab{border:none;background:transparent;color:var(--ink-2);font-size:13px;padding:5px 11px;border-radius:8px;cursor:default}
+  .tab.on{background:#eef1f6;color:var(--ink);font-weight:600}
+  .flatline text{fill:var(--ink-3);font-size:3px;font-variant-numeric:tabular-nums}
+  .donutwrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .legend{display:flex;flex-direction:column;gap:7px;width:100%}
+  .legend li{list-style:none;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)}
+  .legend .sw{width:10px;height:10px;border-radius:3px}
+  .legend b{margin-left:auto;color:var(--ink);font-variant-numeric:tabular-nums}
+  .stat{display:flex;align-items:center;gap:11px;padding:14px 0;border-bottom:1px solid var(--line-2)}
+  .stat:last-child{border-bottom:none}
+  .stat .ic{width:38px;height:38px;border-radius:10px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center}
+  .stat .l{color:var(--ink-2);font-size:13px;margin:0}.stat .v{font-size:20px;font-weight:800;margin:0;font-variant-numeric:tabular-nums}
+  .freq .big{font-size:30px;font-weight:800;letter-spacing:-.02em}.freq .big small{font-size:14px;color:var(--ink-2);font-weight:600}
+  .track{height:6px;border-radius:6px;background:#eef1f6;margin:12px 0 6px;overflow:hidden}
+  .track>i{display:block;height:100%;background:var(--blue);border-radius:6px}
+  .scale{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3)}
+  .chip{display:inline-block;margin-top:10px;background:#eef1f6;color:var(--ink-2);border-radius:7px;padding:3px 10px;font-size:12px}
+  .analysis{display:flex;flex-direction:column;gap:12px;margin-top:22px}
+  details.sec{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  details.sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:13px;padding:18px 20px;font-weight:700;font-size:16px}
+  details.sec>summary::-webkit-details-marker{display:none}
+  .num{width:28px;height:28px;border-radius:50%;background:#eef1f6;color:var(--ink-3);font-size:12.5px;font-weight:700;display:grid;place-items:center;flex-shrink:0;font-variant-numeric:tabular-nums}
+  .chev{margin-left:auto;color:var(--ink-3);transition:transform .2s}details.sec[open] .chev{transform:rotate(180deg)}
+  .secbody{padding:2px 20px 20px 61px}
+  .secbody .box{background:#f8f9fb;border:1px solid var(--line-2);border-radius:12px;padding:16px 18px;margin-top:12px}
+  .secbody p{margin:10px 0}.secbody p:first-child{margin-top:0}
+  .secbody ul{margin:8px 0;padding-left:20px}.secbody li{margin:5px 0}
+  .secbody .sh{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin:16px 0 4px}
+  .secbody .opp{color:var(--blue);font-style:italic;background:var(--blue-soft);border-radius:8px;padding:8px 12px;margin:8px 0}
+  .secbody table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px;display:block;overflow-x:auto}
+  .secbody th,.secbody td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  .secbody th{background:#f0f2f6;font-weight:700;color:var(--ink)}
+  .banner{display:flex;align-items:center;gap:10px;background:var(--blue-soft);border:1px solid #d6e2ff;color:#274690;border-radius:12px;padding:12px 15px;font-size:13.5px;margin-bottom:18px}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.pgrid,.agrid{grid-template-columns:repeat(3,1fr)}.charts3{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+  <button class="icobtn" style="position:absolute;top:26px;right:20px" title="Đóng">✕</button>
+  <div class="banner">🧪 Bản mẫu preview (giao diện <b>SocialLens</b>) cho <b>page KHÁC</b> — Highlands Coffee. Cùng một engine với báo cáo SpeeGo, chỉ đổi URL. Dữ liệu + phân tích đều <b>thật</b> (Claude Sonnet).</div>
+
+  <div class="head">
+    <div class="fb">HIGH<br>LANDS</div>
+    <div>
+      <h1>Highlands Coffee <a href="https://www.facebook.com/highlandscoffeevietnam" target="_blank" rel="noopener">↗</a></h1>
+      <p class="sub">Báo cáo Phân tích Fanpage dựa trên Dữ liệu 6 bài đăng gần nhất · 14–17/07/2026</p>
+    </div>
+    <div class="head-tools"><button class="icobtn">◌</button><button class="icobtn">💬</button><button class="icobtn">⤓</button></div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card pad mb">
+    <div class="ctitle">📄 Bài đăng
+      <div class="ctools"><span class="muted" style="font-size:13px">Lọc</span><span class="selpill">Tất cả ▾</span><span class="muted" style="font-size:13px">Sắp xếp</span><span class="selpill">Mới nhất ▾</span></div>
+    </div>
+    <div class="pgrid" id="posts"></div>
+  </div>
+
+  <div class="card pad mb"><div class="ctitle">🎬 Quảng cáo <span class="muted" style="font-weight:500;font-size:13px">· 12 đang chạy</span></div><div class="agrid" id="ads"></div></div>
+
+  <div class="card pad mb">
+    <div class="ctitle">Thống kê theo Thứ <div class="ctools"><span class="icobtn" style="width:28px;height:28px;font-size:13px">⤓</span></div></div>
+    <div class="tabs"><button class="tab on">Reaction</button><button class="tab">Bình luận</button><button class="tab">Chia sẻ</button><button class="tab">Lượt xem 3s</button></div>
+    <div id="weekchart"></div>
+  </div>
+  <div class="card pad mb"><div class="ctitle">Thống kê theo Ngày <div class="ctools"><span class="selpill">Ngày ▾</span></div></div><div id="datechart"></div></div>
+
+  <div class="charts3">
+    <div class="card pad"><div class="ctitle">Phân bổ định dạng nội dung</div><div class="donutwrap"><div id="d_fmt"></div><ul class="legend" id="l_fmt"></ul></div></div>
+    <div class="card pad"><div class="ctitle">Tổng tương tác</div>
+      <div class="stat"><span class="ic">❤️</span><div><p class="l">Tổng reaction</p><p class="v">17.473</p></div></div>
+      <div class="stat"><span class="ic">💬</span><div><p class="l">Tổng bình luận</p><p class="v">1.353</p></div></div></div>
+    <div class="card pad"><div class="ctitle">Tương tác trung bình</div>
+      <div class="stat"><span class="ic">❤️</span><div><p class="l">Reaction trung bình</p><p class="v">2.912</p></div></div>
+      <div class="stat"><span class="ic">💬</span><div><p class="l">Bình luận trung bình</p><p class="v">226</p></div></div></div>
+  </div>
+
+  <div class="charts3">
+    <div class="card pad freq"><div class="ctitle">Tần suất đăng</div>
+      <p class="big" style="margin:0">1.5 <small>bài/ngày</small></p>
+      <div class="track"><i style="width:45%"></i></div>
+      <div class="scale"><span>Thấp (0-1)</span><span>Trung Bình (1-3)</span><span>Cao (&gt;3)</span></div>
+      <span class="chip">Trung Bình</span></div>
+    <div class="card pad"><div class="ctitle">Phân bổ định dạng quảng cáo</div><div class="donutwrap"><div id="d_adfmt"></div><ul class="legend" id="l_adfmt"></ul></div></div>
+    <div class="card pad"><div class="ctitle">Phân bổ CTA</div><div class="donutwrap"><div id="d_cta"></div><ul class="legend" id="l_cta"></ul></div></div>
+  </div>
+
+  <div class="analysis" id="analysis"></div>
+</div>
+
+<script>
+const PAL=['#2f6bff','#86a9ff','#c3d4ff','#e2eaff'];
+const vn=n=>n.toLocaleString('vi-VN');
+const KPI=[["❤️","Tổng lượt thích","1.753.968",0],["👥","Tổng lượt theo dõi","1.700.000",0],["📈","Tỷ lệ L/F","103.18%",0],["⭐","Đánh giá","Chưa có đánh giá",1]];
+document.getElementById('kpis').innerHTML=KPI.map(k=>`<div class="card kpi"><span class="ic">${k[0]}</span><div><p class="l">${k[1]}</p><p class="v${k[3]?' sm':''}">${k[2]}</p></div></div>`).join('');
+
+const POSTS=[
+ ["Bài 1",27,2,"Ảnh","✋ CHỈ CÒN 5 NGÀY ĐỂ SĂN KIM CƯƠNG — ghé Highlands làm ly Americano giật giải…"],
+ ["Bài 2",33,5,"Ảnh","👀 Đi Highlands chụp 1001 tấm, về lựa đúng 1 tấm đăng. Làm ly Americano lấy tinh thần…"],
+ ["Bài 3",8967,866,"Ảnh","🇪🇸 vs 🇦🇷 — Highlands mở xuyên đêm nhé anh em! Chi tiết tại bình luận."],
+ ["Bài 4",103,3,"Ảnh","📲 MỘT CHẠM ĐẶT TRƯỚC – GHÉ NHẬN NƯỚC NGAY! Tính năng Đặt món trước trên app HighlandsĐI…"],
+ ["Bài 5",8275,475,"Text","🇦🇷 Mừng Anh 10 vào Chung Kết — Highlands giảm ngay 30% COMBO SÁNG TỈNH TÁO."],
+ ["Bài 6",68,2,"Ảnh","Vòng xoáy 'thức khuya dậy sớm' của hội mê bóng — sáng cần ly Americano lấy tỉnh táo…"],
+];
+document.getElementById('posts').innerHTML=POSTS.map(p=>`<div class="pcell"><div class="t">${p[0]}<span class="tag">${p[3]}</span></div>
+ <div class="tx">${p[4]}</div><div class="m"><span>❤️ ${vn(p[1])}</span><span>💬 ${vn(p[2])}</span></div></div>`).join('');
+
+const ADS=[["Ảnh","Không nút"],["Ảnh","—"],["Ảnh","—"],["DCO","Sign up"],["Ảnh","—"],["Ảnh","—"],["Ảnh","Sign up"],["Ảnh","Sign up"],["Ảnh","—"],["Ảnh","—"],["Ảnh","Learn more"],["Ảnh","Learn more"]];
+document.getElementById('ads').innerHTML=ADS.map((a,i)=>`<div class="pcell" style="min-height:auto"><div class="t">QC ${i+1}<span class="dot"></span></div>
+ <div class="tags"><span class="tag">${a[0]}</span><span class="tag">${a[1]}</span></div></div>`).join('');
+
+// ---- charts ----
+function lineChart(el,labels,vals){
+  const w=100,h=44,pad=7,n=labels.length,max=Math.max(...vals,1),y0=h-pad,yt=pad;
+  const X=i=>pad+i*(w-2*pad)/(n-1), Y=v=>y0-(v/max)*(y0-yt);
+  const pts=vals.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  const dots=vals.map((v,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="1" fill="#2f6bff"/>`).join('');
+  const lab=labels.map((l,i)=>`<text x="${X(i).toFixed(1)}" y="${h-1}" text-anchor="middle">${l}</text>`).join('');
+  const gl=[0,.5,1].map(g=>`<line x1="${pad}" x2="${w-pad}" y1="${(yt+g*(y0-yt)).toFixed(1)}" y2="${(yt+g*(y0-yt)).toFixed(1)}" stroke="#eef0f4" stroke-width=".3"/>`).join('');
+  document.getElementById(el).innerHTML=`<svg class="flatline" viewBox="0 0 ${w} ${h}" width="100%" height="230" preserveAspectRatio="none">${gl}<polyline points="${pts}" fill="none" stroke="#2f6bff" stroke-width="1"/>${dots}${lab}</svg>`;
+}
+lineChart('weekchart',["T2","T3","T4","T5","T6","T7","CN"],[0,68,0,17345,60,0,0]);
+lineChart('datechart',["14/07","15/07","16/07","17/07"],[68,0,17345,60]);
+
+function donut(elId,legId,segs){
+  const total=segs.reduce((s,x)=>s+x[1],0)||1;let acc=0;
+  const arcs=segs.map((s,i)=>{const pct=s[1]/total*100;const c=`<circle r="15.915" cx="21" cy="21" fill="none" stroke="${PAL[i%4]}" stroke-width="7" stroke-dasharray="${pct.toFixed(2)} ${(100-pct).toFixed(2)}" stroke-dashoffset="${(25-acc).toFixed(2)}"/>`;acc+=pct;return c;}).join('');
+  document.getElementById(elId).innerHTML=`<svg viewBox="0 0 42 42" width="140" height="140">${arcs}</svg>`;
+  document.getElementById(legId).innerHTML=segs.map((s,i)=>`<li><i class="sw" style="background:${PAL[i%4]}"></i>${s[0]}<b>${s[1]}</b></li>`).join('');
+}
+donut('d_fmt','l_fmt',[["Ảnh",5],["Text",1]]);
+donut('d_adfmt','l_adfmt',[["Ảnh",11],["DCO",1]]);
+donut('d_cta','l_cta',[["Không CTA",7],["Sign up",3],["Learn more",2]]);
+
+// ---- 12 sections (nội dung THẬT Max sinh cho Highlands) ----
+function md(t){
+  const lines=t.trim().split('\n');let html='',inUl=false,inTbl=false;
+  const il=s=>s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+  const closeUl=()=>{if(inUl){html+='</ul>';inUl=false;}};
+  const closeTbl=()=>{if(inTbl){html+='</table>';inTbl=false;}};
+  for(let ln of lines){
+    ln=ln.trim();
+    if(!ln){closeUl();closeTbl();continue;}
+    if(ln.startsWith('|')){
+      const cells=ln.split('|').slice(1,-1).map(c=>c.trim());
+      if(cells.every(c=>/^-+$/.test(c)))continue;
+      if(!inTbl){closeUl();html+='<table>';inTbl=true;const th=cells.map(c=>`<th>${il(c)}</th>`).join('');html+=`<tr>${th}</tr>`;}
+      else html+=`<tr>${cells.map(c=>`<td>${il(c)}</td>`).join('')}</tr>`;
+      continue;
+    }
+    closeTbl();
+    if(ln.startsWith('§')){closeUl();html+=`<p class="sh">${ln.slice(1).trim()}</p>`;continue;}
+    if(ln.startsWith('→')){closeUl();html+=`<p class="opp">${il(ln)}</p>`;continue;}
+    if(ln.startsWith('- ')){if(!inUl){html+='<ul>';inUl=true;}html+=`<li>${il(ln.slice(2))}</li>`;continue;}
+    closeUl();html+=`<p>${il(ln)}</p>`;
+  }
+  closeUl();closeTbl();return html;
+}
+const SECS=[
+["Định vị Thương hiệu",`§Category đóng vai
+"Điểm đến cà phê Việt hiện đại" — không chỉ bán đồ uống mà bán *trải nghiệm đi ra ngoài* ("Mỗi Ly Là Một Chuyến ĐI").
+§Đối tượng
+Gen Z + Millennial năng động, thích check-in, theo dõi bóng đá, lịch trình bận rộn.
+§USP tuyên bố vs thực tế
+pageIntro nói *"sản phẩm ngon, giá cả hợp lý"* — nhưng nội dung KHÔNG nói về giá, thay vào đó đẩy *lifestyle* (ĐI làm/học/vi vu), *gamification* (săn Kim Cương, nhẫn, drips), *social occasion* (xem bóng cùng bạn).
+§Mâu thuẫn đáng chú ý
+- Tagline "hợp lý" nhưng nội dung tự nâng lên tầng *aspirational lifestyle* — hai hướng chưa thống nhất.
+- Organic giữ fan bằng buzz bóng đá; Paid đẩy app + combo — hai mảng chạy **parallel tracks** thay vì phễu nhất quán.`],
+["Giọng nói Thương hiệu",`§Ngữ điệu
+Trẻ trung, thân mật, hơi hyperactive — kiểu "người bạn hay hùa vào trend".
+§Từ khóa lặp lại (6 bài + 12 ads)
+|Từ / cụm|Tần suất|Mục đích|
+|---|---|---|
+|**"ĐI"** (viết hoa)|100% nội dung|Brand territory — biến ĐI thành hành động gắn Highlands|
+|"Americano"|3/6 bài|Anchor sản phẩm hero mùa hè|
+|"Combo"|5/12 ads +1 bài|Kéo AOV, tạo cớ mua thêm|
+|"Tỉnh táo"|4 nội dung|Gắn sản phẩm vào nhu cầu thức khuya xem bóng|
+|"Cả nhà / hội anh em"|4/12 ads|Tạo cảm giác cộng đồng|
+Chữ **"ĐI" viết hoa** là nước cờ branding có chủ đích — biến động từ bình thường thành brand asset.`],
+["Khách hàng Mục tiêu",`§Chân dung 1 — Organic: Fan bóng đá + khách quen
+- Thức khuya xem World Cup, uống cà phê sáng "tỉnh táo"; hay ghé ngồi check-in
+- Nỗi đau: mệt sau đêm bóng, cần cớ tự thưởng buổi sáng
+- Bằng chứng: Bài 3 (8.967 react), Bài 5 (8.275 react)
+§Chân dung 2 — Paid: người chưa cài app
+- Nỗi đau: bỏ lỡ ưu đãi, xếp hàng chờ
+- Bằng chứng: QC 4/7/8 — CTA Sign up, "nước miễn phí khi tải app"
+§Chân dung 3 — Paid: nữ trẻ, thích aesthetic
+- BST Ly Lily — "nữ tính, ngọt ngào, check-in, spotlight"
+- Bằng chứng: QC 9/10 — thuần lifestyle/awareness
+Organic thiên **nam mê bóng**, paid song song chạy **nữ aesthetic** — 2 tệp khác nhau, không thấy cầu nối rõ.`],
+["Hoạt động & Xu hướng",`§Tần suất
+6 bài trong 4 ngày (14–17/07) → ~1,5 bài/ngày. Giai đoạn nóng (Chung kết World Cup) nên cao hơn bình thường.
+§Phân bổ theo thứ
+|Ngày|Thứ|Số bài|Tổng react|Tổng comment|
+|---|---|---|---|---|
+|14/07|T3|1|68|2|
+|16/07|T5|3|17.345|1.344|
+|17/07|T6|2|60|7|
+T5 vượt trội — 17.345 react vs 128 của 2 ngày còn lại. Nguyên nhân **KHÔNG do ngày trong tuần** mà do context bóng đá (Argentina Chung kết, mở xuyên đêm) → dữ liệu tình huống, không phải pattern lịch.
+§Xu hướng tương tác
+Cực phân cực — 2 bài bóng đá 8.967 & 8.275 react, 4 bài còn lại chỉ 8–103. Phụ thuộc hoàn toàn relevance của trend.`],
+["Tuyến Nội dung",`§Tuyến 1 — Newsjacking Bóng đá (3/6 bài)
+Tận dụng buzz event, gắn thương hiệu vào khoảnh khắc cảm xúc. TB ~5.770 react — **tuyến duy nhất tạo engagement thực sự**.
+§Tuyến 2 — Product Push / Promotion (2/6 bài)
+Combo, tính năng app, game săn Kim Cương. TB 65 react — không kéo được organic.
+§Tuyến 3 — Lifestyle / Relatable (1/6 bài)
+"Chụp 1001 tấm chọn 1" → Americano. 33 react — ý tưởng relatable nhưng execution chưa đủ shareable.`],
+["Công thức Nội dung",`§Công thức 1 — Newsjacking (Event + Emotion + CTA nhẹ)
+Bắt event hot → đặt Highlands vào khoảnh khắc → lý do ghé store. Bài 3, 5. **Cao nhất** (8.967 & 8.275 react) — đang "đỡ" toàn bộ engagement.
+§Công thức 2 — Problem → Product (PAS nhẹ)
+Nêu tình huống (thức khuya mệt) → gợi sản phẩm. Bài 6, QC 1. Framework chủ lực của paid.
+§Công thức 3 — Feature + Benefit list
+Giới thiệu tính năng → bullet lợi ích → CTA. Bài 4, QC 4/7/8 (Sign up) — conversion play, không cần engagement.
+§Công thức 4 — Lifestyle Drop
+Ra mắt BST → storytelling aesthetic, không CTA bán. QC 9/10 (Lily).`],
+["Phân tích Reel/Video",`Không có Reel/Video trong 6 bài organic. Toàn bộ là Ảnh và Text.
+**Tín hiệu đáng chú ý:** page 1,7M followers, đang giai đoạn event nóng (Chung kết World Cup), lại không dùng một video/Reel nào — trong khi Meta ưu tiên phân phối Reel. Cơ hội bị bỏ ngỏ rõ ràng.`],
+["Hoạt động Quảng cáo",`**Spend/Reach:** Ad Library không lộ với tài khoản thương mại (12/12 ads spend=null).
+|Nhóm|Ads|Mục tiêu|CTA|Nỗi đau|
+|---|---|---|---|---|
+|App acquisition|QC 4,7,8|Install + Sign up|Sign up|Bỏ lỡ ưu đãi|
+|Occasion (bóng đá)|QC 1,5,6,11,12|Traffic + Awareness|No button / Learn more|Thức khuya mệt, muốn cộng đồng|
+|Product / Lifestyle|QC 2,3,9,10|Awareness / Brand recall|None|Muốn trải nghiệm mùa hè aesthetic|
+§Hook nổi bật
+- QC 11,12: *"Tối qua thức xem Anh 10 đá mà toát hết mồ hôi"* — first-person, relatable, bắt đúng người scroll sáng hôm sau.
+- QC 4,7,8: *"Nghe đồn ĐI Highlands là như ĐI nghỉ mát"* — dùng "nghe đồn" tạo word-of-mouth, giảm cảm giác bị quảng cáo.
+§Trùng lặp
+QC 2=3, 5=6, 7=8, 9=10, 11=12 — **5 cặp ads giống hệt 100%**, chỉ khác platform phân phối.`],
+["Phễu Marketing (TOFU / MOFU / BOFU)",`§TOFU — Nhận biết & Tạo buzz
+Bài 3, 5 · QC 5,6,9,10. **Khoảng trống:** không có video/Reel; ngoài event bóng đá, không có awareness nào đủ mạnh để kéo người mới.
+§MOFU — Cân nhắc & Giữ chân
+Bài 6, 2 · QC 1,2,3. **Khoảng trống:** mỏng nhất — chỉ 1 bài organic thực sự; không có review / so sánh / social proof user.
+§BOFU — Chuyển đổi
+Bài 1, 4 · QC 4,7,8,11,12. Mạnh về app nhưng **thiếu retargeting** cho người đã tải nhưng chưa mua.`],
+["Tương tác & Bình luận",`§Seeding của trang
+Có — bình luận đầu ở Bài 3 và Bài 5 rõ ràng là page tự reply để ghim chi tiết (danh sách cửa hàng, combo). Tactic bypass giới hạn ký tự caption + tăng comment count.
+§Chủ đề thảo luận của user
+- Bài 4: *"Có ship k ạ"* — hỏi giao hàng.
+- Bài 6: *"Alo ạ. Em ib để Oder nước kh đc ạ"* — không biết kênh đặt hàng, phải nhắn fanpage.
+§Nhận xét thẳng
+2 comment user thật lộ 1 pain point chung: **họ muốn mua nhưng không muốn/không thể đến store**. Highlands lại đẩy "đặt trước - đến nhận" thay vì delivery — khoảng cách chiến lược so với kỳ vọng thực tế.`],
+["Tóm tắt Chiến lược",`Highlands chơi nước cờ **"brand as social lubricant"** — không bán cà phê, bán *lý do để ra ngoài và ở cùng nhau*. Từ khóa **"ĐI"** là trục xoay, biến mỗi ly nước thành vé tham gia khoảnh khắc xã hội. Paid chạy song song **app acquisition** (data layer dài hạn) + **occasion marketing** (doanh thu ngắn hạn theo event). Điểm mạnh: newsjacking nhanh + phân phối ads đa nền tảng. Điểm yếu: engagement organic **phụ thuộc hoàn toàn trend ngoài** (bóng đá) — hết mùa bóng, page về baseline rất thấp (8–103 react/bài).`],
+["Điểm mạnh & Điểm yếu + Đề xuất",`§✅ Điểm làm tốt
+- **Newsjacking nhanh, đúng tone:** bài Argentina Chung kết + mở xuyên đêm đăng ngay khi event xảy ra, kèm offer thật (combo 89K, giảm 30%).
+- **Brand word "ĐI" nhất quán cao:** 100% nội dung, brand hóa (viết hoa, #HighlandsĐI, tên app) — asset ngôn ngữ hiếm F&B Việt làm được.
+- **App acquisition bài bản:** offer rõ (nước miễn phí, drips) thay vì kêu tải app chung chung.
+- **Ads đa nền tảng:** phủ FB, IG, Messenger, WhatsApp, Threads.
+§❌ Điểm làm chưa tốt
+- **Engagement organic phụ thuộc trend ngoài:** 4/6 bài không bóng đá chỉ 8–103 react trên 1,7M follower (<0,01%).
+- **Vắng mặt hoàn toàn Reel/Video** trong giai đoạn Meta ưu tiên video.
+- **Gap delivery:** user hỏi ship, Highlands lại đẩy "đặt trước - đến nhận", không redirect kênh giao hàng.
+- **Trùng lặp creative:** 5/12 ads duplicate 100%.
+§🎯 Đề xuất tối ưu
+- Xây tuyến nội dung **tự vận hành** (series "Người Highlands", "Sáng Highlands" mỗi T2, poll/quiz) để có engagement baseline khi hết event.
+→ Cơ hội cho sếp: thương hiệu nhỏ hơn build community trung thành bằng content đều tay — page lớn dễ bị xao nhãng bởi trend.
+- **Ra Reel ngay trong event** — Reel 15s không khí xem bóng lúc 23h reach vượt xa ảnh tĩnh.
+→ Cơ hội cho sếp: đối thủ lớn bỏ ngỏ video — chiếm sóng Reel ngách F&B lifestyle với ngân sách nhỏ, chỉ cần authentic.
+- Tạo nội dung **bridge cho kênh delivery** (Grab/ShopeeFood vs app đặt-trước) để không mất khách hỏi ship.
+→ Cơ hội cho sếp: nếu có delivery, communicate rõ sẽ convert tệp "muốn mua nhưng ngại ra ngoài" Highlands đang bỏ lọt.
+- **Đa dạng hóa creative** thay vì duplicate 100% — test hook cảm xúc vs lý trí, visual sản phẩm vs người dùng.
+→ Cơ hội cho sếp: ngân sách nhỏ nhưng test 3-5 angle thực sự sẽ tìm ra thông điệp hiệu quả, thay vì "dàn mỏng".`],
+];
+document.getElementById('analysis').innerHTML=SECS.map((s,i)=>`<details class="sec"${i<4?' open':''}>
+ <summary><span class="num">${String(i+1).padStart(2,'0')}</span>${s[0]}<span class="chev">⌄</span></summary>
+ <div class="secbody"><div class="box">${md(s[1])}</div></div></details>`).join('');
+</script>
