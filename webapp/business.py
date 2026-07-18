@@ -3093,6 +3093,60 @@ def distribute_grid_posts(grid, sd, ed, anchor, kind: str = "spike", peak_date=N
     return out
 
 
+def _build_campaign_bands(big_ideas, anchor, horizon_weeks: int, idx_camp: dict, consumed: set):
+    """Redesign "Sản xuất": CHIẾN DỊCH mới = big_idea (is_campaign) có grid+window → band track 'camp'.
+    Rải bài bằng distribute_grid_posts (phễu + cao điểm + trần kênh + không dồn). Nội dung đã lưu
+    round-trip theo phase key `oc|{cid}|{phase}` (phase ổn định vì rải deterministic); thẻ đã lưu có
+    place (kéo tay) → tôn trí ngày đó. draft (thiếu grid/window) → bỏ. Trả (bands, by_cid, max_week)."""
+    bands, by_cid = [], {}
+    max_week = horizon_weeks
+    used = 0
+    for it in (big_ideas or []):
+        if not isinstance(it, dict) or not it.get("is_campaign"):
+            continue
+        grid = it.get("grid")
+        sd, ed = it.get("window_start"), it.get("window_end")
+        if not grid or not sd or not ed:
+            continue                                    # chưa đủ lưới/kỳ → chưa lên lịch
+        cid = str(it.get("id"))
+        kind = "always" if it.get("kind") == "always" else "spike"
+        caps = it.get("channel_caps") if isinstance(it.get("channel_caps"), dict) else None
+        placed = distribute_grid_posts(grid, sd, ed, anchor, kind=kind,
+                                       peak_date=it.get("peak_date") or None,
+                                       channel_cap_per_week=caps)
+        if not placed:
+            continue
+        color = _CAL_COLORS[used % len(_CAL_COLORS)]; used += 1
+        fw = min(p["week"] for p in placed)
+        tw = max(p["week"] for p in placed)
+        max_week = max(max_week, tw)
+        focus = str(it.get("pillar_focus") or "")
+        posts = []
+        for p in placed:
+            phase = p["phase"]; tier = p["tier"]
+            key = f"oc|{cid}|{phase}"
+            _ch = channel_label(p["channel"]) or str(p["channel"] or "")
+            post = {"week": p["week"], "day": p["day"], "phase": phase,
+                    "icon": _KI_TIER_ICON.get(tier, "📌"), "hint": focus,
+                    "title": (f"{_ch}: {tier.upper()}".strip(": ") or phase)[:80],
+                    "channel": str(p["channel"] or ""), "tier": tier,
+                    "pillar": focus, "key": key}
+            card = idx_camp.get((cid, phase))
+            if card:
+                post["saved"] = True; post["post"] = card["content"]
+                if card.get("week") is not None and card.get("day") is not None:
+                    post["week"], post["day"] = card["week"], card["day"]   # tôn trí bài đã kéo tay
+                consumed.add(card["key"])
+            posts.append(post)
+        band = {"name": it.get("title") or "Chiến dịch",
+                "occasion": (str(it.get("sub_message") or "")[:80] or "đợt"),
+                "offer": focus, "color": color,
+                "fromWeek": fw, "toWeek": tw, "posts": posts,
+                "campaignId": cid, "isCampaign": True, "kind": kind}
+        bands.append(band); by_cid[cid] = band
+    return bands, by_cid, max_week
+
+
 async def calendar_plan(user_id=None) -> dict:
     """M1.2 (B2.2): ghép lịch 2-track THẬT.
     NỀN (track always): content_matrix (B2.1) nếu có → rhythm → pillars (degrade dần).
@@ -3141,17 +3195,24 @@ async def calendar_plan(user_id=None) -> dict:
                 idx_always[(c["pillarId"], c["week"], c["day"])] = c
         consumed = set()   # storage-key của thẻ ĐÃ đặt lên lịch (phần còn lại = orphan)
 
-        # B2.2 — CHIẾN DỊCH: ưu tiên key_ideas (Layered); degrade → campaigns_v2 cũ (cờ legacy).
+        # CHIẾN DỊCH — nguồn (ghép cộng, không loại nhau):
+        #   ① Redesign: big_ideas (is_campaign) có grid+window → distribute_grid_posts.
+        #   ② Legacy: key_ideas có window+funnel_map (B2.2).
+        #   ③ Fallback CUỐI: campaigns_v2 cũ — CHỈ khi cả ① lẫn ② trống.
+        _big = (_extra or {}).get("big_ideas") if isinstance(_extra, dict) else None
+        _big = _big if isinstance(_big, list) else []
+        _cb_bands, _cb_by_cid, _cb_mw = _build_campaign_bands(_big, anchor, horizon_weeks, idx_camp, consumed)
         _kis = (_extra or {}).get("key_ideas") if isinstance(_extra, dict) else None
         _kis = _kis if isinstance(_kis, list) else []
-        bands, bands_by_cid, camp_ids = [], {}, set()
-        max_week = horizon_weeks
+        bands, bands_by_cid, camp_ids = list(_cb_bands), dict(_cb_by_cid), set(_cb_by_cid.keys())
+        max_week = max(horizon_weeks, _cb_mw)
         _ki_bands, _ki_by_cid, _ki_mw = _build_keyidea_bands(_kis, anchor, horizon_weeks, idx_camp, consumed)
         if _ki_bands:
-            bands, bands_by_cid = _ki_bands, _ki_by_cid
+            bands += _ki_bands
+            bands_by_cid.update(_ki_by_cid)
             max_week = max(max_week, _ki_mw)
-            camp_ids = set(_ki_by_cid.keys())
-        else:
+            camp_ids |= set(_ki_by_cid.keys())
+        elif not _cb_bands:
             from storage.v2 import campaigns_v2
             camps_raw = await campaigns_v2.list_campaigns_v2(uid, limit=30)
             for i, c in enumerate(camps_raw or []):
@@ -4494,6 +4555,116 @@ async def save_big_idea(user_id=None, id: str = "", title: str = "", angle: str 
         return {"ok": True, "big_idea": big_idea}
     except Exception as e:
         logger.warning("biz.save_big_idea failed: %s", e)
+        return {"error": str(e)}
+
+
+def _norm_grid(grid) -> list:
+    """Chuẩn hoá lưới tầng×kênh → [{tier,channel,count}] hợp lệ. Bỏ ô tier lạ; gộp ô trùng (tier,channel);
+    count kẹp [0,60]. Đầu vào có thể là list hoặc dict {"tofu|tiktok": 3}. Consumer: distribute_grid_posts."""
+    cells = {}
+    def _put(tier, ch, n):
+        tier = str(tier or "").strip().lower()
+        if tier not in _KI_TIERS:
+            return
+        ch = str(ch or "").strip()
+        try:
+            n = int(n or 0)
+        except (TypeError, ValueError):
+            n = 0
+        n = max(0, min(n, 60))
+        if n <= 0:
+            return
+        cells[(tier, ch)] = cells.get((tier, ch), 0) + n
+    if isinstance(grid, dict):
+        for k, v in grid.items():
+            parts = str(k).split("|")
+            _put(parts[0] if parts else "", parts[1] if len(parts) > 1 else "", v)
+    elif isinstance(grid, list):
+        for c in grid:
+            if isinstance(c, dict):
+                _put(c.get("tier"), c.get("channel"), c.get("count"))
+    return [{"tier": t, "channel": ch, "count": n} for (t, ch), n in cells.items()]
+
+
+def _norm_date(s) -> str:
+    """ISO YYYY-MM-DD hợp lệ → giữ; lỗi/rỗng → ''. KHÔNG bịa ngày."""
+    try:
+        from datetime import date as _d
+        y, m, dd = (int(x) for x in str(s)[:10].split("-"))
+        return _d(y, m, dd).strftime("%Y-%m-%d")
+    except Exception:
+        return ""
+
+
+async def save_campaign(user_id=None, id: str = "", title: str = "", sub_message: str = "",
+                        pillar_focus: str = "", kind: str = "spike",
+                        window_start: str = "", window_end: str = "", peak_date: str = "",
+                        grid=None, channel_caps=None, setup=None, status: str = "draft") -> dict:
+    """Redesign "Sản xuất": tạo/sửa 1 CHIẾN DỊCH = big_idea có lưới tầng×kênh + window (mối nối ⑤).
+    KHÔNG đổi schema — thêm field vào intake_extra.big_ideas[dict] (dedupe theo id, mẫu như save_big_idea).
+    `setup` = ảnh chụp 5 câu chọn-đầu (ai/nói gì/để làm gì/ưu đãi/khi nào) để truy nguồn (mối nối ④).
+    Lưới/window rỗng → chiến dịch DRAFT (chưa lên lịch được), không lỗi. Trả {"ok":True,"campaign":{...}}."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        title = str(title or "").strip()[:140]
+        if not title:
+            return {"error": "Chiến dịch trống — cần tên/thông điệp."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        big_ideas = extra.get("big_ideas") if isinstance(extra.get("big_ideas"), list) else []
+        if not isinstance(big_ideas, list):
+            big_ideas = []
+        now = time.time()
+        kind = "always" if str(kind or "").strip().lower() == "always" else "spike"
+        status = str(status or "draft").strip().lower()
+        if status not in ("draft", "staged", "active"):
+            status = "draft"
+        caps = {}
+        if isinstance(channel_caps, dict):
+            for k, v in channel_caps.items():
+                try:
+                    iv = int(v)
+                except (TypeError, ValueError):
+                    continue
+                if iv > 0:
+                    caps[str(k).strip()] = min(iv, 14)
+        camp_fields = {
+            "title": title,
+            "sub_message": str(sub_message or "").strip()[:400],
+            "pillar_focus": str(pillar_focus or "").strip()[:80],
+            "kind": kind,
+            "window_start": _norm_date(window_start),
+            "window_end": _norm_date(window_end),
+            "peak_date": _norm_date(peak_date),
+            "grid": _norm_grid(grid),
+            "channel_caps": caps,
+            "setup": setup if isinstance(setup, dict) else {},
+            "status": status,
+            "is_campaign": True,
+            "updated_at": now,
+        }
+        bid = str(id or "").strip()
+        found = next((it for it in big_ideas if isinstance(it, dict) and str(it.get("id")) == bid), None) if bid else None
+        if found is not None:
+            found.update(camp_fields)
+            campaign = found
+        else:
+            bid = bid or f"{int(now)}-{(re.sub(r'[^a-z0-9]+', '-', title.lower())[:24].strip('-') or 'camp')}"
+            campaign = {"id": bid, "created_at": now, **camp_fields}
+            big_ideas.append(campaign)
+        extra["big_ideas"] = big_ideas
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "campaign": campaign}
+    except Exception as e:
+        logger.warning("biz.save_campaign failed: %s", e)
         return {"error": str(e)}
 
 

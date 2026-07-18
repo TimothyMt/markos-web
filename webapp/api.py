@@ -320,6 +320,21 @@ async def biz_big_idea_save(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+async def biz_campaign_save(request):
+    """Redesign "Sản xuất": tạo/sửa 1 CHIẾN DỊCH = big_idea có lưới tầng×kênh + window (mối nối ⑤).
+    KHÔNG đổi schema (field mới vào intake_extra.big_ideas). Lưới/window rỗng → draft. Trả {"ok":True,"campaign":{...}}."""
+    d = await request.json()
+    res = await biz.save_campaign(
+        d.get("user_id"), id=d.get("id", ""), title=d.get("title", ""),
+        sub_message=d.get("sub_message", ""), pillar_focus=d.get("pillar_focus", ""),
+        kind=d.get("kind", "spike"), window_start=d.get("window_start", ""),
+        window_end=d.get("window_end", ""), peak_date=d.get("peak_date", ""),
+        grid=d.get("grid"), channel_caps=d.get("channel_caps"),
+        setup=d.get("setup"), status=d.get("status", "draft"),
+    )
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 async def biz_big_ideas_derive(request):
     """FV3-1: migration ADDITIVE + IDEMPOTENT. Với mỗi key_ideas[i] CHƯA CÓ big_idea_id,
     mint 1 big idea từ title/angle/source_ref của nó rồi back-link.
@@ -690,6 +705,7 @@ def api_routes() -> list:
         Route("/api/biz/content-matrix/gen",        biz_content_matrix_gen, methods=["POST"]),
         Route("/api/biz/key-ideas/import-legacy",   biz_key_ideas_import_legacy, methods=["POST"]),
         Route("/api/biz/big-idea/save",             biz_big_idea_save, methods=["POST"]),
+        Route("/api/biz/campaign/save",             biz_campaign_save, methods=["POST"]),
         Route("/api/biz/big-ideas/derive",          biz_big_ideas_derive, methods=["POST"]),
         Route("/api/biz/purposes/derive",           biz_purposes_derive, methods=["POST"]),
         Route("/api/biz/funnel-ratio/save",         biz_funnel_ratio_save, methods=["POST"]),
