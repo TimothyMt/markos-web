@@ -335,6 +335,19 @@ async def biz_campaign_save(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+async def biz_campaign_setup_gen(request):
+    """Mối nối ④: 5 câu "chọn-đầu" (ai/nói gì/để làm gì/ưu đãi/khi nào) → Max soạn ĐỀ XUẤT chiến dịch
+    (sub_message + trụ + lưới từ tỉ lệ phễu). KHÔNG persist — FE prefill form rồi save_campaign mới ghi."""
+    d = await request.json()
+    res = await biz.gen_campaign_from_setup(
+        d.get("user_id"), who=d.get("who", ""), say=d.get("say", ""),
+        say_pillar=d.get("say_pillar", ""), purpose=d.get("purpose", ""),
+        offer=d.get("offer", ""), when=d.get("when", ""),
+        channels=d.get("channels"), total=d.get("total", 0) or 0,
+    )
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 async def biz_big_ideas_derive(request):
     """FV3-1: migration ADDITIVE + IDEMPOTENT. Với mỗi key_ideas[i] CHƯA CÓ big_idea_id,
     mint 1 big idea từ title/angle/source_ref của nó rồi back-link.
@@ -706,6 +719,7 @@ def api_routes() -> list:
         Route("/api/biz/key-ideas/import-legacy",   biz_key_ideas_import_legacy, methods=["POST"]),
         Route("/api/biz/big-idea/save",             biz_big_idea_save, methods=["POST"]),
         Route("/api/biz/campaign/save",             biz_campaign_save, methods=["POST"]),
+        Route("/api/biz/campaign/setup-gen",        biz_campaign_setup_gen, methods=["POST"]),
         Route("/api/biz/big-ideas/derive",          biz_big_ideas_derive, methods=["POST"]),
         Route("/api/biz/purposes/derive",           biz_purposes_derive, methods=["POST"]),
         Route("/api/biz/funnel-ratio/save",         biz_funnel_ratio_save, methods=["POST"]),
