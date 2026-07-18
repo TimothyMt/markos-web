@@ -2941,6 +2941,158 @@ def _build_keyidea_bands(key_ideas, anchor, horizon_weeks: int, idx_camp: dict, 
     return bands, bands_by_cid, max_week
 
 
+# ==== Redesign "Sản xuất": rải bài từ LƯỚI (tầng×kênh→số) lên NGÀY ====
+# Chiến dịch mới = big_idea có `grid` (số bài mỗi ô tầng×kênh) + `window`. Hàm PURE (không DB/LLM) →
+# test offline. Logic rải theo spec (calendar-post-distribution-logic): ① trình tự phễu theo thời gian
+# (TOFU đầu · MOFU giữa · BOFU cuối) ② neo BOFU quanh ngày cao điểm ③ trần tần suất kênh ④ không dồn cục
+# ⑤ delta: né bài đã ghim/đã duyệt. Consumer: calendar_plan (băng camp mới) + save_campaign (producer lưới).
+
+# Cung phễu: vị trí (fraction đầu→cuối window) mỗi tầng rải vào — spike ramp build→nurture→close.
+_TIER_ARC = {"tofu": (0.00, 0.45), "mofu": (0.30, 0.75), "bofu": (0.58, 1.00)}
+_TIER_ORDER = {"tofu": 0, "mofu": 1, "bofu": 2}
+
+
+def _spiral(n: int):
+    """0, +1, -1, +2, -2, … tới ±n — tìm ngày trống GẦN target nhất (đối xứng, ưu tiên muộn khi hoà)."""
+    yield 0
+    for k in range(1, max(1, n) + 1):
+        yield k
+        yield -k
+
+
+def _expand_grid(grid) -> list:
+    """Lưới [{tier,channel,count}] → danh sách bài phẳng. Bỏ ô count<=0 / tier lạ. Trần 60 bài/ô (an toàn)."""
+    posts = []
+    for c in (grid or []):
+        if not isinstance(c, dict):
+            continue
+        tier = str(c.get("tier") or "").strip().lower()
+        if tier not in _KI_TIERS:
+            continue
+        ch = str(c.get("channel") or "").strip()
+        try:
+            n = int(c.get("count") or 0)
+        except (TypeError, ValueError):
+            n = 0
+        for i in range(max(0, min(n, 60))):
+            posts.append({"tier": tier, "channel": ch})
+    return posts
+
+
+def distribute_grid_posts(grid, sd, ed, anchor, kind: str = "spike", peak_date=None,
+                          channel_cap_per_week=None, pinned=None, max_per_day: int = 2) -> list:
+    """PURE. Rải bài từ lưới tầng×kênh lên (week,day) trong [sd,ed] (ISO). anchor = thứ Hai tuần gốc.
+    kind 'spike' (đợt-nhấn): ramp phễu theo cung + neo BOFU quanh peak_date/cuối window.
+         'always' (luôn-chạy): rải đều toàn window, xoay tầng, không ramp cứng.
+    channel_cap_per_week {channel: max/tuần} · pinned [{week,day,channel}] (bài đã ghim/duyệt → né, seed chỗ).
+    Trả list bài {week, day, tier, channel, phase, seq} xếp theo ngày. Degrade: lưới/window rỗng/lỗi → []."""
+    from datetime import date as _date
+
+    def _abs(s):
+        try:
+            y, m, d = (int(x) for x in str(s)[:10].split("-"))
+            return (_date(y, m, d) - anchor).days
+        except Exception:
+            return None
+
+    s_abs, e_abs = _abs(sd), _abs(ed)
+    if s_abs is None or e_abs is None or e_abs < s_abs:
+        return []
+    span = e_abs - s_abs
+    posts = _expand_grid(grid)
+    if not posts:
+        return []
+
+    peak_abs = _abs(peak_date) if peak_date else None
+    peak_frac = ((peak_abs - s_abs) / span) if (peak_abs is not None and span > 0
+                                                and s_abs <= peak_abs <= e_abs) else None
+
+    # 1) fraction mục tiêu cho từng bài (gom theo tầng → rải đều trong cung phễu, tránh dồn 2 mép)
+    by_tier = {}
+    for p in posts:
+        by_tier.setdefault(p["tier"], []).append(p)
+    targeted = []
+    for tier, plist in by_tier.items():
+        n = len(plist)
+        lo, hi = (0.0, 1.0) if kind == "always" else _TIER_ARC.get(tier, (0.0, 1.0))
+        mid = (lo + hi) / 2
+        for i, p in enumerate(plist):
+            frac = lo + (hi - lo) * ((i + 0.5) / n)
+            if kind == "spike" and tier == "bofu" and peak_frac is not None:
+                frac = peak_frac + (frac - mid) * 0.5          # kéo BOFU về cao điểm, giữ chút trải
+            frac = min(1.0, max(0.0, frac))
+            targeted.append({"tier": tier, "channel": p["channel"], "_frac": frac})
+    targeted.sort(key=lambda p: (p["_frac"], _TIER_ORDER.get(p["tier"], 1)))
+
+    # 2) seed occupancy từ bài đã ghim/duyệt (delta: rải bài mới LÁCH quanh, không dời bài cũ)
+    day_count, wk_ch, day_ch = {}, {}, {}
+    for pn in (pinned or []):
+        if not isinstance(pn, dict):
+            continue
+        try:
+            w, d = int(pn.get("week")), int(pn.get("day"))
+        except (TypeError, ValueError):
+            continue
+        ab = (w - 1) * 7 + d
+        pch = str(pn.get("channel") or "")
+        day_count[ab] = day_count.get(ab, 0) + 1
+        day_ch[(ab, pch)] = day_ch.get((ab, pch), 0) + 1
+        wk_ch[(w, pch)] = wk_ch.get((w, pch), 0) + 1
+
+    # 3) đặt từng bài vào ngày trống gần target nhất: né trần ngày + 1 kênh/ngày (đa dạng) + trần kênh/tuần
+    cap = channel_cap_per_week or {}
+    reach = e_abs - s_abs + 1
+    placed = []
+    for p in targeted:
+        target = s_abs + round(p["_frac"] * span)
+        ch = p["channel"]
+        chosen = None
+        for off in _spiral(reach):
+            cand = target + off
+            if cand < s_abs or cand > e_abs:
+                continue
+            wk = cand // 7 + 1
+            if day_count.get(cand, 0) >= max_per_day:
+                continue
+            if day_ch.get((cand, ch), 0) >= 1:                 # cùng kênh KHÔNG lặp trong 1 ngày (xen kẽ)
+                continue
+            c = cap.get(ch)
+            if c and wk_ch.get((wk, ch), 0) >= c:
+                continue
+            chosen = cand
+            break
+        if chosen is None:                                     # kín trần → nới: chỉ né trùng-kênh-ngày, vẫn trong window
+            for off in _spiral(reach):
+                cand = target + off
+                if s_abs <= cand <= e_abs and day_ch.get((cand, ch), 0) < 1:
+                    chosen = cand
+                    break
+        if chosen is None:                                     # bí hẳn → nới nốt trùng-kênh-ngày
+            for off in _spiral(reach):
+                cand = target + off
+                if s_abs <= cand <= e_abs:
+                    chosen = cand
+                    break
+        if chosen is None:
+            chosen = min(e_abs, max(s_abs, target))
+        wk = chosen // 7 + 1
+        day_count[chosen] = day_count.get(chosen, 0) + 1
+        day_ch[(chosen, ch)] = day_ch.get((chosen, ch), 0) + 1
+        wk_ch[(wk, ch)] = wk_ch.get((wk, ch), 0) + 1
+        placed.append({"tier": p["tier"], "channel": ch, "abs": chosen,
+                       "week": wk, "day": chosen % 7})
+
+    # 4) xếp theo ngày, gán phase (duy nhất mỗi tầng → key ổn định) + seq
+    placed.sort(key=lambda x: (x["abs"], _TIER_ORDER.get(x["tier"], 1), x["channel"]))
+    tier_k, out = {}, []
+    for x in placed:
+        t = x["tier"]
+        tier_k[t] = tier_k.get(t, 0) + 1
+        out.append({"week": x["week"], "day": x["day"], "tier": t, "channel": x["channel"],
+                    "phase": f"{t.upper()} #{tier_k[t]}", "seq": len(out) + 1})
+    return out
+
+
 async def calendar_plan(user_id=None) -> dict:
     """M1.2 (B2.2): ghép lịch 2-track THẬT.
     NỀN (track always): content_matrix (B2.1) nếu có → rhythm → pillars (degrade dần).
