@@ -3267,7 +3267,8 @@ _MSG_WEB_ADAPT = (
     '"taglines":["<2-3 tagline ≤8 từ, mài từ USP>"],'
     '"pillars":[{"icon":"","territory":"","angle":"","proof":""}],'
     '"voice":{"do":["<4-5 điều NÊN>"],"dont":["<4-5 điều TRÁNH>"]}}\n'
-    "🔴 KHÔNG bịa số/proof. Mọi thứ truy vết được về USP/Chiến lược trong context."
+    "🔴 KHÔNG bịa số/proof. Mọi thứ truy vết được về USP/Chiến lược trong context.\n"
+    "⛔ CHỈ xuất JSON đúng schema — ký tự đầu là '{', KHÔNG markdown / tiêu đề # / bảng / lời dẫn."
 )
 # Bước 1 — chỉ MÁI (cốt lõi + tagline). Chốt cái này trước rồi mới dựng trụ.
 _MSG_ADAPT_CORE = (
@@ -3309,7 +3310,8 @@ _MSG_ADAPT_PILLARS = (
     "thật, không có để \"\"). Kèm bộ GIỌNG (do/don't).\n"
     'Xuất JSON DUY NHẤT: {"pillars":[{"icon":"","territory":"","angle":"","proof":""}],'
     '"voice":{"do":["<4-5 điều NÊN>"],"dont":["<4-5 điều TRÁNH>"]}}\n'
-    "🔴 KHÔNG bịa số/proof. Mọi trụ truy vết được về cốt lõi + Chiến lược."
+    "🔴 KHÔNG bịa số/proof. Mọi trụ truy vết được về cốt lõi + Chiến lược.\n"
+    "⛔ CHỈ xuất JSON đúng schema — ký tự đầu là '{', KHÔNG markdown / tiêu đề # / bảng / lời dẫn."
 )
 
 
