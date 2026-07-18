@@ -2117,11 +2117,20 @@ async def gen_positioning_from_usp(user_id=None, usp: str = "") -> dict:
             "không neo vào ai). TRUY NGƯỢC: từ USP thô + nghiên cứu đối thủ/khách, rút ra:\n"
             "- alternative: nếu KHÔNG có brand này, khách làm gì? 3 dạng HỢP LỆ: (a) đối thủ trực tiếp · (b) khách "
             "TỰ LÀM (DIY) · (c) khách KHÔNG làm gì, chịu đựng (status quo). LUÔN chọn được ít nhất status quo — "
-            "KHÔNG để rỗng.\n"
-            "- differentiator: brand khác biệt THẬT ở đâu (onliness / white-space, bám đối thủ). BÍ thì để RỖNG, "
-            "KHÔNG bịa.\n"
-            "- statement: 1 câu định vị cô đọng (KHÁC USP thô — neo vào alternative + differentiator).\n"
-            "- confidence: 'high' nếu research đủ chứng cứ · 'med' vừa · 'low' nếu mỏng/suy đoán.\n"
+            "KHÔNG để rỗng. CỤ THỂ (gọi tên cách/đối thủ thật trong research), đừng nói chung 'các lựa chọn khác'.\n"
+            "- differentiator: brand khác biệt THẬT ở đâu so với alternative đó (onliness / white-space). Ưu tiên "
+            "bằng chứng trong research; NẾU research mỏng thì được rút từ CHÍNH câu USP founder khai (đó là claim "
+            "của họ) — nhưng hạ confidence + ghi why 'theo USP tự khai, chưa kiểm chứng'. Chỉ để RỖNG khi cả "
+            "research LẪN USP đều không nêu được điểm khác nào — KHÔNG bịa điểm khác không có căn cứ.\n"
+            "- statement: 1 câu định vị SẮC (KHÁC USP thô). NGẦM nghĩ trước 'value' = differentiator đó khiến "
+            "khách ĐƯỢC GÌ (kết quả họ quan tâm), rồi mới viết câu theo khung: 'Cho [tệp khách], [brand] là "
+            "[loại/danh mục] giúp [value] — khác với [alternative] ở chỗ [differentiator].' Được rút gọn cho tự "
+            "nhiên nhưng phải GIỮ đủ 3 mấu: khách-được-gì · khác-ai · khác-ở-đâu.\n"
+            "🚫 CHỐNG GENERIC: câu định vị KHÔNG được là khẩu hiệu ai cũng nói ('chất lượng cao, giá hợp lý', "
+            "'uy tín, tận tâm', 'giải pháp toàn diện'). Tự kiểm: đối thủ dán y câu này lên họ có sai không? Không "
+            "sai → quá chung, viết lại cho gắn chặt differentiator + alternative cụ thể.\n"
+            "- confidence: 'high' nếu research đủ chứng cứ · 'med' vừa · 'low' nếu mỏng/suy đoán (kể cả khi "
+            "differentiator chỉ dựa USP tự khai).\n"
             "- why: 1 câu MỖI trường (vì sao rút vậy — bám dữ liệu nào). Trường rỗng → why rỗng.\n"
             + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số / đối thủ không có trong nghiên cứu.\n"
             'Output JSON DUY NHẤT: {"alternative":"","differentiator":"","statement":"",'
@@ -3249,12 +3258,17 @@ _MSG_WEB_ADAPT = (
     "cọc để nói — có trụ để DẠY, trụ KỂ/cảm xúc, trụ CHỨNG MINH, trụ GẮN KẾT — KHÔNG bó hẹp ở proof.\n"
     "Mỗi trụ: icon (1 emoji hợp lãnh địa) · territory (tên lãnh địa ≤6 từ) · angle (góc nói/quan điểm thương "
     "hiệu trong lãnh địa đó, 1 câu) · proof (bằng chứng CHỈ KHI có thật trong context; không có để \"\").\n"
+    "⚓ Nếu context có khối ĐỊNH VỊ → ≥1 trụ dựng thẳng trên chỗ KHÁC BIỆT (differentiator).\n"
+    "🚫 CHỐNG GENERIC: territory phải là lãnh địa CỤ THỂ brand sở hữu được, KHÔNG phải danh từ trừu tượng "
+    "ai cũng nói ('chất lượng'/'uy tín'/'tận tâm'/'chuyên nghiệp'). Tự kiểm: đối thủ dán cùng chữ có sai "
+    "không? Không sai → quá chung, đổi sắc hơn.\n"
     "Số trụ LINH HOẠT 2–5 theo số khác biệt THẬT — KHÔNG ép đúng 3.\n"
     'Schema JSON: {"core":"<1 thông điệp cốt lõi, định vị ra tiếng khách, ≤14 từ>",'
     '"taglines":["<2-3 tagline ≤8 từ, mài từ USP>"],'
     '"pillars":[{"icon":"","territory":"","angle":"","proof":""}],'
     '"voice":{"do":["<4-5 điều NÊN>"],"dont":["<4-5 điều TRÁNH>"]}}\n'
-    "🔴 KHÔNG bịa số/proof. Mọi thứ truy vết được về USP/Chiến lược trong context."
+    "🔴 KHÔNG bịa số/proof. Mọi thứ truy vết được về USP/Chiến lược trong context.\n"
+    "⛔ CHỈ xuất JSON đúng schema — ký tự đầu là '{', KHÔNG markdown / tiêu đề # / bảng / lời dẫn."
 )
 # Bước 1 — chỉ MÁI (cốt lõi + tagline). Chốt cái này trước rồi mới dựng trụ.
 _MSG_ADAPT_CORE = (
@@ -3275,6 +3289,12 @@ _MSG_ADAPT_PILLARS = (
     "CỐT LÕI đã chốt (trong user msg) là MÁI — mọi trụ phải CHỐNG ĐỠ nó, KHÔNG đổi hướng cốt lõi.\n"
     "Dựng N TRỤ thông điệp (LÃNH ĐỊA nội dung thương hiệu đóng cọc để nói — rộng: có trụ DẠY, KỂ/cảm "
     "xúc, CHỨNG MINH, GẮN KẾT; KHÔNG bó ở proof). Số trụ LINH HOẠT 2–5 theo khác biệt THẬT, không ép 3.\n"
+    "⚓ NEO ĐỊNH VỊ: nếu context có khối ĐỊNH VỊ (khách-thường-làm-gì / mình-khác-ở / câu định vị), "
+    "≥1 trụ PHẢI dựng thẳng trên chỗ KHÁC BIỆT đó (differentiator) — đây là trụ xương sống, đừng để trôi.\n"
+    "🚫 CHỐNG TRỤ GENERIC: territory phải là LÃNH ĐỊA CỤ THỂ THƯƠNG HIỆU NÀY sở hữu được, KHÔNG phải "
+    "danh từ trừu tượng ai cũng nói ('chất lượng', 'uy tín', 'tận tâm', 'chuyên nghiệp', 'giá tốt', "
+    "'khách hàng là số 1') — đó là điều-kiện-để-chơi, không phải trụ. Tự kiểm: đối thủ dán cùng chữ đó "
+    "lên mình có sai không? Không sai → chữ quá chung, ĐỔI cho cụ thể/sắc hơn (bám ngành + differentiator).\n"
     "🚪 MỖI TRỤ PHẢI QUA 2 CỬA:\n"
     "  • Cửa 1 (bằng chứng-24h): tự hỏi 'Khách bảo chứng minh đi — mình đưa được CÁI GÌ cho họ XEM trong "
     "24h?'. Có thứ đưa được → điền vào ô proof.\n"
@@ -3290,7 +3310,8 @@ _MSG_ADAPT_PILLARS = (
     "thật, không có để \"\"). Kèm bộ GIỌNG (do/don't).\n"
     'Xuất JSON DUY NHẤT: {"pillars":[{"icon":"","territory":"","angle":"","proof":""}],'
     '"voice":{"do":["<4-5 điều NÊN>"],"dont":["<4-5 điều TRÁNH>"]}}\n'
-    "🔴 KHÔNG bịa số/proof. Mọi trụ truy vết được về cốt lõi + Chiến lược."
+    "🔴 KHÔNG bịa số/proof. Mọi trụ truy vết được về cốt lõi + Chiến lược.\n"
+    "⛔ CHỈ xuất JSON đúng schema — ký tự đầu là '{', KHÔNG markdown / tiêu đề # / bảng / lời dẫn."
 )
 
 
@@ -3577,7 +3598,8 @@ async def gen_messaging(user_id=None, steer: str = "", stage: str = "all", core:
                 + (f"\n# Chiến lược (synthesis)\n{synth[:2200]}\n" if synth.strip() else "")
                 + (f"\n# Tactical Playbook (cách đánh)\n{tact[:1800]}\n" if tact.strip() else "")
                 + (f"\n# Customer Insight (chia góc theo tệp)\n{cust[:1200]}\n" if cust.strip() else "")
-                + (f"\n# Định hướng founder muốn nhấn\n{steer.strip()[:300]}\n" if (steer or "").strip() else ""))
+                + (f"\n# Định hướng founder muốn nhấn\n{steer.strip()[:300]}\n" if (steer or "").strip() else "")
+                + _spine_anchor(extra))   # neo trụ/cốt lõi vào ĐỊNH VỊ đã mài (alternative/differentiator từ T2+T3) — chống trụ generic
         if stage == "pillars" and not core_in:
             return {"error": "Cần cốt lõi trước khi dựng trụ."}
         res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user,
