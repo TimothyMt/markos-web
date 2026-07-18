@@ -1658,6 +1658,147 @@
       </div>`;
   }
 
+  /* ════════ Redesign "Sản xuất" ③④ — ĐỊNH HƯỚNG: nặn chiến dịch (lưới tầng×kênh) ════════ */
+  // Chiến dịch = big_idea (is_campaign) có grid + window. Producer: POST /api/biz/campaign/save.
+  // Bài rải + hiện ở #calendar (backend _build_campaign_bands). Setup "chọn-đầu" (Max soạn) = slice sau (cần LLM).
+  const DIR_TIERS = [
+    { k: 'tofu', lab: 'TOFU', role: 'phủ / biết · lan toả' },
+    { k: 'mofu', lab: 'MOFU', role: 'hiểu / tin · nuôi' },
+    { k: 'bofu', lab: 'BOFU', role: 'chốt / mua · chuyển đổi' },
+  ];
+  let _campEdit = null;   // null = xem danh sách; {…} = đang tạo/sửa (đọc input từ DOM lúc lưu)
+  function campList() { return biList().filter(b => b && b.is_campaign); }
+  function gridSum(grid) { return (grid || []).reduce((n, c) => n + (+c.count || 0), 0); }
+  function gridCell(grid, tier, ch) { const c = (grid || []).find(x => x.tier === tier && x.channel === ch); return c ? (+c.count || 0) : 0; }
+  function gridChannels(grid) { return [...new Set((grid || []).filter(c => (+c.count || 0) > 0).map(c => c.channel))]; }
+  // Brandformance derived (KHÔNG nhãn tay): xây = TOFU+MOFU, chốt = BOFU. ≥60% xây → Nghiêng xây; ≤40 → chốt.
+  function gridLean(grid) {
+    let xay = 0, chot = 0;
+    (grid || []).forEach(c => { const n = +c.count || 0; if (c.tier === 'bofu') chot += n; else xay += n; });
+    const tot = xay + chot || 1, xp = Math.round(xay / tot * 100);
+    if (xp >= 60) return { k: 'green', lab: 'Nghiêng xây', xp };
+    if (xp <= 40) return { k: 'amber', lab: 'Nghiêng chốt', xp };
+    return { k: '', lab: 'Cân xây–chốt', xp };
+  }
+  function _dirChannels() {
+    const base = chList().map(c => c.slug).filter(Boolean);
+    const extra = _campEdit ? gridChannels(_campEdit.grid) : [];
+    return [...new Set([...(base.length ? base : ['facebook', 'tiktok', 'youtube', 'zalo']), ...extra])];
+  }
+  function _chLabel(slug) { const c = chList().find(x => x.slug === slug); return c ? c.label : slug; }
+  function _chFmt(slug) { const c = chList().find(x => x.slug === slug); return (c && c.formats && c.formats[0]) ? c.formats[0] : ''; }
+
+  P.direction = {
+    title: 'Định hướng',
+    sub: 'Nặn chiến dịch: thông điệp × kênh × tầng phễu — Max rải lên Lịch theo trình tự phễu',
+    get actions() {
+      return _campEdit ? '' :
+        `<a class="ghost-line" href="#calendar">📅 Lịch</a> <button class="primary-btn" data-act="camp-new">＋ Tạo chiến dịch</button>`;
+    },
+    render: () => {
+      const E = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      return _campEdit ? dirForm(E) : dirList(E);
+    },
+  };
+
+  function dirList(E) {
+    const camps = campList();
+    const ST = { draft: ['Nháp', 'amber'], staged: ['Nháp lịch', 'blue'], active: ['Đang chạy', 'green'] };
+    const rows = camps.map(c => {
+      const lean = gridLean(c.grid), planned = gridSum(c.grid);
+      const chs = gridChannels(c.grid).map(ch => _chLabel(ch)).join(', ') || '—';
+      const st = ST[c.status] || ST.draft;
+      const kindTag = c.kind === 'always' ? badge('nền', '') : badge('đợt', '');
+      return `<tr class="clickable" data-act="camp-open" data-id="${E(String(c.id))}">
+        <td><b>${E(c.title || '(chưa đặt tên)')}</b> ${kindTag}${c.sub_message ? `<div class="muted sm">${E(String(c.sub_message).slice(0, 70))}</div>` : ''}</td>
+        <td>${E(chs)}</td>
+        <td>${planned ? `<span class="tag ${lean.k}">${lean.lab} · ${lean.xp}%</span>` : '<span class="muted">—</span>'}</td>
+        <td>${planned} bài</td>
+        <td>${badge(st[0], st[1])}</td></tr>`;
+    }).join('');
+    const empty = !camps.length
+      ? `<tr><td colspan="5" class="muted" style="text-align:center;padding:22px">Chưa có chiến dịch — bấm <b>＋ Tạo chiến dịch</b> để nặn kế hoạch (thông điệp × kênh × tầng phễu), Max rải bài lên Lịch.</td></tr>`
+      : '';
+    return `${messagingBand()}
+      ${card('', `<div class="tablewrap"><table class="list">
+        <thead><tr><th>Chiến dịch (thông điệp)</th><th>Kênh</th><th>Thiên hướng</th><th>Dự kiến</th><th>Trạng thái</th></tr></thead>
+        <tbody>${empty}${rows}</tbody></table></div>`, { cls: 'span-12' })}`;
+  }
+
+  function dirForm(E) {
+    const c = _campEdit || { grid: [] };
+    const channels = _dirChannels();
+    const m = (window.MOCK && M.bizMessaging) || {};
+    const pillars = (m.pillars || []).map(p => p.territory || p.name || '').filter(Boolean);
+    const lean = gridLean(c.grid);
+    const pillarOpts = ['<option value="">— chọn trụ đẩy —</option>']
+      .concat(pillars.map(t => `<option value="${E(t)}" ${c.pillar_focus === t ? 'selected' : ''}>${E(t)}</option>`)).join('');
+    const kSel = k => `<option value="${k}" ${(c.kind || 'spike') === k ? 'selected' : ''}>`;
+    const sSel = s => (c.status || 'draft') === s ? 'selected' : '';
+    const gridTable = `<div class="tgrid-wrap"><table class="tgrid">
+      <thead><tr><th>Tầng \\ Kênh</th>${channels.map(ch => `<th>${E(_chLabel(ch))}<span class="fmt">${E(_chFmt(ch))}</span></th>`).join('')}</tr></thead>
+      <tbody>${DIR_TIERS.map(t => `<tr>
+        <td class="rowhead"><span class="tk">${t.lab}</span><br><span class="role muted sm">${t.role}</span></td>
+        ${channels.map(ch => `<td><input type="number" min="0" max="60" id="gc-${t.k}-${ch}" value="${gridCell(c.grid, t.k, ch) || ''}" placeholder="0" class="gc-inp"></td>`).join('')}
+      </tr>`).join('')}</tbody></table></div>`;
+    return `
+      <button class="ghost-line" data-act="camp-cancel">← Quay lại danh sách</button>
+      ${card(c.id ? '✎ Sửa chiến dịch' : '＋ Chiến dịch mới', `
+        <div class="dir-form">
+          <label class="fld"><span>Tên / thông điệp chính</span>
+            <input id="campTitle" type="text" maxlength="140" value="${E(c.title || '')}" placeholder="VD: Đợt Hè — dùng thử 14 ngày, thất thoát về 0"></label>
+          <label class="fld"><span>Thông điệp đợt <span class="muted sm">(con của cốt lõi)</span></span>
+            <textarea id="campSubMsg" rows="2" maxlength="400" placeholder="Diễn giải cốt lõi cho riêng đợt này">${E(c.sub_message || '')}</textarea></label>
+          <div class="fld-row">
+            <label class="fld"><span>🏷️ Trụ đẩy</span><select id="campPillar">${pillarOpts}</select></label>
+            <label class="fld"><span>Kiểu</span><select id="campKind">${kSel('spike')}Đợt nhấn (spike)</option>${kSel('always')}Luôn chạy (nền)</option></select></label>
+            <label class="fld"><span>Trạng thái</span><select id="campStatus">
+              <option value="draft" ${sSel('draft')}>Nháp</option><option value="staged" ${sSel('staged')}>Nháp lịch</option><option value="active" ${sSel('active')}>Đang chạy</option></select></label>
+          </div>
+          <div class="fld-row">
+            <label class="fld"><span>Bắt đầu</span><input id="campStart" type="date" value="${E(c.window_start || '')}"></label>
+            <label class="fld"><span>Kết thúc</span><input id="campEnd" type="date" value="${E(c.window_end || '')}"></label>
+            <label class="fld"><span>Cao điểm <span class="muted sm">(mở bán / hạn)</span></span><input id="campPeak" type="date" value="${E(c.peak_date || '')}"></label>
+          </div>
+          <div class="fld"><span>🎛️ Lưới tầng × kênh <span class="muted sm">(số bài mỗi ô)</span></span>
+            <p class="muted sm" style="margin:4px 0 8px">Max rải các bài này lên Lịch theo phễu (TOFU đầu · MOFU giữa · BOFU quanh cao điểm), giãn đều, không vượt trần kênh. Thiên hướng: <b class="tag ${lean.k}">${lean.lab} · ${lean.xp}%</b> <span class="muted">(xây = TOFU+MOFU · chốt = BOFU, tự suy)</span></p>
+            ${gridTable}</div>
+          <div class="dir-form-foot">
+            <button class="ghost-line" data-act="camp-cancel">Huỷ</button>
+            <button class="primary-btn" data-act="camp-save">💾 Lưu chiến dịch</button>
+          </div>
+        </div>`, { cls: 'span-12' })}`;
+  }
+
+  async function saveCampaignForm(btn) {
+    if (!apiAvailable || !M.bizEnabled) { toast('Bật backend (Supabase) để lưu chiến dịch'); return; }
+    const root = document.getElementById('view');
+    const val = id => ((root.querySelector('#' + id) || {}).value || '');
+    const title = val('campTitle').trim();
+    if (!title) { toast('Nhập tên / thông điệp chiến dịch'); return; }
+    const grid = [];
+    DIR_TIERS.forEach(t => _dirChannels().forEach(ch => {
+      const n = parseInt((root.querySelector('#gc-' + t.k + '-' + ch) || {}).value, 10) || 0;
+      if (n > 0) grid.push({ tier: t.k, channel: ch, count: n });
+    }));
+    const payload = {
+      user_id: _bizUserId, id: (_campEdit && _campEdit.id) || '', title,
+      sub_message: val('campSubMsg').trim(), pillar_focus: val('campPillar'),
+      kind: val('campKind') || 'spike', window_start: val('campStart'),
+      window_end: val('campEnd'), peak_date: val('campPeak'),
+      grid, status: val('campStatus') || 'draft',
+    };
+    const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Đang lưu…';
+    try {
+      const r = await API.post('api/biz/campaign/save', payload);
+      if (r && r.error) { toast(r.error); btn.disabled = false; btn.textContent = orig; return; }
+      await refreshBiz();
+      _campEdit = null;
+      toast('✓ Đã lưu chiến dịch — xem bài rải ở Lịch');
+      route();
+    } catch (e) { toast('Lưu lỗi — thử lại'); btn.disabled = false; btn.textContent = orig; }
+  }
+
   P.calendar = {
     title: 'Kế hoạch marketing',
     sub: 'Theo thời gian: 🟢 nền thương hiệu chạy liên tục (móng) + 🔴 đợt đắp lên đúng dịp (spike)',
@@ -3630,6 +3771,10 @@
     }
     if (act === 'job-dismiss') { _jobDismiss[el.dataset.id] = true; route(); return; }   // N-06: tắt banner lỗi
     if (act === 'cal-view') { _calView = el.dataset.view; route(); return; }
+    if (act === 'camp-new') { _campEdit = { id: '', grid: [], kind: 'spike', status: 'draft' }; route(); return; }
+    if (act === 'camp-open') { const c = campList().find(x => String(x.id) === el.dataset.id); _campEdit = c ? JSON.parse(JSON.stringify(c)) : { id: '', grid: [] }; route(); return; }
+    if (act === 'camp-cancel') { _campEdit = null; route(); return; }
+    if (act === 'camp-save') { await saveCampaignForm(el); return; }
     if (act === 'cal-open-week') { _calWeek = parseInt(el.dataset.week) || 1; _calView = 'week'; route(); return; }
     if (act === 'slot-open') {   // M-C: bấm thẻ lịch → chọn chủ đề
       if (!apiAvailable || !M.bizEnabled) { toast('Bật backend (Supabase + LLM) để tạo bài thật'); return; }
