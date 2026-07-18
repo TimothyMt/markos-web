@@ -2139,7 +2139,9 @@ async def gen_positioning_from_usp(user_id=None, usp: str = "") -> dict:
         user = (f"# USP thô founder gõ\n{usp_s}\n"
                 f"# Đối thủ (T2)\n{(comp or '')[:1800] or '(chưa có)'}\n"
                 f"# Khách (T3)\n{(cust or '')[:1800] or '(chưa có)'}")
-        res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=900)
+        # 1400 (cũ 900): JSON gồm alternative+differentiator+statement + 3 dòng why tiếng Việt → 900 hay bị
+        # cắt giữa câu trên path Sonnet fallback (stop_reason=max_tokens) → router coi là lỗi, failover/gãy.
+        res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=1400)
         raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
         alt = diff = stmt = ""
         conf = "low"
@@ -2164,6 +2166,71 @@ async def gen_positioning_from_usp(user_id=None, usp: str = "") -> dict:
                 "proposal": {"alternative": alt, "differentiator": diff, "statement": stmt}}
     except Exception as e:
         logger.warning("biz.gen_positioning_from_usp failed: %s", e)
+        return {"error": str(e)}
+
+
+async def backfill_spine_positioning(user_id=None, dry_run: bool = False, force: bool = False) -> dict:
+    """MIGRATION: user cũ (flow trước) có `messaging` nhưng THIẾU `spine.positioning` → suy positioning
+    (truy ngược Dunford, grounded T2+T3 thật) từ `messaging.core` làm 'USP proxy', ghi spine.positioning
+    với `source='derived'` (derived-state WIRING §2: confidence + updated + why + human-override).
+
+    Nối lại mối đứt: Change A (_spine_anchor→gen_messaging) + chọn-đầu Q② đọc spine.positioning; user cũ
+    chưa có → cả hai mất nguồn. Backfill lấp chỗ này cho tới khi user tự chốt định vị (save_strategy_input).
+
+    Luật:
+    - KHÔNG đè `source='user'` (con người đã chốt = thắng). Đã có statement + source='derived' → skip (idempotent)
+      trừ khi force.
+    - Không có `messaging.core` LẪN `product_service` → skip (không có gì để suy).
+    - dry_run=True: suy + trả kết quả, KHÔNG ghi DB.
+    - Degrade: gen_positioning lỗi / research mỏng → confidence thấp, vẫn ghi (định vị = giả thuyết)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        spine = extra.get("spine") if isinstance(extra.get("spine"), dict) else {}
+        pos = spine.get("positioning") if isinstance(spine.get("positioning"), dict) else {}
+        # human-override: định vị con người chốt KHÔNG bị backfill đè (kể cả force)
+        if pos.get("statement") and pos.get("source") == "user":
+            return {"ok": True, "skipped": "human-set", "positioning": pos}
+        # idempotent: đã suy sẵn rồi thì thôi (trừ khi ép suy lại)
+        if pos.get("statement") and pos.get("source") == "derived" and not force:
+            return {"ok": True, "skipped": "already-derived", "positioning": pos}
+        msg = extra.get("messaging") if isinstance(extra.get("messaging"), dict) else {}
+        usp_proxy = (str(msg.get("core") or "").strip() or str(prof.get("product_service") or "").strip())
+        if not usp_proxy:
+            return {"ok": True, "skipped": "no-source", "reason": "Không có messaging.core lẫn product_service để suy."}
+        res = await gen_positioning_from_usp(uid, usp=usp_proxy)
+        if res.get("error") or not isinstance(res.get("proposal"), dict):
+            return {"error": res.get("error") or "Suy định vị thất bại."}
+        prop = res["proposal"]
+        if not (prop.get("statement") or prop.get("differentiator")):
+            return {"ok": True, "skipped": "empty-derivation", "reason": "Không rút được định vị đủ ý."}
+        newpos = {
+            "alternative": str(prop.get("alternative") or "").strip(),
+            "differentiator": str(prop.get("differentiator") or "").strip(),
+            "statement": str(prop.get("statement") or "").strip(),
+            "price_posture": _validate_price_posture(pos.get("price_posture")),   # giữ đòn bẩy giá cũ nếu có
+            "source": "derived",                                                  # KHÁC 'user' → chưa ai chốt
+            "confidence": _norm_pos_confidence(res.get("confidence")),
+            "updated": time.time(),
+            "why": res.get("why") if isinstance(res.get("why"), dict) else {},
+        }
+        if dry_run:
+            return {"ok": True, "dry_run": True, "usp_proxy": usp_proxy, "positioning": newpos}
+        spine["positioning"] = newpos                       # spine có thể chỉ có mỗi positioning — _spine_anchor xử phần thiếu
+        extra["spine"] = spine
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "usp_proxy": usp_proxy, "positioning": newpos}
+    except Exception as e:
+        logger.warning("biz.backfill_spine_positioning failed: %s", e)
         return {"error": str(e)}
 
 
