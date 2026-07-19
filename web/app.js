@@ -1667,6 +1667,18 @@
     { k: 'bofu', lab: 'BOFU', role: 'chốt / mua · chuyển đổi' },
   ];
   let _campEdit = null;   // null = xem danh sách; {…} = đang tạo/sửa (đọc input từ DOM lúc lưu)
+  let _campWizard = null; // {…} = đang ở màn "chọn-đầu" (5 câu) trước khi mở form; null = không
+  // Mối nối ④: mỗi mục đích có 1 ô HỎI-THÊM (đổ vào who hoặc say) → Max biết ĐỐI TƯỢNG cụ thể của đợt.
+  const _WIZ_PURPOSE = {
+    branding:   { label: 'Xoáy vào điều gì?',        ph: 'VD: câu chuyện thương hiệu / giá trị cốt lõi', target: 'say' },
+    launch:     { label: 'Ra mắt cái gì?',           ph: 'VD: khoá học da 8 tuần / serum mới',            target: 'say' },
+    demand:     { label: 'Đẩy sản phẩm/chủ đề nào?', ph: 'VD: dịch vụ trị mụn chuyên sâu',                 target: 'say' },
+    conversion: { label: 'Chốt gói/sản phẩm nào?',   ph: 'VD: gói liệu trình 5 buổi',                      target: 'say' },
+    retention:  { label: 'Giữ chân nhóm nào?',       ph: 'VD: khách VIP mua đều',                          target: 'who' },
+    winback:    { label: 'Kéo lại nhóm khách nào?',  ph: 'VD: khách mua 1 lần rồi im 3 tháng',             target: 'who' },
+    advocacy:   { label: 'Lan truyền quanh gì?',     ph: 'VD: review khách thật / thử thách 30 ngày',      target: 'say' },
+  };
+  const _PCONF_VI = { high: 'cao', med: 'vừa', low: 'thấp' };
   function campList() { return biList().filter(b => b && b.is_campaign); }
   function gridSum(grid) { return (grid || []).reduce((n, c) => n + (+c.count || 0), 0); }
   function gridCell(grid, tier, ch) { const c = (grid || []).find(x => x.tier === tier && x.channel === ch); return c ? (+c.count || 0) : 0; }
@@ -1692,12 +1704,12 @@
     title: 'Định hướng',
     sub: 'Nặn chiến dịch: thông điệp × kênh × tầng phễu — Max rải lên Lịch theo trình tự phễu',
     get actions() {
-      return _campEdit ? '' :
+      return (_campEdit || _campWizard) ? '' :
         `<a class="ghost-line" href="#calendar">📅 Lịch</a> <button class="primary-btn" data-act="camp-new">＋ Tạo chiến dịch</button>`;
     },
     render: () => {
       const E = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-      return _campEdit ? dirForm(E) : dirList(E);
+      return _campWizard ? dirWizard(E) : (_campEdit ? dirForm(E) : dirList(E));
     },
   };
 
@@ -1750,7 +1762,7 @@
           <label class="fld"><span>Thông điệp đợt <span class="muted sm">(con của cốt lõi)</span></span>
             <textarea id="campSubMsg" rows="2" maxlength="400" placeholder="Diễn giải cốt lõi cho riêng đợt này">${E(c.sub_message || '')}</textarea></label>
           <div class="fld-row">
-            <label class="fld"><span>🏷️ Trụ đẩy</span><select id="campPillar">${pillarOpts}</select></label>
+            <label class="fld"><span>🏷️ Trụ đẩy</span><select id="campPillar">${pillarOpts}</select>${c._pillar_derived ? `<span class="muted sm" style="margin-top:3px">💡 Max suy trụ (tin ${_PCONF_VI[c._pillar_confidence] || 'thấp'})${c._why ? ': ' + E(c._why) : ''} — đổi nếu chưa khớp.</span>` : ''}</label>
             <label class="fld"><span>Kiểu</span><select id="campKind">${kSel('spike')}Đợt nhấn (spike)</option>${kSel('always')}Luôn chạy (nền)</option></select></label>
             <label class="fld"><span>Trạng thái</span><select id="campStatus">
               <option value="draft" ${sSel('draft')}>Nháp</option><option value="staged" ${sSel('staged')}>Nháp lịch</option><option value="active" ${sSel('active')}>Đang chạy</option></select></label>
@@ -1788,6 +1800,7 @@
       window_end: val('campEnd'), peak_date: val('campPeak'),
       grid, status: val('campStatus') || 'draft',
     };
+    if (_campEdit && _campEdit._setup) payload.setup = _campEdit._setup;   // ảnh chụp 5 câu chọn-đầu (truy nguồn ④)
     const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Đang lưu…';
     try {
       const r = await API.post('api/biz/campaign/save', payload);
@@ -1797,6 +1810,92 @@
       toast('✓ Đã lưu chiến dịch — xem bài rải ở Lịch');
       route();
     } catch (e) { toast('Lưu lỗi — thử lại'); btn.disabled = false; btn.textContent = orig; }
+  }
+
+  /* ── Chọn-đầu (mối nối ④): 5 câu → setup-gen → Max soạn ĐỀ XUẤT → prefill form (người chốt vẫn là user) ── */
+  function dirWizard(E) {
+    const m = (window.MOCK && M.bizMessaging) || {};
+    const pillars = (m.pillars || []).map(p => p.territory || p.name || '').filter(Boolean);
+    const arche = (window.MOCK && window.MOCK.bizArchetype) || '';
+    const sayOpts = ['<option value="">— chọn thông điệp / trụ —</option>']
+      .concat(pillars.map(t => `<option value="${E(t)}">${E(t)}</option>`))
+      .concat(['<option value="__custom__">＋ Tự gõ thông điệp khác…</option>']).join('');
+    const purpOpts = Object.entries(_PURPOSE_VI)
+      .map(([k, v]) => `<option value="${k}" ${k === 'demand' ? 'selected' : ''}>${v}</option>`).join('');
+    const ex = _WIZ_PURPOSE.demand;
+    const noMsg = !pillars.length && !(m.core || '').trim();
+    return `
+      <button class="ghost-line" data-act="wiz-cancel">← Quay lại danh sách</button>
+      ${card('✨ Chọn-đầu — Max soạn chiến dịch', `
+        <p class="muted sm" style="margin:-4px 0 12px">Trả lời nhanh 5 câu, Max soạn sẵn <b>thông điệp đợt + lưới tầng×kênh</b> theo mục đích (tỉ lệ phễu tự đặt). Bạn chỉnh lại rồi lưu — <b>người chốt vẫn là bạn</b>.</p>
+        ${noMsg ? `<p class="muted sm" style="margin:0 0 12px">⚠️ Chưa có <b>thông điệp cốt lõi / trụ</b> — Max vẫn soạn được nhưng độ khớp thấp. Nên dựng <a href="#message">🏛️ Thông điệp</a> trước.</p>` : ''}
+        <div class="dir-form">
+          <label class="fld"><span>① Nhắm ai?</span>
+            <input id="wizWho" type="text" maxlength="200" placeholder="${arche ? E('VD: ' + arche) : 'VD: chủ shop nhỏ, ngại đổi công cụ'}"></label>
+          <label class="fld"><span>② Nói gì? <span class="muted sm">(con của cốt lõi)</span></span>
+            <select id="wizSay">${sayOpts}</select></label>
+          <div class="fld" id="wizSayCustomWrap" style="display:none">
+            <input id="wizSayCustom" type="text" maxlength="200" placeholder="Tự gõ thông điệp — Max sẽ suy trụ gần nhất (bạn đổi được)"></div>
+          <div class="fld-row">
+            <label class="fld"><span>③ Để làm gì?</span><select id="wizPurpose">${purpOpts}</select></label>
+            <label class="fld"><span id="wizExtraLabel">${ex.label}</span>
+              <input id="wizExtra" type="text" maxlength="200" placeholder="${E(ex.ph)}"></label>
+          </div>
+          <div class="fld-row">
+            <label class="fld"><span>④ Ưu đãi? <span class="muted sm">(nếu có)</span></span>
+              <input id="wizOffer" type="text" maxlength="200" placeholder="VD: dùng thử 14 ngày / giảm 20% tuần đầu"></label>
+            <label class="fld"><span>⑤ Khi nào?</span>
+              <input id="wizWhen" type="text" maxlength="120" placeholder="VD: 2 tuần tới / Tháng 8 / trước Tết"></label>
+          </div>
+          <div class="dir-form-foot">
+            <button class="ghost-line" data-act="wiz-skip">Bỏ qua — tự điền form</button>
+            <button class="primary-btn" data-act="wiz-gen">✨ Max soạn đề xuất</button>
+          </div>
+        </div>`, { cls: 'span-12' })}`;
+  }
+
+  function _wizUpdateExtra() {
+    const sel = document.getElementById('wizPurpose'); if (!sel) return;
+    const meta = _WIZ_PURPOSE[sel.value] || _WIZ_PURPOSE.demand;
+    const lab = document.getElementById('wizExtraLabel'); const inp = document.getElementById('wizExtra');
+    if (lab) lab.textContent = meta.label;
+    if (inp) inp.placeholder = meta.ph;
+  }
+
+  async function genFromSetup(btn) {
+    if (!apiAvailable || !M.bizEnabled) { toast('Bật backend (Supabase) để Max soạn'); return; }
+    const val = id => ((document.getElementById(id) || {}).value || '').trim();
+    const sel = document.getElementById('wizSay');
+    const custom = sel && sel.value === '__custom__';
+    let say = custom ? val('wizSayCustom') : (sel ? sel.value : '');
+    const say_pillar = custom ? '' : (sel ? sel.value : '');
+    let who = val('wizWho');
+    const purpose = val('wizPurpose') || 'demand';
+    const offer = val('wizOffer'), when = val('wizWhen'), extra = val('wizExtra');
+    const meta = _WIZ_PURPOSE[purpose] || {};
+    if (extra) {                                           // ô hỏi-thêm → đổ vào who (nhóm) hoặc say (chủ thể)
+      if (meta.target === 'who') who = (who ? who + ' — ' : '') + extra;
+      else say = (say ? say + ' — cụ thể: ' : '') + extra;
+    }
+    if (!say) { toast('Chọn hoặc nhập "nói gì" đã'); return; }
+    const setup = { who, say, purpose, offer, when };      // snapshot 5 câu → lưu kèm khi save
+    const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Max đang soạn…';
+    try {
+      const r = await API.post('api/biz/campaign/setup-gen',
+        { user_id: _bizUserId, who, say, say_pillar, purpose, offer, when });
+      if (!r || r.error || !r.ok) { toast((r && r.error) || 'Soạn lỗi — thử lại'); btn.disabled = false; btn.textContent = orig; return; }
+      const p = r.proposal || {};
+      _campWizard = null;
+      _campEdit = {
+        id: '', title: p.sub_message || say, sub_message: p.sub_message || say,
+        pillar_focus: p.pillar_focus || '', kind: p.kind || 'spike', status: 'draft',
+        grid: Array.isArray(p.grid) ? p.grid : [],
+        _pillar_derived: !!p.pillar_derived, _pillar_confidence: p.pillar_confidence || '',
+        _why: p.why || '', _setup: setup,
+      };
+      route();
+      toast('✓ Max đã soạn đề xuất — chỉnh lưới/thời gian rồi lưu');
+    } catch (e) { toast('Soạn lỗi — thử lại'); btn.disabled = false; btn.textContent = orig; }
   }
 
   P.calendar = {
@@ -3771,10 +3870,13 @@
     }
     if (act === 'job-dismiss') { _jobDismiss[el.dataset.id] = true; route(); return; }   // N-06: tắt banner lỗi
     if (act === 'cal-view') { _calView = el.dataset.view; route(); return; }
-    if (act === 'camp-new') { _campEdit = { id: '', grid: [], kind: 'spike', status: 'draft' }; route(); return; }
-    if (act === 'camp-open') { const c = campList().find(x => String(x.id) === el.dataset.id); _campEdit = c ? JSON.parse(JSON.stringify(c)) : { id: '', grid: [] }; route(); return; }
+    if (act === 'camp-new') { _campWizard = {}; _campEdit = null; route(); return; }          // mở "chọn-đầu" trước
+    if (act === 'camp-open') { _campWizard = null; const c = campList().find(x => String(x.id) === el.dataset.id); _campEdit = c ? JSON.parse(JSON.stringify(c)) : { id: '', grid: [] }; route(); return; }
     if (act === 'camp-cancel') { _campEdit = null; route(); return; }
     if (act === 'camp-save') { await saveCampaignForm(el); return; }
+    if (act === 'wiz-cancel') { _campWizard = null; _campEdit = null; route(); return; }
+    if (act === 'wiz-skip') { _campWizard = null; _campEdit = { id: '', grid: [], kind: 'spike', status: 'draft' }; route(); return; }
+    if (act === 'wiz-gen') { await genFromSetup(el); return; }
     if (act === 'cal-open-week') { _calWeek = parseInt(el.dataset.week) || 1; _calView = 'week'; route(); return; }
     if (act === 'slot-open') {   // M-C: bấm thẻ lịch → chọn chủ đề
       if (!apiAvailable || !M.bizEnabled) { toast('Bật backend (Supabase + LLM) để tạo bài thật'); return; }
@@ -4734,6 +4836,12 @@
   document.addEventListener('change', (e) => {
     const el = e.target.closest('input[data-act]');
     if (el) handleAction(el);
+  });
+  // Chọn-đầu: đổi mục đích → đổi nhãn/placeholder ô hỏi-thêm; chọn "tự gõ" → hiện ô nhập
+  document.addEventListener('change', (e) => {
+    const t = e.target; if (!t || !t.id) return;
+    if (t.id === 'wizPurpose') _wizUpdateExtra();
+    if (t.id === 'wizSay') { const w = document.getElementById('wizSayCustomWrap'); if (w) w.style.display = t.value === '__custom__' ? '' : 'none'; }
   });
   // Thông điệp: Enter trong ô CỐT LÕI → dựng lại trụ theo cốt lõi mới
   document.addEventListener('keydown', (e) => {
