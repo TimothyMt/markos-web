@@ -140,21 +140,21 @@ const vn=n=>n.toLocaleString('vi-VN');
 const KPI=[["❤️","Tổng lượt thích","1.753.968",0],["👥","Tổng lượt theo dõi","1.700.000",0],["📈","Tỷ lệ L/F","103.18%",0],["⭐","Đánh giá","Chưa có đánh giá",1]];
 document.getElementById('kpis').innerHTML=KPI.map(k=>`<div class="card kpi"><span class="ic">${k[0]}</span><div><p class="l">${k[1]}</p><p class="v${k[3]?' sm':''}">${k[2]}</p></div></div>`).join('');
 
+const HP="https://www.facebook.com/highlandscoffeevietnam/posts/";
 const POSTS=[
- ["Bài 1",27,2,"Ảnh","✋ CHỈ CÒN 5 NGÀY ĐỂ SĂN KIM CƯƠNG — ghé Highlands làm ly Americano giật giải…"],
- ["Bài 2",33,5,"Ảnh","👀 Đi Highlands chụp 1001 tấm, về lựa đúng 1 tấm đăng. Làm ly Americano lấy tinh thần…"],
- ["Bài 3",8967,866,"Ảnh","🇪🇸 vs 🇦🇷 — Highlands mở xuyên đêm nhé anh em! Chi tiết tại bình luận."],
- ["Bài 4",103,3,"Ảnh","📲 MỘT CHẠM ĐẶT TRƯỚC – GHÉ NHẬN NƯỚC NGAY! Tính năng Đặt món trước trên app HighlandsĐI…"],
- ["Bài 5",8275,475,"Text","🇦🇷 Mừng Anh 10 vào Chung Kết — Highlands giảm ngay 30% COMBO SÁNG TỈNH TÁO."],
- ["Bài 6",68,2,"Ảnh","Vòng xoáy 'thức khuya dậy sớm' của hội mê bóng — sáng cần ly Americano lấy tỉnh táo…"],
+ ["Bài 1",27,2,"Ảnh","✋ CHỈ CÒN 5 NGÀY ĐỂ SĂN KIM CƯƠNG — ghé Highlands làm ly Americano giật giải…",HP+"pfbid0X2wXvRFYKgejRx2gkcgnY1Q8JUWEVXyvNo3v434h5F4Cw2dewz5fgTPis3yzay9Rl"],
+ ["Bài 2",33,5,"Ảnh","👀 Đi Highlands chụp 1001 tấm, về lựa đúng 1 tấm đăng. Làm ly Americano lấy tinh thần…",HP+"pfbid02igJ5iVdfvktVKbPVB2JhKXrDh4jDbeBL665bzjepELkjt5SgBPb9K6aop99T2kWSl"],
+ ["Bài 3",8967,866,"Ảnh","🇪🇸 vs 🇦🇷 — Highlands mở xuyên đêm nhé anh em! Chi tiết tại bình luận.",HP+"pfbid02xQmKwnZ8NBAjd7tSHnNDmNAb7AHiJgtgz8c7tLtzhC1ixA2Ee8tjZmXLb4EwuJiml"],
+ ["Bài 4",103,3,"Ảnh","📲 MỘT CHẠM ĐẶT TRƯỚC – GHÉ NHẬN NƯỚC NGAY! Tính năng Đặt món trước trên app HighlandsĐI…",HP+"pfbid02sg6pkqkqgHPcqGhrGfcgDoLTsrKek2AQ3H2MNaSCtsLsELRcUULNYsWBGudhvPRjl"],
+ ["Bài 5",8275,475,"Text","🇦🇷 Mừng Anh 10 vào Chung Kết — Highlands giảm ngay 30% COMBO SÁNG TỈNH TÁO.",HP+"pfbid06vwe5JXe6neMvyzzaHbY7wowCC6dzYsnwd8MFuGnouWAxhEo6Q2W7biiKfVMJs1fl"],
+ ["Bài 6",68,2,"Ảnh","Vòng xoáy 'thức khuya dậy sớm' của hội mê bóng — sáng cần ly Americano lấy tỉnh táo…",HP+"pfbid02siHWQtrLF6E8Ai6CSptisnqKKtupRpYy7fHReLDbbd9PdYSEFu4PK3LHuDzDbQSMl"],
 ];
-const FBP="https://www.facebook.com/highlandscoffeevietnam";
-document.getElementById('posts').innerHTML=POSTS.map(p=>`<a class="pcell" href="${FBP}" target="_blank" rel="noopener" title="Mở bài trên Facebook"><div class="t"><span class="tt">${p[0]} <span class="ex">↗</span></span><span class="tag">${p[3]}</span></div>
+document.getElementById('posts').innerHTML=POSTS.map(p=>`<a class="pcell" href="${p[5]}" target="_blank" rel="noopener" title="Mở đúng bài này trên Facebook"><div class="t"><span class="tt">${p[0]} <span class="ex">↗</span></span><span class="tag">${p[3]}</span></div>
  <div class="tx">${p[4]}</div><div class="m"><span>❤️ ${vn(p[1])}</span><span>💬 ${vn(p[2])}</span></div></a>`).join('');
 
-const ADS=[["Ảnh","Không nút"],["Ảnh","—"],["Ảnh","—"],["DCO","Sign up"],["Ảnh","—"],["Ảnh","—"],["Ảnh","Sign up"],["Ảnh","Sign up"],["Ảnh","—"],["Ảnh","—"],["Ảnh","Learn more"],["Ảnh","Learn more"]];
-const ADLIB="https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=VN&view_all_page_id=";
-document.getElementById('ads').innerHTML=ADS.map((a,i)=>`<a class="pcell" style="min-height:auto" href="${ADLIB}" target="_blank" rel="noopener" title="Mở quảng cáo trong Ad Library"><div class="t"><span class="tt">QC ${i+1} <span class="ex">↗</span></span><span class="dot"></span></div>
+const AL="https://www.facebook.com/ads/library?id=";
+const ADS=[["Ảnh","Không nút",AL+"4458168264500530"],["Ảnh","—",AL+"1342877084467789"],["Ảnh","—",AL+"2127292821169032"],["DCO","Sign up",AL+"27688899007406637"],["Ảnh","—",AL+"1749283662923337"],["Ảnh","—",AL+"918148074639900"],["Ảnh","Sign up",AL+"1002283892719351"],["Ảnh","Sign up",AL+"2226534218147287"],["Ảnh","—",AL+"1554643679518201"],["Ảnh","—",AL+"858479010325464"],["Ảnh","Learn more",AL+"1753205732696745"],["Ảnh","Learn more",AL+"2112677139296806"]];
+document.getElementById('ads').innerHTML=ADS.map((a,i)=>`<a class="pcell" style="min-height:auto" href="${a[2]}" target="_blank" rel="noopener" title="Mở đúng quảng cáo này trong Ad Library"><div class="t"><span class="tt">QC ${i+1} <span class="ex">↗</span></span><span class="dot"></span></div>
  <div class="tags"><span class="tag">${a[0]}</span><span class="tag">${a[1]}</span></div></a>`).join('');
 
 // ---- charts ----
