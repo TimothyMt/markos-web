@@ -7,6 +7,7 @@ Chi phí = credits theo lượt → gọi ON-DEMAND, cache mạnh ở tầng bus
 from __future__ import annotations
 
 import os
+import re
 
 BASE = "https://api.scrapecreators.com"
 
@@ -59,3 +60,59 @@ async def fetch_facebook_page(url: str, want_posts: int = 8, want_ads: int = 12)
                 ads = []   # ad-library lỗi không nên chặn cả report
 
         return {"profile": profile, "posts": posts, "ads": ads}
+
+
+def tiktok_handle(handle_or_url: str) -> str:
+    """Rút @handle từ URL TikTok hoặc trả về chính handle đã cho."""
+    s = (handle_or_url or "").strip()
+    m = re.search(r"@([\w.]+)", s)
+    if m:
+        return m.group(1)
+    return s.lstrip("@").split("/")[0].split("?")[0]
+
+
+async def fetch_tiktok_page(handle_or_url: str, want_videos: int = 8, with_transcript: bool = True) -> dict:
+    """Kéo profile + N video (phân trang max_cursor) của 1 kênh TikTok.
+
+    TikTok cho VIEW/SHARE/SAVE thật (FB không có) nhưng KHÔNG có ad-library công khai.
+    `with_transcript`: gọi thêm transcript/video (1 credit/video) — chỉ có khi video có CC,
+    brand video thường null → scripts đầy đủ cần ASR riêng (Whisper/Gemini) ở tầng trên.
+    Trả {"profile", "videos", "transcripts": {aweme_id: text}, "handle"}.
+    """
+    import httpx
+
+    handle = tiktok_handle(handle_or_url)
+    headers = {"x-api-key": api_key()}
+    async with httpx.AsyncClient(timeout=45.0, headers=headers) as c:
+        profile = await _get(c, "/v1/tiktok/profile", {"handle": handle})
+
+        videos: list = []
+        cursor = None
+        while len(videos) < want_videos:
+            page = await _get(c, "/v3/tiktok/profile/videos", {"handle": handle, "max_cursor": cursor})
+            batch = page.get("aweme_list") or []
+            if not batch:
+                break
+            videos.extend(batch)
+            if not page.get("has_more"):
+                break
+            cursor = page.get("max_cursor")
+            if not cursor:
+                break
+        videos = videos[:want_videos]
+
+        transcripts: dict = {}
+        if with_transcript:
+            for v in videos:
+                aid = v.get("aweme_id")
+                if not aid:
+                    continue
+                try:
+                    tr = await _get(c, "/v1/tiktok/video/transcript",
+                                    {"url": f"https://www.tiktok.com/@{handle}/video/{aid}"})
+                    if tr.get("transcript"):
+                        transcripts[aid] = tr["transcript"]
+                except Exception:
+                    pass
+
+        return {"profile": profile, "videos": videos, "transcripts": transcripts, "handle": handle}

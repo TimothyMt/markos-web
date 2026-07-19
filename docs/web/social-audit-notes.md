@@ -91,6 +91,27 @@ LLM hụt token (page lớn) → vẫn trả `kpi/posts/ads` + `{ "error": ... }
 | Env | `.env.example` | `SCRAPECREATORS_API_KEY` |
 | FE stub | `web/app.js` · `web/styles.css` · `web/data.js` | **thô — làm lại theo SocialLens** |
 
+## 5b. TikTok (đã thêm — cùng endpoint)
+
+`POST /api/biz/social/audit` với `"platform":"tiktok"`, `url` = handle hoặc link kênh
+(`@highlandscoffeevietnam` hoặc `https://www.tiktok.com/@highlandscoffeevietnam`). Đã test HTTP 200.
+
+**Khác FB trong response:**
+- `kpi`: `{ follower, heart (tổng tim), videoCount, engRate:"0.04%", verified }` — KHÔNG có `lf`/`rating`.
+- `posts` (= video): mỗi item thêm `views` (thật), `share`, `save`, `hashtags[]`, **`transcript`** (lời thoại, có thể null); `react` = số like (digg).
+- `ads`: **luôn `[]`** — TikTok KHÔNG có Ad Library công khai qua ScrapeCreators → mục ⑧ tự ghi rõ. (FB vẫn là kênh soi ads đối thủ.)
+- `derived` thêm: `totalView`, `avgView`, `totalShare/Save`, `engRate`.
+- Insight đặc thù TikTok: view khủng nhưng engRate rất thấp (Highlands: avgView 3.88M, engRate 0.04%) — mục ⑦ tự dựng bảng Like/View.
+
+**FE:** dropdown đã có TikTok. Render nhánh theo `platform`: TikTok hiện cột **Lượt xem / Thích / Bình luận / Lưu / Chia sẻ** (giống SocialLens) + khối **Lời thoại** (`posts[].transcript`) khi có; ẩn phần Quảng cáo.
+
+### Scripts (lời thoại video) — như SocialLens
+- Field `posts[].transcript` đã có sẵn. **Nguồn hiện tại** = `/v1/tiktok/video/transcript` của ScrapeCreators —
+  CHỈ trả text khi video **có phụ đề CC của TikTok**; brand video (chữ on-screen + nhạc) hầu hết **null**.
+- **SocialLens hiện được transcript đầy đủ nghĩa là họ tự chạy ASR** (speech-to-text từ audio). Muốn parity:
+  video object có `video.play_addr.url_list` → **tải audio → STT (Whisper `gpt-4o-transcribe` / Gemini audio) → transcript + timestamp**.
+  Đây là **việc nâng cấp riêng** (cần OpenAI/Gemini key; Anthropic không làm audio). Plumbing (`transcript` field + input LLM đọc transcript) đã sẵn — chỉ cần đổ nguồn ASR vào.
+
 ## 6. Chạy thử
 ```bash
 # cần SCRAPECREATORS_API_KEY + ≥1 LLM key trong env
@@ -98,4 +119,8 @@ python run_web.py
 curl -X POST localhost:8000/api/biz/social/audit \
   -H "Content-Type: application/json" \
   -d '{"url":"https://www.facebook.com/highlandscoffeevietnam","platform":"facebook","posts":6}'
+# TikTok:
+curl -X POST localhost:8000/api/biz/social/audit \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.tiktok.com/@highlandscoffeevietnam","platform":"tiktok","posts":6}'
 ```
