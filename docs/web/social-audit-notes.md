@@ -27,7 +27,8 @@ body: { "url": "<link fanpage FB>", "platform": "facebook", "posts": 8, "user_id
   ],
   "ads": [
     { "n":1, "format":"Video", "cta":"Nhắn tin", "active":true,
-      "spend":null, "reach":null, "platforms":["FACEBOOK","INSTAGRAM"], "body":"..." }
+      "spend":null, "reach":null, "platforms":["FACEBOOK","INSTAGRAM"], "body":"...",
+      "url":"https://www.facebook.com/ads/library/?id=..." }   // mở ad trong Ad Library
   ],
   "derived": {
     "freqPerDay": 0.5, "freqLabel": "Thấp",
@@ -49,6 +50,7 @@ LLM hụt token (page lớn) → vẫn trả `kpi/posts/ads` + `{ "error": ... }
 
 1. Trang/nút "Tạo báo cáo kênh mới" (modal: **Nền tảng** ▾ · **URL** · **Mô hình phân tích**) → `POST` endpoint trên.
 2. Render report: header (avatar + tên + link) · 4 thẻ KPI · lưới **Bài đăng** (n · react · comment · format) · lưới **Quảng cáo** (format · cta · active) · biểu đồ **theo Thứ/Ngày** (dùng `derived.weekday`) · **donut** định dạng/QC/CTA (dùng `formatDist`/`adFormatDist`/`ctaDist`) · **Tần suất** (`freqPerDay`/`freqLabel`) · **Tổng/TB tương tác** · **accordion 12 mục** (`analysis[]`, body là markdown → cần renderer md: bold/bullet/table/`→`).
+   - **Mỗi thẻ Bài/QC bấm mở đúng bài/ads trên Facebook** (giống SocialLens): thẻ là link `posts[].url` / `ads[].url`, có icon ↗. (Backend đã trả sẵn 2 url này — post = permalink, ad = Ad Library.)
 3. Trạng thái loading (call tốn ~30–90s) + xử lý `error`.
 
 ### Giao diện tham chiếu = SocialLens (theme SÁNG, sạch, accordion đánh số 01–12)

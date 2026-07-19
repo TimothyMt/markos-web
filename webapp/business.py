@@ -7131,11 +7131,13 @@ def _build_social_report(profile: dict, posts: list, ads: list) -> dict:
         cta = _CTA_VI.get(s.get("cta_type") or "NO_BUTTON", s.get("cta_type") or "Không nút")
         ad_fmt[fmt] = ad_fmt.get(fmt, 0) + 1
         cta_count[cta] = cta_count.get(cta, 0) + 1
+        aid = a.get("ad_archive_id")
         out_ads.append({
             "n": i, "format": fmt, "cta": cta, "active": a.get("is_active"),
             "spend": a.get("spend"), "reach": a.get("reach_estimate"),
             "platforms": a.get("publisher_platform"),
             "body": ((s.get("body") or {}).get("text") or "").strip(),
+            "url": a.get("url") or (f"https://www.facebook.com/ads/library/?id={aid}" if aid else None),
         })
 
     n = len(posts)
