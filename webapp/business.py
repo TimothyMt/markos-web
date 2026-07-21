@@ -4596,6 +4596,38 @@ def _norm_date(s) -> str:
         return ""
 
 
+def _grid_from_ratio(ratio, channels, total: int = 10) -> list:
+    """PURE. Tỉ lệ phễu 'a/b/c' (%tofu/mofu/bofu) + danh sách kênh + tổng bài → lưới [{tier,channel,count}].
+    Chia total theo ratio ra 3 tầng, rồi rải mỗi tầng vào kênh HỢP tầng đó (CHANNELS[slug].tiers); kênh không
+    khai tiers → mọi tầng. Deterministic — hạt giống cho gen_campaign_from_setup (user chỉnh sau). Tổng giữ đúng."""
+    r = _norm_ratio(ratio) or _DEFAULT_RATIO
+    parts = [int(x) for x in r.split("/")]                 # [tofu, mofu, bofu] %
+    total = max(3, min(int(total or 10), 40))
+    counts = [int(round(p / 100 * total)) for p in parts]
+    order = sorted(range(3), key=lambda i: -parts[i])      # dư/thiếu → dồn tầng pct lớn nhất
+    guard = 0
+    while sum(counts) != total and guard < 200:
+        i = order[guard % 3]
+        step = 1 if sum(counts) < total else -1
+        if counts[i] + step >= 0:
+            counts[i] += step
+        guard += 1
+    channels = [c for c in (channels or []) if c] or ["facebook"]
+    fit = {c: set(CHANNELS.get(c, {}).get("tiers", ())) for c in channels}
+    tiers = ["tofu", "mofu", "bofu"]
+    grid = []
+    for ti, tier in enumerate(tiers):
+        n = counts[ti]
+        if n <= 0:
+            continue
+        elig = [c for c in channels if (tier in fit[c]) or (not fit[c])] or channels
+        for k, ch in enumerate(elig):
+            cnt = n // len(elig) + (1 if k < n % len(elig) else 0)
+            if cnt > 0:
+                grid.append({"tier": tier, "channel": ch, "count": cnt})
+    return grid
+
+
 async def save_campaign(user_id=None, id: str = "", title: str = "", sub_message: str = "",
                         pillar_focus: str = "", kind: str = "spike",
                         window_start: str = "", window_end: str = "", peak_date: str = "",
@@ -4665,6 +4697,101 @@ async def save_campaign(user_id=None, id: str = "", title: str = "", sub_message
         return {"ok": True, "campaign": campaign}
     except Exception as e:
         logger.warning("biz.save_campaign failed: %s", e)
+        return {"error": str(e)}
+
+
+async def gen_campaign_from_setup(user_id=None, who: str = "", say: str = "", say_pillar: str = "",
+                                  purpose: str = "", offer: str = "", when: str = "",
+                                  channels=None, total: int = 0) -> dict:
+    """Mối nối ④ (redesign "Sản xuất"): 5 câu "chọn-đầu" → Max soạn ĐỀ XUẤT chiến dịch.
+    KHÔNG persist — trả draft để FE prefill form; user chỉnh (lưới/window) rồi save_campaign mới ghi (người chốt).
+    - sub_message: LLM soạn thông điệp đợt bám CỐT LÕI (messaging.core) + who + say + offer, giọng VN tự nhiên.
+    - pillar_focus: `say_pillar` rỗng = founder tự gõ "nói gì" (custom) → LLM SUY trụ + confidence 'low' + why
+      (derived-state WIRING §2, user override ở FE); option chuẩn (có say_pillar) → dùng thẳng, confidence 'high'.
+    - grid: DETERMINISTIC từ _PURPOSE_RATIO[purpose] + kênh (LLM chọn trong menu / mặc định) qua _grid_from_ratio.
+    Degrade: LLM/JSON hỏng → sub_message = say; thiếu messaging → vẫn ra grid + nhãn tin thấp."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        who_s, say_s, offer_s = (str(x or "").strip()[:200] for x in (who, say, offer))
+        if not say_s:
+            return {"error": "Chọn hoặc nhập 'nói gì' đã."}
+        purpose = _norm_purpose(purpose) or "demand"
+        ratio = _PURPOSE_RATIO.get(purpose, _DEFAULT_RATIO)
+        custom_pillar = not str(say_pillar or "").strip()
+
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        msg = (extra.get("messaging") if isinstance(extra.get("messaging"), dict) else {}) or {}
+        core = str(msg.get("core") or "").strip()
+        pillars = [str((p or {}).get("territory") or "").strip() for p in (msg.get("pillars") or []) if isinstance(p, dict)]
+        pillars = [p for p in pillars if p]
+        spine = extra.get("spine") if isinstance(extra.get("spine"), dict) else {}
+        pos_stmt = str(((spine.get("positioning") or {}) if isinstance(spine, dict) else {}).get("statement") or "").strip()
+        cust = await _latest_content(uid, "customer_insight")
+        chans = [str(c).strip() for c in (channels or []) if str(c).strip()] or ["facebook", "tiktok", "zalo"]
+
+        from tools.llm_router import call as router_call, TaskType
+        import json as _json
+        system = (
+            "Bạn là AI CMO soạn 1 CHIẾN DỊCH cho SME Việt từ lựa chọn 'chọn-đầu' của founder. Trả:\n"
+            "- sub_message: THÔNG ĐIỆP ĐỢT — 1 câu ngắn (≤140 ký tự), là CON của cốt lõi thương hiệu (diễn giải "
+            "lại cốt lõi cho đợt này, KHÔNG đẻ hướng mới lệch). Bám: đợt nhắm AI + NÓI GÌ + ƯU ĐÃI (nếu có), có "
+            "hook, giọng người Việt — KHÔNG khẩu hiệu sáo rỗng.\n"
+            "- pillar_focus: chọn 1 TRỤ trong DANH SÁCH TRỤ khớp nhất 'nói gì'. Nếu founder TỰ GÕ 'nói gì' (không "
+            "map sẵn) → suy trụ gần nhất + pillar_confidence 'low' + why. Có danh sách trụ thì PHẢI chọn trong đó.\n"
+            "- channels: từ MENU kênh cho sẵn, chọn 2-3 kênh hợp mục đích + tệp khách. KHÔNG thêm kênh ngoài menu.\n"
+            + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số / thông tin không có trong dữ liệu.\n"
+            'Output JSON DUY NHẤT: {"sub_message":"","pillar_focus":"","pillar_confidence":"high|med|low",'
+            '"channels":[],"why":""}'
+        )
+        user = (f"# Cốt lõi thương hiệu (NEO — sub_message phải là con của câu này)\n{core or '(chưa có)'}\n"
+                f"# Định vị đã mài\n{pos_stmt or '(chưa có)'}\n"
+                f"# DANH SÁCH TRỤ\n{', '.join(pillars) or '(chưa có)'}\n"
+                f"# Trụ đã map từ 'nói gì' (rỗng = founder tự gõ → phải suy)\n{say_pillar or '(rỗng)'}\n"
+                f"# MENU kênh\n{', '.join(chans)}\n"
+                f"# Chọn-đầu của founder\n- Nhắm ai: {who_s or '(chưa rõ)'}\n- Nói gì: {say_s}\n"
+                f"- Mục đích: {_KI_PURPOSE_VI.get(purpose, purpose)} (tỉ lệ phễu {ratio})\n"
+                f"- Ưu đãi: {offer_s or '(không)'}\n- Khi nào: {when or '(chưa rõ)'}\n"
+                f"# Khách (T3)\n{(cust or '')[:1200] or '(chưa có)'}")
+        res = await router_call(task_type=TaskType.OPS_BRIEF, system=system, user=user, max_tokens=900)
+        raw = re.sub(r'\s*```\s*$', '', re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())).strip()
+        sub_message = pillar_focus = why = ""
+        pconf = "low"
+        out_chans = list(chans)
+        try:
+            data = _json.loads(raw)
+            sub_message = str(data.get("sub_message") or "").strip()[:300]
+            pillar_focus = str(data.get("pillar_focus") or "").strip()[:80]
+            why = str(data.get("why") or "").strip()[:200]
+            lc = [c for c in (str(x).strip() for x in (data.get("channels") or [])) if c in chans]
+            if lc:
+                out_chans = lc
+            if not custom_pillar:                              # option chuẩn → trụ đã map thắng (không để LLM đổi)
+                pillar_focus = str(say_pillar).strip()[:80]
+                pconf = "high"
+            else:
+                pconf = _norm_pos_confidence(data.get("pillar_confidence")) or "low"
+        except Exception as e:
+            logger.warning("gen_campaign_from_setup parse fail: %s", e)
+        if not sub_message:                                    # degrade: dùng thẳng 'nói gì'
+            sub_message = say_s
+        if not pillar_focus and pillars:
+            pillar_focus, pconf = pillars[0], "low"
+        grid = _grid_from_ratio(ratio, out_chans, total or 10)
+        return {"ok": True, "purpose": purpose, "ratio": ratio,
+                "proposal": {"sub_message": sub_message, "pillar_focus": pillar_focus,
+                             "pillar_confidence": pconf, "pillar_derived": custom_pillar,
+                             "why": why, "channels": out_chans, "grid": grid, "kind": "spike"}}
+    except Exception as e:
+        logger.warning("biz.gen_campaign_from_setup failed: %s", e)
         return {"error": str(e)}
 
 
