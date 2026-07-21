@@ -39,6 +39,19 @@ async def get_profile(user_id: int) -> Optional[dict]:
         return None
 
 
+async def list_user_ids(limit: int = 10000) -> list:
+    """Liệt kê user_id có profile (batch migration / ops sweep). [] nếu chưa cấu hình client hoặc lỗi."""
+    client = get_client()
+    if client is None:
+        return []
+    try:
+        resp = await client.table(TABLE).select("user_id").limit(limit).execute()
+        return [r["user_id"] for r in (resp.data or []) if isinstance(r, dict) and r.get("user_id") is not None]
+    except Exception as e:
+        logger.warning("list_user_ids failed: %s", e)
+        return []
+
+
 async def delete_profile(user_id: int) -> bool:
     """Xoá hẳn business profile của user (dùng cho /reset)."""
     client = get_client()
