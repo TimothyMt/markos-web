@@ -1235,6 +1235,29 @@ textarea.intake-input { resize:none; overflow:hidden; min-height:48px; line-heig
 .intake-choice:hover { border-color:var(--primary); }
 .intake-choice.on { border-color:var(--primary); background:rgba(91,140,255,.12); }
 
+/* ── Onboarding wizard: immersive full-screen + fade chuyển câu (A1) ── */
+.intake-fs { position:fixed; inset:0; z-index:90; display:flex; align-items:flex-start;
+  justify-content:center; overflow-y:auto; padding:clamp(28px,9vh,104px) 20px 56px;
+  background: radial-gradient(1000px 520px at 80% -10%, rgba(124,77,255,.16), transparent 60%),
+    linear-gradient(180deg, var(--bg-2), var(--bg)); }
+.intake-fs .intake { width:100%; max-width:580px; padding:0; }
+.intake-fs .intake-q { font-size:23px; line-height:1.3; }
+.intake-brand { display:flex; align-items:center; gap:10px; margin-bottom:22px; color:var(--txt-2); font-size:13.5px; }
+.intake-brand .cav { width:30px; height:30px; flex:0 0 30px; border-radius:9px; color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800;
+  background:linear-gradient(135deg, var(--primary), var(--primary-2)); }
+.intake-card { will-change:opacity, transform; }
+@keyframes intakeEnter { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
+@keyframes intakeEnterBack { from { opacity:0; transform:translateY(-14px); } to { opacity:1; transform:none; } }
+.intake-card.intake-enter { animation:intakeEnter .28s cubic-bezier(.2,.7,.3,1) both; }
+.intake-card.intake-enter-back { animation:intakeEnterBack .28s cubic-bezier(.2,.7,.3,1) both; }
+.intake-card.intake-leave { opacity:0; transform:translateY(-10px); transition:opacity .13s ease, transform .13s ease; }
+.intake-card.intake-leave-back { opacity:0; transform:translateY(10px); transition:opacity .13s ease, transform .13s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .intake-card.intake-enter, .intake-card.intake-enter-back { animation:none; }
+  .intake-card.intake-leave, .intake-card.intake-leave-back { transition:none; }
+}
+
 /* Banner định hướng (la bàn) trên trang Chiến lược — D-030/B1 */
 .dir-banner { padding:12px 16px; font-size:13.5px; line-height:1.5; color:var(--txt-2);
   border-left:3px solid var(--primary); background:rgba(91,140,255,.08); }
