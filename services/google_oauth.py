@@ -10,6 +10,7 @@ Flow:
 user_id LUÔN lấy từ session (cookie ký), KHÔNG bao giờ từ query param
 (chống giả mạo / rò dữ liệu multi-tenant). Cần Supabase (biz layer) mới chạy thật.
 """
+import html
 import logging
 import secrets
 from urllib.parse import urlencode
@@ -50,7 +51,8 @@ async def login(request):
     state = secrets.token_urlsafe(24)
     request.session["oauth_state"] = state
     nxt = request.query_params.get("next", "/")
-    if nxt.startswith("/"):                       # chỉ path nội bộ (chống open-redirect)
+    # chỉ path nội bộ 1 dấu "/" (chống open-redirect: chặn "//evil.com", "/\evil.com")
+    if nxt.startswith("/") and not nxt.startswith("//") and not nxt.startswith("/\\"):
         request.session["oauth_next"] = nxt
     params = {
         "client_id":     GOOGLE_CLIENT_ID,
@@ -70,7 +72,7 @@ async def callback(request):
         return HTMLResponse("Chưa cấu hình Google OAuth.", status_code=503)
     if request.query_params.get("error"):
         return HTMLResponse(
-            f"<h2>Đăng nhập bị huỷ</h2><p>{request.query_params.get('error')}</p>",
+            f"<h2>Đăng nhập bị huỷ</h2><p>{html.escape(request.query_params.get('error') or '')}</p>",
             status_code=400,
         )
     code  = request.query_params.get("code")
@@ -99,12 +101,14 @@ async def callback(request):
             info = ui.json()
     except Exception as e:
         logger.warning("google callback exchange failed: %s", e)
-        return HTMLResponse(f"<h2>Lỗi đăng nhập Google</h2><p>{e}</p>", status_code=502)
+        return HTMLResponse(
+            f"<h2>Lỗi đăng nhập Google</h2><p>{html.escape(str(e))}</p>", status_code=502)
 
     sub = info.get("sub")
     if not sub:
         return HTMLResponse("Google không trả định danh (sub).", status_code=502)
-    email = info.get("email")
+    # Chỉ tin email khi Google đã xác minh (email dùng cho gate admin) — sub mới là định danh.
+    email = info.get("email") if info.get("email_verified") else None
     name  = info.get("name") or email
 
     # 3) find_or_create identity → user_id + status (cần Supabase client)

@@ -16,13 +16,14 @@ from pathlib import Path
 import uvicorn
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, JSONResponse
 from starlette.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from webapp.api import api_routes, full_state
 from webapp import store, events
+from webapp.quota import QuotaBlocked
 from services import google_oauth
 from config import SESSION_SECRET
 
@@ -70,6 +71,18 @@ async def oauth_fb_callback(request):
         return HTMLResponse(f"<h2>Lỗi kết nối</h2><p>{e}</p>", status_code=500)
 
 
+async def _quota_blocked_handler(request, exc):
+    """QuotaBlocked (chưa đăng nhập / chưa kích hoạt / hết quota) → JSON rõ ràng,
+    không để rơi thành 500 chung. FE đọc `code` để hiện đúng thông điệp."""
+    code = getattr(exc, "code", "quota_exceeded")
+    status = 401 if code == "unauthenticated" else 403 if code == "inactive" else 402
+    return JSONResponse({"error": getattr(exc, "reason", str(exc)), "code": code},
+                        status_code=status)
+
+
+# Cookie Secure: bật ở production (COOKIE_SECURE=true). Dev/local để tắt (chạy http).
+_cookie_secure = os.getenv("COOKIE_SECURE", "").lower() in ("1", "true", "yes")
+
 if not SESSION_SECRET:
     logging.warning(
         "SESSION_SECRET chưa set → dùng key dev tạm (cookie GIẢ MẠO được). "
@@ -91,10 +104,11 @@ app = Starlette(
             secret_key=_session_secret,
             same_site="lax",          # cho phép cookie sau redirect OAuth top-level
             max_age=14 * 24 * 3600,   # 14 ngày
-            https_only=False,         # Railway kết thúc TLS ở proxy; bật True nếu serve HTTPS trực tiếp
+            https_only=_cookie_secure,  # prod: COOKIE_SECURE=true (Railway serve HTTPS). Dev: tắt
         ),
         Middleware(UidContextMiddleware),   # đọc session['uid'] → contextvar (sau Session)
     ],
+    exception_handlers={QuotaBlocked: _quota_blocked_handler},
     lifespan=lifespan,
 )
 

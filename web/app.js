@@ -2894,7 +2894,7 @@
              <button class="ghost-line sm" data-act="admin-block" data-id="${u.user_id}">Khoá</button>`
           : `<button class="primary-btn sm" data-act="admin-activate" data-id="${u.user_id}">Kích hoạt</button>${
              st === 'blocked' ? '' : ''}`;
-        return [u.email || ('User ' + u.user_id), u.name || '—', stb, `${num(used)} / ${num(quota)}`, acts];
+        return [_eHero(u.email || ('User ' + u.user_id)), _eHero(u.name || '—'), stb, `${num(used)} / ${num(quota)}`, acts];
       });
       const note = _adminUsers === null ? '<p class="muted">Đang tải…</p>'
                  : (list.length === 0 ? '<p class="muted">Chưa có người dùng nào đăng nhập.</p>' : '');
