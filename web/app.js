@@ -2871,30 +2871,39 @@
   };
 
   /* ---- Admin ---- */
+  // Admin thật: kích hoạt tài khoản + cấp quota (nguồn: GET /api/admin/users)
+  let _adminUsers = null;
+  async function loadAdminUsers() {
+    try { const r = await API.get('api/admin/users'); _adminUsers = r.users || []; }
+    catch (e) { _adminUsers = []; }
+    route();
+  }
   P.admin = {
-    title: 'Quản trị', sub: 'Quota · usage · trạng thái hệ thống',
-    render: () => `
-      <section class="kpis kpis-3">
-        ${miniStat('Người dùng','1.284','+38 tuần này')}
-        ${miniStat('Token đã dùng','12,4M','tháng này')}
-        ${miniStat('Skill chạy','8.420','30 ngày qua')}
-      </section>
-      <section class="grid">
-        ${card('Quota người dùng', table(['User','Gói','Đã dùng / Quota','Tỉ lệ',''],
-          (M.users||[]).map(u=>[u.uid||u.id, badge(u.plan, u.plan==='Free'?'':'green'),
-            `${num(u.used)} / ${num(u.quota)}`,
-            quotaBar(Math.round(u.used/u.quota*100)),
-            (typeof u.id==='number')
-              ? `<button class="ghost-line sm" data-act="add-quota" data-id="${u.id}">+Quota</button> <button class="ghost-line sm" data-act="reset-usage" data-id="${u.id}">Reset</button>`
-              : ''])), {cls:'span-8'})}
-        ${card('Trạng thái hệ thống', `
-          <ul class="status">
-            ${statusRow('Dữ liệu thật (Supabase)', M.bizEnabled?'Đã nối':'Mock')}
-            ${statusRow('Thông báo Telegram', M.telegramEnabled?'Bật':'Tắt')}
-            ${statusRow('Cập nhật realtime', 'SSE')}
-          </ul>`, {cls:'span-4'})}
-      </section>`,
-    mount: () => {},
+    title: 'Quản trị', sub: 'Kích hoạt tài khoản · cấp quota token',
+    render: () => {
+      if (!M.bizIsAdmin) return `<section class="grid">${card('Quản trị',
+        `<p class="muted">Trang này chỉ dành cho admin. Đăng nhập bằng email admin để truy cập.</p>`, {cls:'span-12'})}</section>`;
+      const list = _adminUsers || [];
+      const rows = list.map(u => {
+        const st = u.status || 'pending';
+        const stb = st === 'active' ? badge('Hoạt động','green')
+                  : st === 'blocked' ? badge('Đã khoá','red') : badge('Chờ kích hoạt','amber');
+        const used = u.token_used || 0, quota = u.token_quota || 0;
+        const acts = st === 'active'
+          ? `<button class="ghost-line sm" data-act="admin-quota" data-id="${u.user_id}" data-quota="${quota}">Sửa quota</button>
+             <button class="ghost-line sm" data-act="admin-block" data-id="${u.user_id}">Khoá</button>`
+          : `<button class="primary-btn sm" data-act="admin-activate" data-id="${u.user_id}">Kích hoạt</button>${
+             st === 'blocked' ? '' : ''}`;
+        return [u.email || ('User ' + u.user_id), u.name || '—', stb, `${num(used)} / ${num(quota)}`, acts];
+      });
+      const note = _adminUsers === null ? '<p class="muted">Đang tải…</p>'
+                 : (list.length === 0 ? '<p class="muted">Chưa có người dùng nào đăng nhập.</p>' : '');
+      return `<section class="grid">
+        ${card(`Người dùng (${list.length})`,
+          table(['Email','Tên','Trạng thái','Token (dùng / quota)',''], rows) + note, {cls:'span-12'})}
+      </section>`;
+    },
+    mount: () => { if (M.bizIsAdmin && _adminUsers === null) loadAdminUsers(); },
   };
 
   /* ---- Settings ---- */
@@ -3030,7 +3039,8 @@
         <div class="avatar">${initials}</div>
         <div class="user-text"><span class="user-name">${name}</span>
           <span class="user-role">${u ? (u.plan || 'user') : 'dữ liệu mẫu'}</span></div>
-      </div>`;
+      </div>` +
+      (M.bizAuthed ? `<button class="icon-btn logout-btn" data-act="logout" title="Đăng xuất">↪</button>` : '');
     if (_sseLive) setLive(true);
   }
   function renderRail() {
@@ -3066,7 +3076,45 @@
     if (err) return `<div class="job-banner job-err">⚠️ <b>${E(err.label || 'Tác vụ lỗi')}</b> — ${E(err.error)}<button class="icon-btn job-x" data-act="job-dismiss" data-id="${err.id}">✕</button></div>`;
     return '';
   }
+  // ── Cổng đăng nhập (self-serve) — chặn khi backend+Supabase bật mà chưa auth ──
+  function _authGateMode() {
+    if (!apiAvailable || !M.bizEnabled) return null;   // demo tĩnh → không gác
+    if (!M.bizAuthed) return 'login';
+    const st = M.bizAuthStatus;
+    if (st === 'active') return null;
+    return st === 'blocked' ? 'blocked' : 'pending';    // null/pending → chờ kích hoạt
+  }
+  function renderAuthGate(mode) {
+    let ov = document.getElementById('authGate');
+    if (!ov) { ov = document.createElement('div'); ov.id = 'authGate'; ov.className = 'auth-gate'; document.body.appendChild(ov); }
+    const email = M.bizEmail ? String(M.bizEmail) : '';
+    const logo = `<div class="auth-logo">Max</div>`;
+    if (mode === 'login') {
+      ov.innerHTML = `<div class="auth-card">${logo}
+        <h1>AI CMO cho founder Việt</h1>
+        <p class="auth-sub">Đăng nhập để Max bắt đầu dựng chiến lược marketing cho doanh nghiệp của bạn.</p>
+        <a class="auth-google" href="/auth/google/login"><span class="g">G</span> Đăng nhập với Google</a>
+        <p class="auth-fine">Tài khoản mới sẽ được kích hoạt trước khi dùng.</p></div>`;
+    } else if (mode === 'blocked') {
+      ov.innerHTML = `<div class="auth-card">${logo}
+        <h1>Tài khoản bị khoá</h1>
+        <p class="auth-sub">Tài khoản${email ? ` <b>${email}</b>` : ''} hiện không truy cập được. Vui lòng liên hệ admin.</p>
+        <a class="ghost-line" href="/auth/logout">Đăng xuất</a></div>`;
+    } else {
+      ov.innerHTML = `<div class="auth-card">${logo}
+        <h1>Tài khoản chờ kích hoạt</h1>
+        <p class="auth-sub">Cảm ơn bạn đã đăng nhập${email ? ` (<b>${email}</b>)` : ''}. Chúng tôi sẽ kích hoạt tài khoản sớm nhất.</p>
+        <p class="auth-fine">Cần dùng gấp? Liên hệ admin để được mở quyền.</p>
+        <a class="ghost-line" href="/auth/logout">Đăng xuất</a></div>`;
+    }
+    ov.style.display = 'flex';
+  }
+  function clearAuthGate() { const ov = document.getElementById('authGate'); if (ov) ov.remove(); }
+
   function route() {
+    const _gate = _authGateMode();
+    if (_gate) { renderAuthGate(_gate); return; }
+    clearAuthGate();
     const raw = (location.hash.replace('#','') || 'dossier');
     const [seg0, seg1] = raw.split('/');
     let id = seg0;
@@ -3861,6 +3909,27 @@
 
   async function handleAction(el) {
     const act = el.dataset.act;
+    if (act === 'logout') { window.location.href = '/auth/logout'; return; }
+    if (act === 'admin-activate') {
+      const q = prompt('Cấp quota token cho tài khoản này:', '500000');
+      if (q === null) return;
+      try { await API.post('api/admin/access', { user_id: +el.dataset.id, status: 'active', quota: +q });
+        toast('✓ Đã kích hoạt'); loadAdminUsers(); } catch (e) { toast('Không cấp được quyền'); }
+      return;
+    }
+    if (act === 'admin-quota') {
+      const q = prompt('Quota token mới:', el.dataset.quota || '500000');
+      if (q === null) return;
+      try { await API.post('api/admin/access', { user_id: +el.dataset.id, quota: +q });
+        toast('✓ Đã cập nhật quota'); loadAdminUsers(); } catch (e) { toast('Không cập nhật được'); }
+      return;
+    }
+    if (act === 'admin-block') {
+      if (!confirm('Khoá tài khoản này? User sẽ không dùng được Max.')) return;
+      try { await API.post('api/admin/access', { user_id: +el.dataset.id, status: 'blocked' });
+        toast('Đã khoá'); loadAdminUsers(); } catch (e) { toast('Không khoá được'); }
+      return;
+    }
     if (act === 'chat-send') { sendChat(); return; }
     if (act === 'chat-eg') { sendChat(el.dataset.text); return; }
     if (act === 'toggle-collapse') {
