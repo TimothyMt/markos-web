@@ -5,6 +5,7 @@ google-genai>=0.3.0
 starlette>=0.37.0
 uvicorn>=0.30.0
 httpx>=0.27.0
+itsdangerous>=2.1.0          # ký cookie session (Starlette SessionMiddleware) — auth self-serve
 supabase>=2.0.0
 python-dotenv>=1.0.0
 cryptography>=42.0.0

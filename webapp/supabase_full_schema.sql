@@ -210,6 +210,31 @@ CREATE INDEX IF NOT EXISTS idx_users_industry
 CREATE INDEX IF NOT EXISTS idx_users_quota_warning
     ON users(user_id) WHERE token_used > token_quota * 0.8 AND deleted_at IS NULL;
 
+-- ============================================================================
+-- AUTH (self-serve web) — nới luật "không thêm bảng" có chủ ý cho auth (D-LAUNCH).
+-- Định danh đăng nhập ngoài (Google OAuth) ↔ user_id nội bộ. service_role bỏ RLS.
+-- ----------------------------------------------------------------------------
+-- user_id cho user web tự-đăng-ký: cấp từ sequence (id Telegram cũ ~10 chữ số
+-- < 10^11, nên bắt đầu ở 10^12 để không đụng). User cũ giữ nguyên user_id.
+CREATE SEQUENCE IF NOT EXISTS web_user_id_seq AS BIGINT START WITH 1000000000000 INCREMENT BY 1;
+ALTER TABLE users ALTER COLUMN user_id SET DEFAULT nextval('web_user_id_seq');
+
+CREATE TABLE IF NOT EXISTS auth_identities (
+    id           BIGSERIAL PRIMARY KEY,
+    provider     TEXT NOT NULL,                    -- 'google'
+    external_id  TEXT NOT NULL,                    -- Google 'sub' (định danh ổn định)
+    user_id      BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    email        TEXT,
+    name         TEXT,
+    -- Gate TRUY CẬP (khác với ngân sách token_quota): pending = chờ admin kích hoạt.
+    status       TEXT NOT NULL DEFAULT 'pending',  -- pending | active | blocked
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (provider, external_id)
+);
+CREATE INDEX IF NOT EXISTS idx_auth_identities_user   ON auth_identities(user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_identities_status ON auth_identities(status);
+
 CREATE TABLE IF NOT EXISTS user_business_profile (
     user_id                   BIGINT PRIMARY KEY,
     business_name             TEXT,

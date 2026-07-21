@@ -13,6 +13,7 @@ from webapp import store
 from webapp import notify as tg
 from webapp import business as biz
 from webapp.events import hub
+from config import ADMIN_EMAILS
 
 
 def _ok(state):
@@ -688,6 +689,28 @@ async def reset_usage(request):
     return _ok(await store.reset_usage(int(request.path_params["id"])))
 
 
+# ── Admin thật (Supabase users + auth_identities) — gác bằng ADMIN_EMAILS ────
+def _is_admin(request) -> bool:
+    sess = request.scope.get("session") or {}     # tránh assert nếu thiếu SessionMiddleware
+    email = (sess.get("email") or "").lower()
+    return bool(email and email in ADMIN_EMAILS)
+
+
+async def admin_users(request):
+    if not _is_admin(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _ok({"users": await biz.admin_list_users()})
+
+
+async def admin_access(request):
+    if not _is_admin(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    data = await request.json()
+    return _ok(await biz.admin_set_access(
+        data.get("user_id"), status=data.get("status", ""),
+        quota=data.get("quota"), reset_used=bool(data.get("reset_used"))))
+
+
 def api_routes() -> list:
     return [
         Route("/api/bootstrap",                    bootstrap,          methods=["GET"]),
@@ -774,5 +797,7 @@ def api_routes() -> list:
         Route("/api/accounts/{id:int}",            disconnect_account, methods=["DELETE"]),
         Route("/api/users/{id:int}/quota",         set_quota,          methods=["POST"]),
         Route("/api/users/{id:int}/addquota",      add_quota,          methods=["POST"]),
+        Route("/api/admin/users",                  admin_users,        methods=["GET"]),
+        Route("/api/admin/access",                 admin_access,       methods=["POST"]),
         Route("/api/users/{id:int}/reset",         reset_usage,        methods=["POST"]),
     ]

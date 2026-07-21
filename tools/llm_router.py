@@ -726,6 +726,19 @@ _PER_PROVIDER_TIMEOUT: dict[Provider, float] = {
 # Top-level router
 # ─────────────────────────────────────────────────────────────────
 
+# ── Usage hooks (tuỳ chọn) — app layer gắn quota/gate vào đây, None = không đổi ──
+# pre(task_type, max_tokens): raise để CHẶN trước khi tốn tiền (chưa đăng nhập /
+#   chưa kích hoạt / hết quota). post(result): ghi nhận token đã dùng.
+_usage_pre = None
+_usage_post = None
+
+
+def set_usage_hooks(pre=None, post=None) -> None:
+    """Đăng ký hook quota/usage (gọi 1 lần lúc khởi động web app)."""
+    global _usage_pre, _usage_post
+    _usage_pre, _usage_post = pre, post
+
+
 async def call(
     task_type: TaskType,
     system: str,
@@ -739,7 +752,11 @@ async def call(
 
     Raises:
         AllProvidersFailedError: nếu cả primary + fallback chain đều fail
+        (bất kỳ lỗi nào pre-hook ném ra, vd quota/gate) — chặn TRƯỚC khi tốn tiền
     """
+    if _usage_pre is not None:
+        await _usage_pre(task_type, max_tokens)   # raise → chặn (chưa auth/hết quota)
+
     providers = ROUTING_TABLE.get(task_type, [Provider.ANTHROPIC_SONNET])
 
     # Test mode — force toàn bộ task type chạy 1 provider rẻ trước (vẫn giữ
@@ -775,6 +792,11 @@ async def call(
                 f"in={result.get('tokens_in')} out={result.get('tokens_out')} "
                 f"latency={result['latency_sec']:.1f}s"
             )
+            if _usage_post is not None:
+                try:
+                    await _usage_post(result)          # ghi nhận token đã dùng
+                except Exception as e:
+                    logger.warning(f"[router] usage post-hook failed: {e}")
             return result
 
         except asyncio.TimeoutError as e:

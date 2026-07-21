@@ -83,3 +83,16 @@ STAGES = ["idea", "mvp", "growth", "scale"]
 ENCRYPTION_KEY   = os.getenv("ENCRYPTION_KEY", "")
 # Base URL của server (no trailing slash) — dùng cho OAuth redirect_uri
 WEBHOOK_BASE_URL = WEBHOOK_URL  # dùng lại WEBHOOK_URL đã có
+
+# ── Auth self-serve web (Google OAuth + session cookie) ───────────────────
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+# redirect_uri đã đăng ký ở Google Console (phải khớp tuyệt đối). Rỗng → suy từ request.
+GOOGLE_REDIRECT_URI  = os.getenv("GOOGLE_REDIRECT_URI", "")
+# Bí mật ký cookie session (itsdangerous). BẮT BUỘC set ở production;
+# rỗng → dùng key dev tạm (cookie giả mạo được → CHỈ dùng khi dev cục bộ).
+SESSION_SECRET       = os.getenv("SESSION_SECRET", "")
+# Email admin (phân cách phẩy) — được vào /api/admin/* để cấp quyền + quota.
+ADMIN_EMAILS: set[str] = {
+    e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()
+}

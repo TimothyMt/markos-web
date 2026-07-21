@@ -13,6 +13,7 @@ Không phụ thuộc store backend — tái dùng client của storage.session (
 để mọi module storage/* và agents/* dùng chung 1 AsyncClient.
 """
 import asyncio
+import contextvars
 import logging
 import os
 import re
@@ -222,21 +223,93 @@ async def list_users(limit: int = 50) -> list:
         return []
 
 
+# ── Admin (gác ở api layer bằng ADMIN_EMAILS) — cấp quyền + quota ────────────
+async def admin_list_users(limit: int = 200) -> list:
+    """Liệt kê identity + quota/used cho admin dashboard (mới nhất trước)."""
+    from storage.v2 import auth_identities, users as users_mod
+    idents = await auth_identities.list_identities(limit)
+    out = []
+    for it in idents:
+        uid = it.get("user_id")
+        u = await users_mod.get_user(uid) if uid is not None else None
+        out.append({
+            "user_id":     uid,
+            "email":       it.get("email"),
+            "name":        it.get("name"),
+            "status":      it.get("status"),
+            "provider":    it.get("provider"),
+            "created_at":  it.get("created_at"),
+            "plan":        (u or {}).get("plan"),
+            "token_quota": (u or {}).get("token_quota"),
+            "token_used":  (u or {}).get("token_used"),
+        })
+    return out
+
+
+async def admin_set_access(user_id, status: str = "", quota=None,
+                           reset_used: bool = False) -> dict:
+    """Admin: đổi trạng thái truy cập (active/blocked/pending) + set quota + reset used."""
+    from storage.v2 import auth_identities, users as users_mod
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return {"error": "user_id không hợp lệ"}
+    if status:
+        await auth_identities.set_status(uid, status)
+    if quota is not None and str(quota) != "":
+        await users_mod.set_token_quota(uid, int(quota))
+    if reset_used:
+        await users_mod.reset_token_usage(uid)
+    return {"ok": True, "user_id": uid}
+
+
+# ── User đang đăng nhập (từ session, do middleware bơm vào contextvar) ───────
+# Choke point DUY NHẤT: mọi hàm user-scoped gọi pick_user_id → chỉ cần đổi ở đây
+# là cắt sạch việc tin user_id do client gửi (query/body).
+#
+# Sentinel _UNSET phân biệt 2 ngữ cảnh:
+#   • HTTP request → middleware LUÔN gọi set_current_uid(session_uid) (int hoặc
+#     None) → ctx != _UNSET → CHỈ tin session, BỎ QUA `requested` (chống giả mạo).
+#   • Nội bộ / test (không có middleware) → ctx = _UNSET → tin `requested` như cũ.
+# Nhờ vậy cắt lỗ giả mạo HTTP mà không phá caller nội bộ truyền thẳng user_id.
+_UNSET = object()
+_current_uid: "contextvars.ContextVar[object]" = contextvars.ContextVar(
+    "markos_current_uid", default=_UNSET)
+
+
+def set_current_uid(uid) -> None:
+    """Middleware gọi mỗi HTTP request: gắn user_id từ session (int hoặc None)."""
+    _current_uid.set(uid)
+
+
 async def pick_user_id(requested=None):
-    """Chọn user đang xem: query param → env WEB_DEFAULT_USER_ID → user active gần nhất."""
+    """User đang ĐĂNG NHẬP — HTTP thì lấy TỪ SESSION (contextvar), bỏ qua client.
+
+    Đã qua middleware (ctx != _UNSET) → chỉ tin session; None = chưa đăng nhập.
+    Không qua middleware (nội bộ/test) → tin `requested` + WEB_DEFAULT_USER_ID.
+    KHÔNG còn fallback 'user active gần nhất' — đó là lỗ rò dữ liệu multi-tenant.
+    """
+    ctx = _current_uid.get()
+    if ctx is not _UNSET:                     # HTTP path — session là nguồn DUY NHẤT
+        if ctx in (None, "", "null"):
+            return None
+        try:
+            return int(ctx)
+        except (TypeError, ValueError):
+            return None
+    # Nội bộ / test — tin arg truyền thẳng.
     if requested not in (None, "", "null"):
         try:
             return int(requested)
         except (TypeError, ValueError):
             pass
-    env = os.getenv("WEB_DEFAULT_USER_ID")
+    env = os.getenv("WEB_DEFAULT_USER_ID")    # dev-only escape hatch (env, không client)
     if env:
         try:
             return int(env)
         except ValueError:
             pass
-    users = await list_users(1)
-    return users[0]["user_id"] if users else None
+    return None
 
 
 def _slim_run(r: dict) -> dict:
@@ -279,14 +352,30 @@ async def biz_data(user_id=None) -> dict:
         logger.warning("biz ensure_client failed: %s", e)
         return {"bizEnabled": False, "bizError": str(e)}
 
-    users = await list_users()
     uid = await pick_user_id(user_id)
     out = {
         "bizEnabled": True,
         "bizUserId":  uid,
-        "bizUsers":   users,
+        "bizAuthed":  uid is not None,
         "agentJobs":  jobs_public(),
     }
+    # Trạng thái kích hoạt (default-deny) — FE dùng để hiện màn "chờ kích hoạt".
+    ident = None
+    is_admin = False
+    if uid is not None:
+        try:
+            from storage.v2 import auth_identities
+            ident = await auth_identities.get_by_user(uid)
+        except Exception as e:
+            logger.warning("biz.identity failed: %s", e)
+        email = (ident or {}).get("email")
+        from config import ADMIN_EMAILS
+        is_admin = bool(email and email.lower() in ADMIN_EMAILS)
+    out["bizAuthStatus"] = (ident or {}).get("status")   # active|pending|blocked|None
+    out["bizEmail"]      = (ident or {}).get("email")
+    out["bizIsAdmin"]    = is_admin
+    # Danh sách user CHỈ lộ cho admin (chống rò multi-tenant).
+    out["bizUsers"] = (await list_users()) if is_admin else []
     if uid is None:
         return out
 
