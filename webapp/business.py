@@ -2234,6 +2234,64 @@ async def backfill_spine_positioning(user_id=None, dry_run: bool = False, force:
         return {"error": str(e)}
 
 
+async def _ensure_spine_positioning(uid, extra: dict) -> dict:
+    """Lazy guard (Option 1) cho read-path: user cũ thiếu `spine.positioning` → suy TẠI CHỖ (backfill)
+    để _spine_anchor có nhiên liệu định vị, KHÔNG cần operator chạy batch trước. Nối tự-động mối đứt
+    Change A (gen_messaging/gen_master_plan) — lưới an toàn cho user chưa được batch quét (hoặc phát sinh sau).
+
+    - Fast path: đã có `positioning.statement` → trả nguyên `extra`, KHÔNG gọi LLM/DB round-trip.
+    - Uỷ thác luật cho backfill_spine_positioning: human-override (source='user' không đè) + idempotent + degrade.
+    - Degrade cứng: MỌI lỗi → trả `extra` nguyên trạng (KHÔNG raise) → read-path không bao giờ gãy vì lazy backfill."""
+    try:
+        if not isinstance(extra, dict):
+            return extra
+        spine = extra.get("spine") if isinstance(extra.get("spine"), dict) else {}
+        pos = spine.get("positioning") if isinstance(spine.get("positioning"), dict) else {}
+        if pos.get("statement"):
+            return extra                      # đã có định vị → không làm gì (fast path)
+        res = await backfill_spine_positioning(uid)
+        newpos = res.get("positioning") if isinstance(res, dict) else None
+        if isinstance(newpos, dict) and newpos.get("statement"):
+            spine["positioning"] = newpos     # phản chiếu vào extra tại chỗ để _spine_anchor thấy ngay lượt này
+            extra["spine"] = spine
+    except Exception as e:
+        logger.warning("biz._ensure_spine_positioning failed: %s", e)
+    return extra
+
+
+async def backfill_all_spine_positioning(dry_run: bool = False, force: bool = False, limit: int = 10000) -> dict:
+    """BATCH sweep (Option 3): chạy backfill_spine_positioning cho MỌI user có profile — quét sạch user cũ
+    thiếu định vị trong 1 lượt. Mặt gọi thật = tools/backfill_positioning.py (ops one-off). Supabase-only.
+
+    Trả tổng kết: total / written / skipped (theo nhãn) / errors. dry_run/force xuyên xuống từng user.
+    KHÔNG raise giữa vòng: 1 user lỗi → đếm vào errors + tiếp tục (không kẹt cả batch)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        from storage.v2 import profiles
+        uids = await profiles.list_user_ids(limit=limit)
+        summary = {"total": len(uids), "written": 0, "skipped": 0, "errors": 0, "by_skip": {}, "errors_detail": []}
+        for uid in uids:
+            try:
+                r = await backfill_spine_positioning(uid, dry_run=dry_run, force=force)
+            except Exception as e:
+                r = {"error": str(e)}
+            if r.get("error"):
+                summary["errors"] += 1
+                summary["errors_detail"].append({"uid": uid, "error": r["error"]})
+            elif r.get("skipped"):
+                summary["skipped"] += 1
+                lbl = str(r["skipped"])
+                summary["by_skip"][lbl] = summary["by_skip"].get(lbl, 0) + 1
+            else:
+                summary["written"] += 1
+        return {"ok": True, "dry_run": dry_run, "force": force, **summary}
+    except Exception as e:
+        logger.warning("biz.backfill_all_spine_positioning failed: %s", e)
+        return {"error": str(e)}
+
+
 async def gen_master_plan(user_id=None, gap_kind: str = "", gap_title: str = "",
                           wedge: str = "", usp: str = "", name: str = "", gaps=None) -> dict:
     """S-10a: tạo CAMPAIGN TỔNG (đặt cược: GAP(s)+wedge+USP) — lưu campaigns_v2 row + meta(role=master).
@@ -2271,6 +2329,7 @@ async def gen_master_plan(user_id=None, gap_kind: str = "", gap_title: str = "",
         extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
         if not isinstance(extra, dict):
             extra = {}
+        extra = await _ensure_spine_positioning(uid, extra)   # lazy: user cũ thiếu spine.positioning → suy tại chỗ (degrade-safe)
         industry = prof.get("industry") or ""
         synth = await _latest_content(uid, "synthesis")
         # đề xuất sub-campaign cho master này
@@ -3632,6 +3691,7 @@ async def gen_messaging(user_id=None, steer: str = "", stage: str = "all", core:
         extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
         if not isinstance(extra, dict):
             extra = {}
+        extra = await _ensure_spine_positioning(uid, extra)   # lazy: user cũ thiếu spine.positioning → suy tại chỗ (degrade-safe)
         industry = prof.get("industry") or ""
         usp = prof.get("usp") or ""
         product = prof.get("product_service") or ""
