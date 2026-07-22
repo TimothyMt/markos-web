@@ -1,7 +1,9 @@
 /* Marketing OS — mock data + navigation config (data thật nối sau) */
 window.MOCK = {
   nav: [
-    // R1: 2 tầng — ② NỀN THƯƠNG HIỆU (bền) dẫn dắt ③ MARKETING (theo mục tiêu).
+    // LAUNCH-READINESS Pha 0: nav = GOLDEN PATH v1 (①→⑦ + Báo cáo kênh). Trang mock/chờ-FB
+    // gom xuống "Sắp có" (soon:true → disable, giữ code + route vẫn chạy qua hash trực tiếp).
+    // admin = operator-only → bỏ khỏi nav (vẫn vào được qua #admin). Xem docs/cmo/LAUNCH-READINESS.md.
     { group: '① Chẩn đoán', items: [
       { id: 'dossier',    label: 'Hồ sơ doanh nghiệp', icon: '🗂️' },
       { id: 'market',     label: 'Thị trường',         icon: '🌐' },
@@ -13,7 +15,8 @@ window.MOCK = {
     { group: '② Nền thương hiệu', items: [
       { id: 'strategy',   label: 'Định vị & Chiến lược', icon: '🎯' },
       { id: 'message',    label: 'Thông điệp',           icon: '🏛️' },
-      { id: 'voice',      label: 'Giọng & Tính cách',    icon: '🗣️' },
+      // voice → "Sắp có": trang này đọc user_brand_voice (chỉ bot ghi) → user self-serve luôn ra số
+      // giả "Đạt 92%". Pha 2: repoint sang messaging.giọng (web sinh thật) rồi đưa lại lên đây.
     ]},
     { group: '③ Marketing', items: [
       { subhead: 'Chiến lược kênh' },
@@ -26,22 +29,22 @@ window.MOCK = {
       { id: 'inbox',    label: 'Kịch bản chốt sale',  icon: '💬' },
       { id: 'sequence', label: 'Email / Zalo chuỗi',  icon: '✉️' },
     ]},
-    { group: '④ Đo & Tối ưu', items: [
-      { subhead: 'Sức khỏe thương hiệu' },
-      { id: 'brandhealth',  label: 'Sức khỏe thương hiệu', icon: '🏛️' },
-      { subhead: 'Hiệu quả Marketing' },
-      { id: 'overview',     label: 'Hiệu quả Marketing', icon: '📊' },
-      { id: 'adsanalytics', label: 'Phân tích quảng cáo', icon: '📈' },
-      { id: 'optimizer',    label: 'Tối ưu tự động',  icon: '⚡' },
-      { id: 'spy',          label: 'Theo dõi đối thủ', icon: '🕵️' },
-      { id: 'channelreport',label: 'Báo cáo kênh',    icon: '📱' },
-      { id: 'schedule',     label: 'Lịch trình & cảnh báo', icon: '⏰' },
-      { id: 'accounts',     label: 'Kết nối tài khoản', icon: '🔗' },
+    { group: '④ Báo cáo kênh', items: [
+      { id: 'channelreport', label: 'Báo cáo kênh',   icon: '📱' },
     ]},
     { group: '⑤ Hệ thống', items: [
-      { id: 'reports', label: 'Báo cáo',  icon: '📑' },
-      { id: 'admin',   label: 'Quản trị', icon: '🛠️' },
-      { id: 'settings',label: 'Cài đặt',  icon: '⚙️' },
+      { id: 'settings', label: 'Cài đặt', icon: '⚙️' },
+    ]},
+    { group: 'Sắp có', items: [
+      { id: 'voice',        label: 'Giọng & Tính cách',    icon: '🗣️', soon: true },
+      { id: 'brandhealth',  label: 'Sức khỏe thương hiệu', icon: '🏛️', soon: true },
+      { id: 'overview',     label: 'Hiệu quả Marketing',   icon: '📊', soon: true },
+      { id: 'adsanalytics', label: 'Phân tích quảng cáo',  icon: '📈', soon: true },
+      { id: 'optimizer',    label: 'Tối ưu tự động',       icon: '⚡', soon: true },
+      { id: 'spy',          label: 'Theo dõi đối thủ',     icon: '🕵️', soon: true },
+      { id: 'schedule',     label: 'Lịch trình & cảnh báo', icon: '⏰', soon: true },
+      { id: 'accounts',     label: 'Kết nối tài khoản',    icon: '🔗', soon: true },
+      { id: 'reports',      label: 'Báo cáo',              icon: '📑', soon: true },
     ]},
   ],
 
