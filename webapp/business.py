@@ -7058,3 +7058,394 @@ async def _execute(job: dict):
                 )
         except Exception:
             pass
+
+
+# ═══════════════════════════════════════════════════════════════════
+# BÁO CÁO KÊNH — audit social 1 page BẤT KỲ (đối thủ). ScrapeCreators = MẮT,
+# LLM = NÃO. Nguồn: docs/web/references/scrapecreators-api.md.
+# Prompt: agents.operational_prompts.SOCIAL_PAGE_AUDIT_SYSTEM (tổng quát).
+# Trả report JSON cho FE 'Báo cáo kênh' render — không đổi schema DB.
+# ═══════════════════════════════════════════════════════════════════
+
+_WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+_CTA_VI = {
+    "MESSAGE_PAGE": "Nhắn tin", "SIGN_UP": "Đăng ký", "LEARN_MORE": "Tìm hiểu thêm",
+    "SHOP_NOW": "Mua ngay", "CALL_NOW": "Gọi ngay", "BOOK_TRAVEL": "Đặt chỗ",
+    "NO_BUTTON": "Không nút", "GET_OFFER": "Nhận ưu đãi", "DOWNLOAD": "Tải về",
+    "CONTACT_US": "Liên hệ", "SUBSCRIBE": "Đăng ký", "WHATSAPP_MESSAGE": "Nhắn WhatsApp",
+}
+
+
+def _post_format(p: dict) -> str:
+    if p.get("videoDetails") or p.get("videoViewCount"):
+        return "Video"
+    if p.get("image"):
+        return "Ảnh"
+    return "Text"
+
+
+def _fmt_ts(ts):
+    from datetime import datetime, timezone
+    try:
+        d = datetime.fromtimestamp(int(ts), tz=timezone.utc)
+        return d.strftime("%d/%m/%Y"), _WEEKDAYS[d.weekday()], d
+    except (ValueError, TypeError, OSError):
+        return "?", "?", None
+
+
+def _build_social_report(profile: dict, posts: list, ads: list) -> dict:
+    """Số THẬT → KPI + posts + ads + derived (đã tính sẵn ngày/thứ/tần suất/phân bổ)."""
+    like = profile.get("likeCount") or 0
+    follower = profile.get("followerCount") or 0
+    lf = f"{round(like / follower * 100, 2):.2f}%" if follower else "—"
+
+    out_posts = []
+    react_by_wd = {w: 0 for w in _WEEKDAYS}
+    comment_by_wd = {w: 0 for w in _WEEKDAYS}
+    fmt_count, total_react, total_comment = {}, 0, 0
+    dmin = dmax = None
+    for i, p in enumerate(posts, 1):
+        date, wd, d = _fmt_ts(p.get("publishTime"))
+        fmt = _post_format(p)
+        react = p.get("reactionCount") or 0
+        comment = p.get("commentCount") or 0
+        total_react += react
+        total_comment += comment
+        fmt_count[fmt] = fmt_count.get(fmt, 0) + 1
+        if wd in react_by_wd:
+            react_by_wd[wd] += react
+            comment_by_wd[wd] += comment
+        if d:
+            dmin = d if dmin is None or d < dmin else dmin
+            dmax = d if dmax is None or d > dmax else dmax
+        out_posts.append({
+            "n": i, "date": date, "weekday": wd, "react": react, "comment": comment,
+            "format": fmt, "views": p.get("videoViewCount"),
+            "text": (p.get("text") or "").strip(), "url": p.get("url"),
+        })
+
+    out_ads, ad_fmt, cta_count = [], {}, {}
+    for i, a in enumerate(ads, 1):
+        s = a.get("snapshot") or {}
+        fmt = (s.get("display_format") or "?").title()
+        cta = _CTA_VI.get(s.get("cta_type") or "NO_BUTTON", s.get("cta_type") or "Không nút")
+        ad_fmt[fmt] = ad_fmt.get(fmt, 0) + 1
+        cta_count[cta] = cta_count.get(cta, 0) + 1
+        aid = a.get("ad_archive_id")
+        out_ads.append({
+            "n": i, "format": fmt, "cta": cta, "active": a.get("is_active"),
+            "spend": a.get("spend"), "reach": a.get("reach_estimate"),
+            "platforms": a.get("publisher_platform"),
+            "body": ((s.get("body") or {}).get("text") or "").strip(),
+            "url": a.get("url") or (f"https://www.facebook.com/ads/library/?id={aid}" if aid else None),
+        })
+
+    n = len(posts)
+    span = ((dmax - dmin).days + 1) if (dmin and dmax) else 1
+    freq = round(n / span, 2) if span else 0
+    freq_label = "Thấp" if freq <= 1 else ("Trung bình" if freq <= 3 else "Cao")
+    return {
+        "kpi": {"like": like, "follower": follower, "lf": lf, "rating": profile.get("rating") or "—"},
+        "posts": out_posts, "ads": out_ads,
+        "derived": {
+            "freqPerDay": freq, "freqLabel": freq_label,
+            "totalReact": total_react, "totalComment": total_comment,
+            "avgReact": round(total_react / n) if n else 0,
+            "avgComment": round(total_comment / n) if n else 0,
+            "formatDist": sorted(fmt_count.items(), key=lambda x: -x[1]),
+            "adFormatDist": sorted(ad_fmt.items(), key=lambda x: -x[1]),
+            "ctaDist": sorted(cta_count.items(), key=lambda x: -x[1]),
+            "weekday": {"react": [react_by_wd[w] for w in _WEEKDAYS],
+                        "comment": [comment_by_wd[w] for w in _WEEKDAYS]},
+        },
+    }
+
+
+def _social_audit_input(profile: dict, posts: list, ads: list) -> str:
+    """Khối 'DỮ LIỆU KÉO VỀ' cho LLM — ngày/thứ tính sẵn, bơm topComments."""
+    L = [f"=== DỮ LIỆU KÉO VỀ (ScrapeCreators — page: {profile.get('name')}) ===\n",
+         "## PROFILE",
+         f"Tên: {profile.get('name')} | Category: {profile.get('category')}",
+         f"Likes: {profile.get('likeCount')} | Followers: {profile.get('followerCount')} | Rating: {profile.get('rating')}",
+         f"pageIntro: {profile.get('pageIntro')}",
+         f"Website: {profile.get('website')} | Links: {profile.get('links')}",
+         f"\n## BÀI ĐĂNG ORGANIC ({len(posts)} bài gần nhất)"]
+    for i, p in enumerate(posts, 1):
+        date, wd, _ = _fmt_ts(p.get("publishTime"))
+        L.append(f"\n[Bài {i}] ngày={date} ({wd}) | react={p.get('reactionCount')} | "
+                 f"comment={p.get('commentCount')} | format={_post_format(p)} | views={p.get('videoViewCount')}")
+        L.append(f"text: {(p.get('text') or '').strip()}")
+        tc = p.get("topComments") or []
+        cs = "; ".join((c.get("text") or "").strip()[:120] for c in tc[:5] if c.get("text"))
+        if cs:
+            L.append(f"bình luận nổi bật: {cs}")
+    L.append(f"\n## QUẢNG CÁO ĐANG CHẠY ({len(ads)} ads — FB Ad Library)")
+    if not ads:
+        L.append("(không có ad đang chạy / không lấy được)")
+    for i, a in enumerate(ads, 1):
+        s = a.get("snapshot") or {}
+        body = ((s.get("body") or {}).get("text") or "").strip()
+        L.append(f"\n[QC {i}] format={s.get('display_format')} | cta={s.get('cta_type')} | "
+                 f"active={a.get('is_active')} | spend={a.get('spend')} | reach={a.get('reach_estimate')} | "
+                 f"platforms={a.get('publisher_platform')}")
+        L.append(f"body: {body}")
+    return "\n".join(L)
+
+
+def _parse_audit_sections(md: str) -> list:
+    """Tách '## N. Tiêu đề\\n<body>' → [{n, title, body}] cho FE render accordion."""
+    parts = re.split(r"(?m)^##\s+(\d+)\.\s+(.+?)\s*$", md or "")
+    out = []
+    for i in range(1, len(parts) - 1, 3):
+        try:
+            out.append({"n": int(parts[i]), "title": parts[i + 1].strip(),
+                        "body": parts[i + 2].strip() if i + 2 < len(parts) else ""})
+        except (ValueError, IndexError):
+            continue
+    return out
+
+
+def _tiktok_video_url(handle, aid):
+    return f"https://www.tiktok.com/@{handle}/video/{aid}" if (handle and aid) else None
+
+
+def _build_tiktok_report(data: dict) -> dict:
+    """Số THẬT TikTok → KPI + videos (view/like/comment/share/save + transcript) + derived. Không có ads."""
+    profile = data.get("profile") or {}
+    videos = data.get("videos") or []
+    handle = data.get("handle")
+    transcripts = data.get("transcripts") or {}
+    u = profile.get("user") or {}
+    st = profile.get("stats") or profile.get("statsV2") or {}
+
+    def _num(x):
+        try:
+            return int(x)
+        except (TypeError, ValueError):
+            return 0
+
+    out = []
+    react_by_wd = {w: 0 for w in _WEEKDAYS}
+    comment_by_wd = {w: 0 for w in _WEEKDAYS}
+    tv = tr = tc = tsh = tsv = 0
+    dmin = dmax = None
+    for i, v in enumerate(videos, 1):
+        s = v.get("statistics") or {}
+        view, digg = _num(s.get("play_count")), _num(s.get("digg_count"))
+        cmt, share, save = _num(s.get("comment_count")), _num(s.get("share_count")), _num(s.get("collect_count"))
+        date, wd, d = _fmt_ts(v.get("create_time"))
+        tv += view; tr += digg; tc += cmt; tsh += share; tsv += save
+        if wd in react_by_wd:
+            react_by_wd[wd] += digg
+            comment_by_wd[wd] += cmt
+        if d:
+            dmin = d if dmin is None or d < dmin else dmin
+            dmax = d if dmax is None or d > dmax else dmax
+        aid = v.get("aweme_id")
+        out.append({
+            "n": i, "date": date, "weekday": wd, "format": "Video", "views": view,
+            "react": digg, "comment": cmt, "share": share, "save": save,
+            "text": (v.get("desc") or "").strip(), "url": _tiktok_video_url(handle, aid),
+            "hashtags": [x.get("hashtag_name") for x in (v.get("cha_list") or []) if x.get("hashtag_name")],
+            "transcript": transcripts.get(aid),
+        })
+
+    n = len(videos)
+    span = ((dmax - dmin).days + 1) if (dmin and dmax) else 1
+    freq = round(n / span, 2) if span else 0
+    freq_label = "Thấp" if freq <= 1 else ("Trung bình" if freq <= 3 else "Cao")
+    eng = round((tr + tc + tsh) / tv * 100, 2) if tv else 0
+    return {
+        "kpi": {"follower": _num(st.get("followerCount")), "heart": _num(st.get("heartCount") or st.get("heart")),
+                "videoCount": _num(st.get("videoCount")), "engRate": f"{eng:.2f}%", "verified": bool(u.get("verified"))},
+        "posts": out, "ads": [],
+        "derived": {
+            "freqPerDay": freq, "freqLabel": freq_label,
+            "totalView": tv, "totalReact": tr, "totalComment": tc, "totalShare": tsh, "totalSave": tsv,
+            "avgView": round(tv / n) if n else 0, "avgReact": round(tr / n) if n else 0,
+            "avgComment": round(tc / n) if n else 0, "engRate": f"{eng:.2f}%",
+            "formatDist": [["Video", n]], "adFormatDist": [], "ctaDist": [],
+            "weekday": {"react": [react_by_wd[w] for w in _WEEKDAYS],
+                        "comment": [comment_by_wd[w] for w in _WEEKDAYS]},
+        },
+    }
+
+
+def _tiktok_audit_input(data: dict) -> str:
+    """Khối 'DỮ LIỆU KÉO VỀ' cho LLM (TikTok) — metric video + hashtag + transcript (nếu có)."""
+    profile = data.get("profile") or {}
+    videos = data.get("videos") or []
+    handle = data.get("handle")
+    transcripts = data.get("transcripts") or {}
+    u = profile.get("user") or {}
+    st = profile.get("stats") or {}
+    L = [f"=== DỮ LIỆU KÉO VỀ (ScrapeCreators — TikTok @{handle}) ===\n", "## PROFILE",
+         f"Tên: {u.get('nickname')} | @{u.get('uniqueId')} | verified={u.get('verified')}",
+         f"Follower: {st.get('followerCount')} | Tổng tim: {st.get('heartCount')} | Số video: {st.get('videoCount')}",
+         f"Bio: {(u.get('signature') or '').strip()}",
+         f"\n## VIDEO ({len(videos)} gần nhất) — TikTok có VIEW/SHARE/SAVE thật"]
+    for i, v in enumerate(videos, 1):
+        s = v.get("statistics") or {}
+        date, wd, _ = _fmt_ts(v.get("create_time"))
+        tags = " ".join("#" + x.get("hashtag_name") for x in (v.get("cha_list") or []) if x.get("hashtag_name"))
+        L.append(f"\n[Video {i}] ngày={date} ({wd}) | view={s.get('play_count')} | like={s.get('digg_count')} | "
+                 f"comment={s.get('comment_count')} | share={s.get('share_count')} | save={s.get('collect_count')}")
+        L.append(f"caption: {(v.get('desc') or '').strip()}")
+        if tags:
+            L.append(f"hashtag: {tags}")
+        tr = transcripts.get(v.get("aweme_id"))
+        if tr:
+            L.append(f"lời thoại (transcript): {tr[:800]}")
+    L.append("\n## QUẢNG CÁO\n(TikTok không có Ad Library công khai qua ScrapeCreators — không có dữ liệu ads.)")
+    return "\n".join(L)
+
+
+async def _fill_transcripts_asr(data: dict, limit: int = 6) -> None:
+    """Điền lời thoại video còn THIẾU bằng ASR khi ScrapeCreators không có phụ đề CC.
+
+    ScrapeCreators `/tiktok/video/transcript` chỉ trả text khi video có CC → brand video
+    (chữ on-screen + nhạc) hầu hết null. Ở đây đưa URL TRANG XEM video cho `krillin_client`
+    → yt-dlp tải MP4 (bền với CDN ký-tạm) → Whisper (chính, có timestamp) / Gemini (dự phòng)
+    → mutate `data['transcripts'][aweme_id] = text`. Best-effort: thiếu key / tải lỗi / hết giờ
+    → giữ null, KHÔNG chặn report. Cap `limit` video để chặn chi phí + thời gian.
+    """
+    try:
+        from tools import krillin_client as asr
+    except Exception:
+        return
+    if not asr.is_available():
+        return
+
+    handle = data.get("handle")
+    videos = data.get("videos") or []
+    transcripts = data.setdefault("transcripts", {})
+    todo: list = []
+    for v in videos:
+        aid = v.get("aweme_id")
+        if not aid or transcripts.get(aid):
+            continue
+        # Đưa URL TRANG XEM (không phải play_addr ký-tạm) để yt-dlp tự lấy link tải mới.
+        watch = _tiktok_video_url(handle, aid)
+        if watch:
+            todo.append((aid, watch))
+        if len(todo) >= limit:
+            break
+    if not todo:
+        return
+
+    sem = asyncio.Semaphore(2)
+
+    async def _one(aid, watch):
+        async with sem:
+            try:
+                res = await asyncio.wait_for(
+                    asr.extract_transcript(watch, language_hint="vi"), timeout=180)
+                txt = ((res or {}).get("transcript") or "").strip()
+                if txt:
+                    transcripts[aid] = txt
+            except Exception:
+                pass  # ASR 1 video hỏng không nên làm hỏng cả report
+
+    await asyncio.gather(*[_one(a, w) for a, w in todo])
+
+
+async def audit_social_page(url: str, platform: str = "facebook", user_id=None,
+                            want_posts: int = 8, with_asr: bool = True) -> dict:
+    """Báo cáo kênh — audit 1 page MXH bất kỳ (FE 'Báo cáo kênh').
+
+    Trả: {name, platform, url, dataScope, kpi, posts[], ads[], derived{}, analysis[],
+    analysis_markdown, provider}  — hoặc {error} khi thiếu key/URL sai/LLM lỗi.
+    """
+    from tools import scrapecreators as sc
+    url = (url or "").strip()
+    if not url:
+        return {"error": "Thiếu URL kênh."}
+    if platform not in ("facebook", "tiktok"):
+        return {"error": f"Nền tảng '{platform}' chưa hỗ trợ — hiện Facebook + TikTok."}
+    if not sc.configured():
+        return {"error": "Chưa cấu hình SCRAPECREATORS_API_KEY — không lấy được dữ liệu thật."}
+
+    # ASR-first cho TikTok: có engine ASR (Whisper/Gemini) → BỎ gọi transcript CC của ScrapeCreators
+    # (tốn credit + hay trả WEBVTT SAI NGÔN NGỮ — auto-dịch tiếng Anh) và để Whisper đọc audio ra
+    # tiếng Việt sạch + timestamp. Không có ASR → vẫn lấy CC làm phương án chót.
+    run_asr = False
+    if platform == "tiktok" and with_asr:
+        try:
+            from tools import krillin_client as _asr
+            run_asr = _asr.is_available()
+        except Exception:
+            run_asr = False
+
+    try:
+        if platform == "facebook":
+            data = await asyncio.wait_for(sc.fetch_facebook_page(url, want_posts=want_posts), timeout=90)
+        else:
+            data = await asyncio.wait_for(
+                sc.fetch_tiktok_page(url, want_videos=want_posts, with_transcript=not run_asr), timeout=180)
+    except asyncio.TimeoutError:
+        return {"error": "Quá giờ khi lấy dữ liệu từ ScrapeCreators."}
+    except Exception as e:
+        return {"error": f"Không lấy được dữ liệu kênh: {str(e)[:160]}"}
+
+    platform_hint = ""
+    if platform == "facebook":
+        profile = data.get("profile") or {}
+        posts = data.get("posts") or []
+        if not posts:
+            return {"error": "Page không có bài đăng công khai để phân tích (hoặc URL sai)."}
+        report = _build_social_report(profile, posts, data.get("ads") or [])
+        report.update({"name": profile.get("name") or url, "platform": platform, "url": url,
+                       "dataScope": f"Phân tích {len(posts)} bài đăng gần nhất"})
+        audit_input = _social_audit_input(profile, posts, data.get("ads") or [])
+    else:
+        videos = data.get("videos") or []
+        if not videos:
+            return {"error": "Kênh TikTok không có video công khai để phân tích (hoặc handle sai)."}
+        if run_asr:
+            await _fill_transcripts_asr(data, limit=want_posts)  # Whisper/Gemini đọc audio → lời thoại VN sạch
+        report = _build_tiktok_report(data)
+        u = (data.get("profile") or {}).get("user") or {}
+        report.update({"name": u.get("nickname") or u.get("uniqueId") or url, "platform": platform,
+                       "url": url if url.startswith("http") else f"https://www.tiktok.com/@{data.get('handle')}",
+                       "dataScope": f"Phân tích {len(videos)} video gần nhất"})
+        audit_input = _tiktok_audit_input(data)
+        platform_hint = ("\n(LƯU Ý: đây là kênh TikTok — video-native, có VIEW/SHARE/SAVE thật; KHÔNG có "
+                         "dữ liệu quảng cáo công khai. Mục ⑦ phân tích video sâu; mục ⑧ ghi rõ "
+                         "'TikTok không có Ad Library công khai'.)")
+
+    from tools.llm_router import call as router_call, TaskType
+    try:
+        from agents.operational_prompts import SOCIAL_PAGE_AUDIT_SYSTEM
+    except Exception:
+        return {**report, "error": "Thiếu prompt audit.", "analysis": [], "analysis_markdown": ""}
+
+    user_msg = (audit_input + platform_hint +
+                "\n\n=== YÊU CẦU === Phân tích kênh trên thành báo cáo đủ 12 mục theo system.")
+    try:
+        res = await asyncio.wait_for(
+            router_call(task_type=TaskType.OPS_ANALYSIS, system=SOCIAL_PAGE_AUDIT_SYSTEM,
+                        user=user_msg, max_tokens=16000),
+            timeout=300)
+        md = (res or {}).get("output", "").strip()
+        report["provider"] = (res or {}).get("provider")
+    except asyncio.TimeoutError:
+        return {**report, "error": "Quá giờ khi phân tích (LLM).", "analysis": [], "analysis_markdown": ""}
+    except Exception as e:
+        return {**report, "error": f"Lỗi phân tích LLM: {str(e)[:160]}", "analysis": [], "analysis_markdown": ""}
+
+    report["analysis_markdown"] = md
+    report["analysis"] = _parse_audit_sections(md)
+
+    # Cache best-effort vào skill_runs (versioned) — không chặn nếu chưa nối Supabase.
+    if available():
+        try:
+            await ensure_client()
+            uid = await pick_user_id(user_id)
+            if uid is not None:
+                from storage.v2 import skill_runs
+                await skill_runs.insert_skill_run(uid, "social_page_audit", md,
+                                                  model_used="web-social-audit")
+        except Exception:
+            pass
+
+    return report

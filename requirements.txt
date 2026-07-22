@@ -10,3 +10,4 @@ supabase>=2.0.0
 python-dotenv>=1.0.0
 cryptography>=42.0.0
 markdown>=3.5
+yt-dlp>=2025.1.1          # tải video social (TikTok/FB…) cho ASR — bền với CDN ký-tạm, thay httpx GET trần

@@ -566,6 +566,18 @@ async def biz_fb_connect_url(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+async def biz_social_audit(request):
+    """Báo cáo kênh — audit social 1 page bất kỳ (ScrapeCreators + LLM 12 mục)."""
+    data = await request.json()
+    res = await biz.audit_social_page(
+        data.get("url", ""), data.get("platform", "facebook"),
+        data.get("user_id"), int(data.get("posts") or 8),
+        with_asr=data.get("asr", True) is not False)
+    # Lỗi cứng (không lấy được data) → 400; lỗi mềm (có KPI, LLM hụt) → 200 để FE hiện phần đã có.
+    hard_err = "error" in res and "kpi" not in res
+    return JSONResponse(res, status_code=400 if hard_err else 200)
+
+
 # ── Max (đối thoại cố vấn) ──────────────────────────────────────────
 async def chat(request):
     """Một lượt hội thoại với Max. Body: {user_id, message}."""
@@ -776,6 +788,7 @@ def api_routes() -> list:
         Route("/api/biz/content/feedback",          biz_content_feedback, methods=["POST"]),
         Route("/api/biz/agent",                    biz_agent_run,      methods=["POST"]),
         Route("/api/biz/ads",                      biz_ads,            methods=["GET"]),
+        Route("/api/biz/social/audit",             biz_social_audit,   methods=["POST"]),
         Route("/api/biz/fb/connect-url",           biz_fb_connect_url, methods=["GET"]),
         Route("/api/chat",                         chat,               methods=["POST"]),
         Route("/api/chat/history",                 chat_history,       methods=["GET"]),

@@ -2813,6 +2813,139 @@
     mount: () => {},
   };
 
+  /* ---- Báo cáo kênh (social audit 1 page — nguồn: ScrapeCreators + LLM) ---- */
+  let _crCharts = [];
+  const crPlatIcon = (p) => ({ facebook: '📘', tiktok: '🎵', instagram: '📷', youtube: '▶️' }[p] || '🌐');
+  const crLegend = (pairs) => `<ul class="legend-list">${(pairs || []).map((p, i) => `<li><i class="dot c${i + 1}"></i>${p[0]}<span>${p[1]}</span></li>`).join('')}</ul>`;
+
+  function crLanding() {
+    const rs = M.channelReports || [];
+    return `<section class="grid">
+      ${card('Tạo báo cáo mới', `<p class="muted">Dán URL một kênh mạng xã hội — Max quét dữ liệu thật (bài đăng, tương tác, quảng cáo đang chạy) rồi phân tích định vị, tuyến nội dung, công thức & phễu marketing.</p>
+        <button class="primary-btn" data-act="cr-new" style="margin-top:12px">＋ Tạo báo cáo kênh mới</button>`, { cls: 'span-12' })}
+      ${card('Báo cáo đã tạo', rs.length ? `<div class="cr-grid">${rs.map(r => `
+          <article class="cr-card" data-act="cr-open" data-id="${r.id}">
+            <div class="cr-card-top"><span class="cr-avatar sm">${crPlatIcon(r.platform)}</span>${r.sample ? '<span class="tag">mẫu</span>' : ''}</div>
+            <p class="cr-card-name">${r.name}</p>
+            <p class="muted">${num(r.kpi.follower)} follower · L/F ${r.kpi.lf}</p>
+          </article>`).join('')}</div>` : '<p class="muted">Chưa có báo cáo nào — bấm "Tạo báo cáo kênh mới".</p>', { cls: 'span-12' })}
+    </section>`;
+  }
+
+  P.channelreport = {
+    title: 'Báo cáo kênh', sub: 'Phân tích thương hiệu trên mạng xã hội (Facebook · TikTok · Instagram · YouTube)',
+    actions: `<button class="primary-btn" data-act="cr-new">＋ Tạo báo cáo kênh mới</button>`,
+    render: crLanding, mount: () => {},
+  };
+
+  function crReportHTML(r) {
+    const d = r.derived || {};
+    const kpiCard = (ic, label, val) => `<article class="cr-kpi"><span class="cr-kpi-ic">${ic}</span><div><p class="cr-kpi-l">${label}</p><p class="cr-kpi-v">${val}</p></div></article>`;
+    const post = (p) => `<article class="cr-post"><div class="cr-post-h"><b>Bài ${p.n}</b><span class="cr-tag">${p.format}</span></div>
+      <p class="cr-post-t">${p.text || ''}</p>
+      <div class="cr-post-m"><span>❤ ${p.react}</span><span>💬 ${p.comment}</span><span class="muted">${p.date || ''}</span></div></article>`;
+    const ad = (a) => `<article class="cr-post"><div class="cr-post-h"><b>QC ${a.n}</b><span class="cr-dot ${a.active ? 'on' : ''}" title="${a.active ? 'Đang chạy' : 'Dừng'}"></span></div>
+      <div class="cr-tags"><span class="cr-tag">${a.format}</span><span class="cr-tag">${a.cta}</span></div>
+      <p class="cr-post-t">${a.body || ''}</p></article>`;
+    const sec = (s) => `<details class="cr-sec" open><summary><span class="cr-sec-n">${String(s.n).padStart(2, '0')}</span> ${s.title}</summary>
+      <div class="cr-sec-body">${s.blocks.map(b => `${b.h ? `<p class="cr-sec-h">${b.h}</p>` : ''}<p>${b.t}</p>`).join('')}</div></details>`;
+    const tabs = ['Reaction', 'Bình luận', 'Chia sẻ', 'Lượt xem 3s'];
+    return `<div class="cr-report">
+      <button class="cr-x" data-act="cr-close" title="Đóng">✕</button>
+      <header class="cr-head">
+        <div class="cr-avatar">${crPlatIcon(r.platform)}</div>
+        <div class="cr-head-txt"><h2>${r.name} <a href="${r.url}" target="_blank" rel="noopener" class="cr-ext">↗</a></h2>
+          <p class="muted">${r.dataScope || ''}</p></div>
+        ${r.sample ? '<span class="tag" style="align-self:flex-start">dữ liệu mẫu</span>' : ''}
+      </header>
+      <div class="cr-kpis">
+        ${kpiCard('❤️', 'Tổng lượt thích', num(r.kpi.like))}
+        ${kpiCard('👥', 'Tổng lượt theo dõi', num(r.kpi.follower))}
+        ${kpiCard('📈', 'Tỷ lệ L/F', r.kpi.lf)}
+        ${kpiCard('⭐', 'Đánh giá', r.kpi.rating)}
+      </div>
+      ${card('📄 Bài đăng', `<div class="cr-grid cr-posts">${r.posts.map(post).join('')}</div>`, { cls: 'cr-block' })}
+      ${r.ads && r.ads.length ? card('🎬 Quảng cáo', `<div class="cr-grid cr-posts">${r.ads.map(ad).join('')}</div>`, { cls: 'cr-block' }) : ''}
+      <div class="cr-charts">
+        ${card('Thống kê theo Thứ', `<div class="cr-tabs">${tabs.map((t, i) => `<button class="cr-tab${i === 0 ? ' on' : ''}" disabled>${t}</button>`).join('')}</div>${cv('crWeek', 220)}`)}
+        ${card('Thống kê theo Ngày', cv('crDate', 220))}
+        ${card('Phân bổ định dạng nội dung', `<div class="chart-box" style="height:160px"><canvas id="crFmt"></canvas></div>${crLegend(d.formatDist)}`)}
+        ${card('Tổng tương tác', `<div class="cr-stat"><span>❤️ Tổng reaction</span><b>${d.totalReact}</b></div><div class="cr-stat"><span>💬 Tổng bình luận</span><b>${d.totalComment}</b></div>`)}
+        ${card('Tương tác trung bình', `<div class="cr-stat"><span>❤️ TB reaction</span><b>${d.avgReact}</b></div><div class="cr-stat"><span>💬 TB bình luận</span><b>${d.avgComment}</b></div>`)}
+        ${card('Tần suất đăng', `<p class="kpi-value">${d.freqPerDay} <span class="muted" style="font-size:13px">bài/ngày</span></p>
+          <div class="track" style="margin:8px 0"><div class="fillbar" style="width:15%"></div></div>
+          <div class="cr-freq-scale"><span>Thấp (0-1)</span><span>Trung bình (1-3)</span><span>Cao (>3)</span></div>
+          <span class="tag" style="margin-top:8px;display:inline-block">${d.freqLabel || ''}</span>`)}
+        ${card('Phân bổ định dạng quảng cáo', `<div class="chart-box" style="height:160px"><canvas id="crAdFmt"></canvas></div>${crLegend(d.adFormatDist)}`)}
+        ${card('Phân bổ CTA', `<div class="chart-box" style="height:160px"><canvas id="crCta"></canvas></div>${crLegend(d.ctaDist)}`)}
+      </div>
+      <div class="cr-analysis">${(r.analysis || []).map(sec).join('')}</div>
+    </div>`;
+  }
+
+  function crMountCharts(r) {
+    _crCharts.forEach(c => { try { c.destroy(); } catch (e) {} }); _crCharts = [];
+    if (!hasChart) return;
+    const d = r.derived || {};
+    const crReg = (c) => { _crCharts.push(c); return c; };
+    const DCOL = [PRIMARY, PRIMARY2, CYAN, AMBER];
+    const mkDonut = (id, pairs) => {
+      const el = byId(id); if (!el || !pairs) return;
+      crReg(new Chart(el, { type: 'doughnut',
+        data: { labels: pairs.map(p => p[0]), datasets: [{ data: pairs.map(p => p[1]), backgroundColor: DCOL, borderWidth: 0, hoverOffset: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } } }));
+    };
+    mkDonut('crFmt', d.formatDist); mkDonut('crAdFmt', d.adFormatDist); mkDonut('crCta', d.ctaDist);
+    const mkLine = (id, labels, data) => {
+      const el = byId(id); if (!el) return;
+      crReg(new Chart(el, { type: 'line',
+        data: { labels: labels || [], datasets: [{ data: data || [], borderColor: PRIMARY, backgroundColor: fill(PRIMARY), fill: true, tension: .4, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { x: { grid: noGrid }, y: { grid, beginAtZero: true, suggestedMax: 4 } } } }));
+    };
+    mkLine('crWeek', ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'], (d.weekday || {}).react);
+    mkLine('crDate', d.dates, d.dateSeries);
+  }
+
+  function crOpen(id) {
+    const r = (M.channelReports || []).find(x => x.id === id); if (!r) return;
+    let ov = document.getElementById('crOv');
+    if (!ov) { ov = document.createElement('div'); ov.id = 'crOv'; ov.className = 'cr-ov'; document.body.appendChild(ov); }
+    ov.innerHTML = crReportHTML(r);
+    ov.classList.add('show'); document.body.classList.add('cr-open');
+    ov.scrollTop = 0;
+    crMountCharts(r);
+  }
+  function crClose() {
+    const ov = document.getElementById('crOv'); if (ov) { ov.classList.remove('show'); ov.innerHTML = ''; }
+    document.body.classList.remove('cr-open');
+    _crCharts.forEach(c => { try { c.destroy(); } catch (e) {} }); _crCharts = [];
+  }
+
+  function crFormModal() {
+    let ov = document.getElementById('crForm');
+    if (!ov) { ov = document.createElement('div'); ov.id = 'crForm'; ov.className = 'modal-ov'; document.body.appendChild(ov); }
+    ov.innerHTML = `<div class="modal cr-form">
+      <div class="modal-head"><h3>⊕ Tạo báo cáo kênh mới</h3><button class="icon-btn" data-act="cr-form-close">✕</button></div>
+      <div class="modal-body">
+        <p class="muted" style="margin:-4px 0 14px">Phân tích thương hiệu trên các nền tảng mạng xã hội</p>
+        <div class="cr-form-grid">
+          <label class="fld"><span>🌐 Nền tảng</span>
+            <select id="crPlat"><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option></select></label>
+          <label class="fld"><span>🔗 URL</span><input id="crUrl" placeholder="Dán URL kênh (vd facebook.com/...)"></label>
+          <label class="fld"><span>✨ Mô hình phân tích</span>
+            <select id="crModel"><option>Chuyên sâu</option><option>Nhanh</option></select></label>
+        </div>
+      </div>
+      <div class="modal-foot"><div class="modal-foot-r">
+        <button class="ghost-line" data-act="cr-form-close">Hủy</button>
+        <button class="primary-btn" data-act="cr-submit">Tạo báo cáo</button>
+      </div></div>
+    </div>`;
+    ov.classList.add('show');
+  }
+  function crFormClose() { const ov = document.getElementById('crForm'); if (ov) { ov.classList.remove('show'); ov.innerHTML = ''; } }
+
   /* ---- Schedule ---- */
   P.schedule = {
     title: 'Lịch trình & cảnh báo', sub: 'Tác vụ nền tự động + ngưỡng cảnh báo',
@@ -3011,14 +3144,16 @@
   function renderSidebar(active) {
     const html = `
       <div class="brand"><div class="brand-logo">M</div>
-        <div class="brand-text"><span class="brand-name">Marketing OS</span><span class="brand-sub">Auto Ads Facebook</span></div></div>
+        <div class="brand-text"><span class="brand-name">Marketing OS</span><span class="brand-sub">AI CMO cho founder Việt</span></div></div>
       <nav class="nav">${M.nav.map(g=>`
         ${g.group?`<p class="nav-label">${g.group}</p>`:''}
         ${g.items.map(it=> it.subhead
           ? `<p class="nav-subhead">${it.subhead}</p>`
-          : `<a class="nav-item ${it.id===active?'active':''}" href="#${it.id}"><span class="ic">${it.icon}</span> ${it.label}</a>`).join('')}
+          : it.soon
+            ? `<span class="nav-item soon" title="Sắp có — đang hoàn thiện"><span class="ic">${it.icon}</span> ${it.label}<span class="nav-soon-tag">Sắp có</span></span>`
+            : `<a class="nav-item ${it.id===active?'active':''}" href="#${it.id}"><span class="ic">${it.icon}</span> ${it.label}</a>`).join('')}
       `).join('')}</nav>
-      <div class="sidebar-foot"><p class="version">v2.4.0 · demo dữ liệu mock</p></div>`;
+      <div class="sidebar-foot"><p class="version">v2.4.0${M.bizEnabled ? '' : ' · dữ liệu mẫu'}</p></div>`;
     document.getElementById('sidebar').innerHTML = html;
   }
   function renderTopbar() {
@@ -3932,6 +4067,19 @@
     }
     if (act === 'chat-send') { sendChat(); return; }
     if (act === 'chat-eg') { sendChat(el.dataset.text); return; }
+    if (act === 'cr-new') { crFormModal(); return; }
+    if (act === 'cr-form-close') { crFormClose(); return; }
+    if (act === 'cr-open') { crOpen(el.dataset.id); return; }
+    if (act === 'cr-close') { crClose(); return; }
+    if (act === 'cr-submit') {
+      const url = (document.getElementById('crUrl') || {}).value || '';
+      if (!url.trim()) { toast('Dán URL kênh trước'); return; }
+      // Backend ScrapeCreators chưa nối — mở báo cáo mẫu để xem layout. (Bước sau: gọi API thật.)
+      crFormClose();
+      toast('Backend chưa nối — đang mở báo cáo mẫu (SpeeGo)');
+      crOpen('speego');
+      return;
+    }
     if (act === 'toggle-collapse') {
       const card = el.closest('.card'); const out = card && card.querySelector('.ai-output');
       if (out) { const open = out.classList.toggle('expanded'); el.textContent = open ? 'Thu gọn ▴' : 'Xem đầy đủ ▾'; }
