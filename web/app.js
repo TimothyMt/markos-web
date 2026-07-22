@@ -2708,42 +2708,9 @@
   });
 
   /* ---- Brand voice ---- */
-  P.voice = {
-    title: 'Brand Voice',
-    get sub() { return M.bizBrandVoice ? `Brand Voice thật · v${M.bizBrandVoice.version}` : 'Quy tắc giọng nói thương hiệu + hiệu chỉnh tông'; },
-    render: () => {
-      const bv = M.bizBrandVoice;
-      if (bv) {
-        const doList = (bv.do_rules || []).concat(bv.preferred_words?.map(w=>'Ưu tiên từ: '+w)||[]);
-        const dontList = (bv.dont_rules || []).concat(bv.banned_words?.map(w=>'Tránh từ: '+w)||[]);
-        const toneList = bv.tone_descriptors || [];
-        return `
-        <section class=”grid”>
-          <div class=”card span-12” style=”display:flex;align-items:center;gap:10px;padding:10px 14px”>
-            ${badge('Brand Voice thật · v'+bv.version,'green')}
-            ${bv.industry_context ? `<span class=”muted”>${bv.industry_context}</span>` : ''}
-          </div>
-          ${card('Nên (Do)', `<ul class=”bullet”>${doList.length ? doList.map(d=>`<li>✅ ${d}</li>`).join('') : '<li class=”muted”>Chưa có quy tắc</li>'}</ul>`, {cls:'span-4'})}
-          ${card('Không nên (Don\'t)', `<ul class=”bullet”>${dontList.length ? dontList.map(d=>`<li>🚫 ${d}</li>`).join('') : '<li class=”muted”>Chưa có quy tắc</li>'}</ul>`, {cls:'span-4'})}
-          ${card('Tông giọng', `<div class=”chips”>${toneList.map(t=>`<span class=”chip on”>${t}</span>`).join('')||'<span class=”muted”>Chưa cấu hình</span>'}</div>`, {cls:'span-4'})}
-          ${bv.sample_content ? card('Nội dung mẫu', `<blockquote class=”muted” style=”border-left:3px solid var(--primary);padding-left:12px;margin:0”>${bv.sample_content.slice(0,400)}</blockquote>`, {cls:'span-12'}) : ''}
-        </section>`;
-      }
-      return `
-      <section class=”grid”>
-        ${M.bizEnabled ? card('Brand Voice', `<p class=”muted”>User chưa setup Brand Voice. Dùng bot để cấu hình (Sprint 5).</p>`, {cls:'span-12'}) : ''}
-        ${card('Nên (Do)', `<ul class=”bullet”>${M.voice.do.map(d=>`<li>✅ ${d}</li>`).join('')}</ul>`, {cls:'span-4'})}
-        ${card('Không nên (Don\'t)', `<ul class=”bullet”>${M.voice.dont.map(d=>`<li>🚫 ${d}</li>`).join('')}</ul>`, {cls:'span-4'})}
-        ${card('Hiệu chỉnh tông', M.voice.tone.map(t=>`
-          <div class=”slider”><div class=”slider-top”><span>${t.k}</span><b>${t.v}</b></div>
-            <div class=”track”><div class=”fillbar” style=”width:${t.v}%”></div></div></div>`).join(''), {cls:'span-4'})}
-        ${card('Kiểm tra tuân thủ giọng', `
-          <div class=”voicecheck”><span class=”tag green”>Đạt 92%</span>
-          <p class=”muted” style=”margin-top:8px”>Mẫu “Buổi sáng cần một lý do…” — phù hợp giọng thân thiện, câu ngắn. Gợi ý: giảm 1 emoji ở cuối.</p></div>`, {cls:'span-12'})}
-      </section>`;
-    },
-    mount: () => {},
-  };
+  // Trang "Giọng & Tính cách" đã khai tử: giọng (Nên/Tránh) sống trong trang Thông điệp
+  // (messaging.voice, web sinh thật). Bản cũ đọc bot-only user_brand_voice + bịa "Đạt 92%".
+  // Badge Brand Voice thật (bizBrandVoice) vẫn hiện ở trang Hồ sơ — giữ nguyên producer đó.
 
   /* ---- Ads analytics ---- */
   let _adsDays = 7;

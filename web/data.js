@@ -15,8 +15,8 @@ window.MOCK = {
     { group: '② Nền thương hiệu', items: [
       { id: 'strategy',   label: 'Định vị & Chiến lược', icon: '🎯' },
       { id: 'message',    label: 'Thông điệp',           icon: '🏛️' },
-      // voice → "Sắp có": trang này đọc user_brand_voice (chỉ bot ghi) → user self-serve luôn ra số
-      // giả "Đạt 92%". Pha 2: repoint sang messaging.giọng (web sinh thật) rồi đưa lại lên đây.
+      // Giọng nói thương hiệu (Nên/Tránh) sống TRONG trang Thông điệp (messaging.voice) —
+      // không còn trang "Giọng & Tính cách" riêng (khai tử: trùng + đọc data bot-only).
     ]},
     { group: '③ Marketing', items: [
       { subhead: 'Chiến lược kênh' },
@@ -36,7 +36,6 @@ window.MOCK = {
       { id: 'settings', label: 'Cài đặt', icon: '⚙️' },
     ]},
     { group: 'Sắp có', items: [
-      { id: 'voice',        label: 'Giọng & Tính cách',    icon: '🗣️', soon: true },
       { id: 'brandhealth',  label: 'Sức khỏe thương hiệu', icon: '🏛️', soon: true },
       { id: 'overview',     label: 'Hiệu quả Marketing',   icon: '📊', soon: true },
       { id: 'adsanalytics', label: 'Phân tích quảng cáo',  icon: '📈', soon: true },
@@ -208,12 +207,6 @@ window.MOCK = {
   sampleDocs: {},
 
   // M3.2: adsCopy / sequence mock đã bỏ — Ads copy & Email/Zalo chuỗi nay sinh THẬT (api/biz/content/asset)
-
-  voice: {
-    do: ['Gần gũi, thân thiện','Dùng “bạn” thay “quý khách”','Câu ngắn, dễ đọc','Có cảm xúc tích cực'],
-    dont: ['Sáo rỗng, hô khẩu hiệu','Thuật ngữ khó','Cường điệu quá mức','Spam emoji'],
-    tone: [ {k:'Trang trọng ↔ Thân mật', v:75}, {k:'Nghiêm túc ↔ Hài hước', v:60}, {k:'Chuyên gia ↔ Bạn bè', v:68} ],
-  },
 
   users: [
     { id: '527…412', plan: 'Pro',  quota: 200000, used: 142300 },
