@@ -51,6 +51,22 @@ _BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 
 URL_REGEX = re.compile(r"^https?://", re.IGNORECASE)
 
+# Transcript "vô dụng" = quá ngắn hoặc chỉ là nhãn nhạc/tiếng động (Whisper hay trả khi
+# video không có lời nói) → coi như rỗng để nhường Gemini đọc chữ trên màn hình.
+_NOISE_ONLY_RE = re.compile(
+    r"^[\s\[\(♪🎵.．…]*(âm\s*nhạc|nhạc\s*nền|nhạc|music|applause|vỗ\s*tay|tiếng\s*(ồn|động)|"
+    r"noise|inaudible|silence|im\s*lặng)[\s\]\)♪🎵.．…]*$",
+    re.IGNORECASE,
+)
+
+
+def _usable_transcript(text: str) -> bool:
+    """True nếu transcript có lời nói thật (đủ dài + không chỉ là nhãn nhạc/tiếng động)."""
+    t = (text or "").strip()
+    if len(t) < 15:
+        return False
+    return not _NOISE_ONLY_RE.match(t)
+
 
 # ─────────────────────────────────────────────────────────────────
 # Public API
@@ -81,25 +97,33 @@ async def extract_transcript(
         except Exception as e:
             logger.warning(f"krillin CLI failed, falling back to whisper: {e}")
 
-    # Path 2/3: tải file 1 lần → thử Whisper (chính, có timestamp) → Gemini (dự phòng).
+    # Path 2/3: tải file 1 lần → Whisper (chính, có timestamp) → Gemini (dự phòng).
+    # Gemini nhảy vào cả khi Whisper LỖI *lẫn* khi Whisper trả RỖNG/CHỈ-NHẠC — vì brand video
+    # kiểu "chữ chạy trên màn hình + nhạc nền, không ai nói" thì Whisper (mù hình) ra rỗng, còn
+    # Gemini ĐỌC ĐƯỢC CHỮ TRÊN MÀN HÌNH. Whisper rỗng không phải exception nên phải check tay.
     if OPENAI_API_KEY or GEMINI_API_KEY:
         local_path = await _ensure_local_file(source) if is_url else source
         errors: list[str] = []
         if OPENAI_API_KEY:
             try:
                 result = await _run_whisper_api(local_path, language_hint)
-                result["video_url"] = source if is_url else ""
-                result["local_video_path"] = local_path
-                return result
+                if _usable_transcript(result.get("transcript", "")):
+                    result["video_url"] = source if is_url else ""
+                    result["local_video_path"] = local_path
+                    return result
+                logger.info("whisper transcript rỗng/chỉ-nhạc → thử Gemini đọc màn hình")
+                errors.append("whisper: transcript rỗng/không có lời nói")
             except Exception as e:
                 logger.warning(f"whisper API failed: {e}")
                 errors.append(f"whisper: {type(e).__name__}: {str(e)[:120]}")
         if GEMINI_API_KEY:
             try:
                 result = await _run_gemini_transcribe(local_path, language_hint)
-                result["video_url"] = source if is_url else ""
-                result["local_video_path"] = local_path
-                return result
+                if _usable_transcript(result.get("transcript", "")):
+                    result["video_url"] = source if is_url else ""
+                    result["local_video_path"] = local_path
+                    return result
+                errors.append("gemini: transcript rỗng")
             except Exception as e:
                 logger.warning(f"gemini transcribe failed: {e}")
                 errors.append(f"gemini: {type(e).__name__}: {str(e)[:120]}")
