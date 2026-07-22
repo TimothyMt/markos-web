@@ -1970,13 +1970,15 @@
         <a class="ghost-line" href="#matrix">🧱 Ma trận nền</a>
         <a class="primary-btn" href="#occasion">＋ Chiến dịch mới</a>`;
     },
-    render: () => `
+    render: () => {
+      // A3 (empty→mock): đã đăng nhập nhưng CHƯA có lịch thật → empty-state + nudge đúng bước,
+      // KHÔNG render lịch mock. Chỉ preview/không-backend mới xem mẫu (trình bày mô hình UX).
+      if (!_realCal && M.bizEnabled) return `${brandNudge()}${calEmptyState()}`;
+      return `
       ${brandNudge()}
       ${_realCal
         ? `<div class="cal-note">${badge('Dựng từ chiến lược','green')} <span class="muted"> Always-on lấy từ <b>${(_realCal.alwaysOn||[]).length? new Set((_realCal.alwaysOn||[]).map(s=>s.pillar)).size : 0} trụ đã chốt</b>, rải theo nhịp đăng suốt <b>${({'30':'30 ngày','60':'60 ngày','90':'90 ngày'})[_realCal.horizon]||(_realCal.weeks+' tuần')}</b>. Mỗi ô bấm ⚡ để sinh bài thật.</span></div>`
-        : (M.bizEnabled
-        ? `<div class="cal-note">${badge('Chưa có dữ liệu thật','amber')} <span class="muted"> Lập + chốt Chiến lược, rồi dựng <a href="#matrix">🧱 Ma trận nền</a> để lịch nền hiện thật. Đang xem mẫu.</span></div>`
-        : `<div class="cal-note">${badge('Bản thiết kế UX','amber')} <span class="muted"> Mô hình kế hoạch — dữ liệu mẫu, nối thật khi bật backend.</span></div>`)}
+        : `<div class="cal-note">${badge('Bản thiết kế UX','amber')} <span class="muted"> Mô hình kế hoạch — dữ liệu mẫu, nối thật khi bật backend.</span></div>`}
       <div class="cal-legend">
         <span><i class="lg on"></i> 🟢 Branding (nền) — bài brand chạy đều mỗi tuần, KHÔNG tắt khi có đợt</span>
         <span><i class="lg camp"></i> 🗓️ Đợt chiến dịch — bài theo mục tiêu đợt, CỘNG THÊM lên nền trong đúng dịp</span>
@@ -1985,9 +1987,28 @@
       ${messagingBand()}
       ${balanceNudge()}
       ${calOrphanTray()}
-      ${_calView === 'plan' ? calPlanView() : calWeekView()}`,
+      ${_calView === 'plan' ? calPlanView() : calWeekView()}`;
+    },
     mount: () => { loadRealCalendar(); },
   };
+  // A3: trạng thái RỖNG cho user đã đăng nhập chưa dựng lịch — thay lịch mock bằng nudge đúng
+  // bước golden path (⑤ Ma trận → Chiến dịch → Max rải bài). KHÔNG bịa dữ liệu mẫu cho user thật.
+  function calEmptyState() {
+    return `<div class="cal-empty">
+      <div class="cal-empty-ic">🗓️</div>
+      <h3>Chưa có lịch nội dung</h3>
+      <p class="cal-empty-lead">Max sẽ tự rải bài lên lịch sau khi bạn dựng nền chiến lược. Đi theo thứ tự:</p>
+      <ol class="cal-empty-steps">
+        <li>Chốt <a href="#strategy">Định vị &amp; Chiến lược</a> + <a href="#message">🏛️ Thông điệp</a></li>
+        <li>Dựng <a href="#matrix">🧱 Ma trận &amp; Chiến dịch</a> (trụ × kênh)</li>
+        <li>Tạo <a href="#occasion">＋ Chiến dịch</a> → Max rải bài về đúng ngày</li>
+      </ol>
+      <div class="cal-empty-acts">
+        <a class="primary-btn" href="#matrix">🧱 Dựng Ma trận nền</a>
+        <a class="ghost-line" href="#occasion">＋ Chiến dịch mới</a>
+      </div>
+    </div>`;
+  }
   // Timeline-first: nhắc cân bằng brand·đơn (Binet&Field 60/40) — giá trị "có-CMO".
   function balanceNudge() {
     if (!_realCal) return '';
