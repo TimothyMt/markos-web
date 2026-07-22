@@ -86,9 +86,12 @@ LLM hụt token (page lớn) → vẫn trả `kpi/posts/ads` + `{ "error": ... }
 |---|---|---|
 | Client | `tools/scrapecreators.py` (mới) | `fetch_facebook_page(url)` → profile + posts (cursor) + ads. Key: `SCRAPECREATORS_API_KEY` |
 | Prompt | `agents/operational_prompts.py` | `SOCIAL_PAGE_AUDIT_SYSTEM` (12 mục, chống-bịa) + đăng ký `OPERATIONAL_SYSTEMS["social_page_audit"]` |
-| Logic | `webapp/business.py` | `audit_social_page()` + `_build_social_report / _social_audit_input / _parse_audit_sections / _fmt_ts / _post_format` |
-| Route | `webapp/api.py` | handler `biz_social_audit` + `Route("/api/biz/social/audit", POST)` |
-| Env | `.env.example` | `SCRAPECREATORS_API_KEY` |
+| Logic | `webapp/business.py` | `audit_social_page()` + `_build_social_report / _social_audit_input / _parse_audit_sections / _fmt_ts / _post_format`; **ASR: `_fill_transcripts_asr()` + gate `run_asr`** |
+| ASR | `tools/krillin_client.py` | `extract_transcript()` — **yt-dlp tải → Whisper-HTTP (timestamp) / Gemini fallback**. `is_available()` gồm OPENAI/GEMINI |
+| ASR util | `tools/scrapecreators.py` | `video_play_url()` (rút MP4) + `_vtt_to_text()` (dọn WEBVTT CC) |
+| Route | `webapp/api.py` | handler `biz_social_audit` + `Route("/api/biz/social/audit", POST)`; nhận cờ `asr` |
+| Deps | `requirements.txt` | thêm `yt-dlp` (tải video social cho ASR) |
+| Env | `.env.example` | `SCRAPECREATORS_API_KEY` (+ `OPENAI_API_KEY`/`GEMINI_API_KEY` cho ASR) |
 | FE stub | `web/app.js` · `web/styles.css` · `web/data.js` | **thô — làm lại theo SocialLens** |
 
 ## 5b. TikTok (đã thêm — cùng endpoint)
@@ -105,12 +108,29 @@ LLM hụt token (page lớn) → vẫn trả `kpi/posts/ads` + `{ "error": ... }
 
 **FE:** dropdown đã có TikTok. Render nhánh theo `platform`: TikTok hiện cột **Lượt xem / Thích / Bình luận / Lưu / Chia sẻ** (giống SocialLens) + khối **Lời thoại** (`posts[].transcript`) khi có; ẩn phần Quảng cáo.
 
-### Scripts (lời thoại video) — như SocialLens
-- Field `posts[].transcript` đã có sẵn. **Nguồn hiện tại** = `/v1/tiktok/video/transcript` của ScrapeCreators —
-  CHỈ trả text khi video **có phụ đề CC của TikTok**; brand video (chữ on-screen + nhạc) hầu hết **null**.
-- **SocialLens hiện được transcript đầy đủ nghĩa là họ tự chạy ASR** (speech-to-text từ audio). Muốn parity:
-  video object có `video.play_addr.url_list` → **tải audio → STT (Whisper `gpt-4o-transcribe` / Gemini audio) → transcript + timestamp**.
-  Đây là **việc nâng cấp riêng** (cần OpenAI/Gemini key; Anthropic không làm audio). Plumbing (`transcript` field + input LLM đọc transcript) đã sẵn — chỉ cần đổ nguồn ASR vào.
+### Scripts (lời thoại video) — như SocialLens ✅ ĐÃ NỐI ASR + TEST THẬT
+Field `posts[].transcript`. Thiết kế **ASR-first** (đã đo thực tế mới chốt vậy):
+
+- **Vì sao KHÔNG dùng CC của ScrapeCreators làm chính:** `/tiktok/video/transcript` khi CÓ trả về là
+  **WEBVTT thô + auto-dịch TIẾNG ANH** (test @thaiduongfulfillment: CC = *"What is Fullhuman… order
+  fulfillment… Phu Phu Phu Uman"* — sai ngôn ngữ + méo), vô dụng cho audit tiếng Việt. Whisper đọc
+  audio ra **tiếng Việt sạch**: *"Fulfillment là dịch vụ hoàn tất đơn hàng…"*.
+- **Luồng chính (khi có OPENAI/GEMINI key):** `audit_social_page` đặt `run_asr=True` → **BỎ gọi CC**
+  (khỏi tốn credit + khỏi dính WEBVTT Anh) → `_fill_transcripts_asr()` đưa **URL TRANG XEM** video cho
+  `krillin_client.extract_transcript()`:
+  - **Tải = yt-dlp** (`requirements.txt`) — bền với CDN TikTok. ⚠️ **httpx GET thẳng `play_addr` = 403**
+    (URL CDN ký-tạm/hết hạn) → đã bỏ, yt-dlp lấy link tải mới từ trang xem. (`video_play_url()` giữ lại
+    cho fallback httpx/nền tảng khác.)
+  - **Đọc = Whisper-1 qua HTTP TRỰC TIẾP** (không qua openai SDK — SDK dựng `httpx(proxies=)` chết với
+    httpx≥0.28) → **verbose_json có timestamp segment** (đúng kiểu SocialLens). **Fallback = Gemini 2.5-flash**
+    đọc thẳng video (không timestamp) khi thiếu OpenAI key / Whisper lỗi.
+  - Best-effort: tải/đọc 1 video hỏng → video đó null, KHÔNG chặn report. Cap `limit`=số video, Semaphore 2,
+    timeout 180s/video. **Test thật:** 2 video (7.79MB+5.18MB) tải + Whisper xong **20s**, ra VN sạch.
+- **Phương án chót (KHÔNG có ASR key):** `run_asr=False` → vẫn lấy CC ScrapeCreators, nhưng **đã dọn WEBVTT**
+  → text (`scrapecreators._vtt_to_text`); ngôn ngữ có thể vẫn Anh (giới hạn của CC).
+- **Key:** Whisper cần `OPENAI_API_KEY`; Gemini cần `GEMINI_API_KEY` (Anthropic KHÔNG đọc audio). Chi phí thêm:
+  Whisper ~$0.006/phút/video + băng thông tải (yt-dlp, vài MB). Tắt ASR/lượt: body `{"asr": false}`.
+- FE: hiện `posts[].transcript` trong khối **Lời thoại** khi có (CC-dọn hay ASR — cùng field).
 
 ## 6. Chạy thử
 ```bash

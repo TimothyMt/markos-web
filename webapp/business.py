@@ -7300,7 +7300,57 @@ def _tiktok_audit_input(data: dict) -> str:
     return "\n".join(L)
 
 
-async def audit_social_page(url: str, platform: str = "facebook", user_id=None, want_posts: int = 8) -> dict:
+async def _fill_transcripts_asr(data: dict, limit: int = 6) -> None:
+    """Điền lời thoại video còn THIẾU bằng ASR khi ScrapeCreators không có phụ đề CC.
+
+    ScrapeCreators `/tiktok/video/transcript` chỉ trả text khi video có CC → brand video
+    (chữ on-screen + nhạc) hầu hết null. Ở đây đưa URL TRANG XEM video cho `krillin_client`
+    → yt-dlp tải MP4 (bền với CDN ký-tạm) → Whisper (chính, có timestamp) / Gemini (dự phòng)
+    → mutate `data['transcripts'][aweme_id] = text`. Best-effort: thiếu key / tải lỗi / hết giờ
+    → giữ null, KHÔNG chặn report. Cap `limit` video để chặn chi phí + thời gian.
+    """
+    try:
+        from tools import krillin_client as asr
+    except Exception:
+        return
+    if not asr.is_available():
+        return
+
+    handle = data.get("handle")
+    videos = data.get("videos") or []
+    transcripts = data.setdefault("transcripts", {})
+    todo: list = []
+    for v in videos:
+        aid = v.get("aweme_id")
+        if not aid or transcripts.get(aid):
+            continue
+        # Đưa URL TRANG XEM (không phải play_addr ký-tạm) để yt-dlp tự lấy link tải mới.
+        watch = _tiktok_video_url(handle, aid)
+        if watch:
+            todo.append((aid, watch))
+        if len(todo) >= limit:
+            break
+    if not todo:
+        return
+
+    sem = asyncio.Semaphore(2)
+
+    async def _one(aid, watch):
+        async with sem:
+            try:
+                res = await asyncio.wait_for(
+                    asr.extract_transcript(watch, language_hint="vi"), timeout=180)
+                txt = ((res or {}).get("transcript") or "").strip()
+                if txt:
+                    transcripts[aid] = txt
+            except Exception:
+                pass  # ASR 1 video hỏng không nên làm hỏng cả report
+
+    await asyncio.gather(*[_one(a, w) for a, w in todo])
+
+
+async def audit_social_page(url: str, platform: str = "facebook", user_id=None,
+                            want_posts: int = 8, with_asr: bool = True) -> dict:
     """Báo cáo kênh — audit 1 page MXH bất kỳ (FE 'Báo cáo kênh').
 
     Trả: {name, platform, url, dataScope, kpi, posts[], ads[], derived{}, analysis[],
@@ -7315,11 +7365,23 @@ async def audit_social_page(url: str, platform: str = "facebook", user_id=None, 
     if not sc.configured():
         return {"error": "Chưa cấu hình SCRAPECREATORS_API_KEY — không lấy được dữ liệu thật."}
 
+    # ASR-first cho TikTok: có engine ASR (Whisper/Gemini) → BỎ gọi transcript CC của ScrapeCreators
+    # (tốn credit + hay trả WEBVTT SAI NGÔN NGỮ — auto-dịch tiếng Anh) và để Whisper đọc audio ra
+    # tiếng Việt sạch + timestamp. Không có ASR → vẫn lấy CC làm phương án chót.
+    run_asr = False
+    if platform == "tiktok" and with_asr:
+        try:
+            from tools import krillin_client as _asr
+            run_asr = _asr.is_available()
+        except Exception:
+            run_asr = False
+
     try:
         if platform == "facebook":
             data = await asyncio.wait_for(sc.fetch_facebook_page(url, want_posts=want_posts), timeout=90)
         else:
-            data = await asyncio.wait_for(sc.fetch_tiktok_page(url, want_videos=want_posts), timeout=180)
+            data = await asyncio.wait_for(
+                sc.fetch_tiktok_page(url, want_videos=want_posts, with_transcript=not run_asr), timeout=180)
     except asyncio.TimeoutError:
         return {"error": "Quá giờ khi lấy dữ liệu từ ScrapeCreators."}
     except Exception as e:
@@ -7339,6 +7401,8 @@ async def audit_social_page(url: str, platform: str = "facebook", user_id=None, 
         videos = data.get("videos") or []
         if not videos:
             return {"error": "Kênh TikTok không có video công khai để phân tích (hoặc handle sai)."}
+        if run_asr:
+            await _fill_transcripts_asr(data, limit=want_posts)  # Whisper/Gemini đọc audio → lời thoại VN sạch
         report = _build_tiktok_report(data)
         u = (data.get("profile") or {}).get("user") or {}
         report.update({"name": u.get("nickname") or u.get("uniqueId") or url, "platform": platform,

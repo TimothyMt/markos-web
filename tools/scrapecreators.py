@@ -62,6 +62,54 @@ async def fetch_facebook_page(url: str, want_posts: int = 8, want_ads: int = 12)
         return {"profile": profile, "posts": posts, "ads": ads}
 
 
+def video_play_url(v: dict) -> str | None:
+    """Rút URL media tải được (MP4) từ 1 aweme TikTok — để ASR/tải khi cần lời thoại.
+
+    TikTok/ScrapeCreators đặt URL ở nhiều nhánh khác nhau (`video.play_addr.url_list`,
+    `download_addr`, biến thể camelCase, hoặc phẳng) → thử lần lượt, trả URL http đầu tiên.
+    URL CDN có thể cần header trình duyệt/hết hạn nhanh → tầng tải phải phòng thủ.
+    """
+    if not isinstance(v, dict):
+        return None
+    vid = v.get("video") or {}
+    candidates: list = []
+    for key in ("play_addr", "download_addr", "play_addr_h264", "play_addr_bytevc1",
+                "playAddr", "downloadAddr"):
+        node = vid.get(key)
+        if isinstance(node, dict):
+            candidates.extend(node.get("url_list") or node.get("urlList") or [])
+        elif isinstance(node, str):
+            candidates.append(node)
+    for key in ("playAddr", "downloadAddr", "play_url", "download_url", "url"):
+        val = v.get(key) or vid.get(key)
+        if isinstance(val, str):
+            candidates.append(val)
+    for u in candidates:
+        if isinstance(u, str) and u.startswith("http"):
+            return u
+    return None
+
+
+def _vtt_to_text(s: str) -> str:
+    """WEBVTT/SRT → text thuần: bỏ header, dòng timestamp `-->`, số thứ tự, NOTE/STYLE; khử lặp.
+
+    Transcript CC của ScrapeCreators trả dạng WEBVTT thô (có `00:00:00.040 --> ...`), lại hay là
+    bản auto-dịch tiếng Anh — ở đây chỉ dọn markup để hiển thị được; ngôn ngữ sai thì cần ASR.
+    """
+    if not s or ("WEBVTT" not in s and "-->" not in s):
+        return (s or "").strip()
+    out: list = []
+    for line in s.splitlines():
+        t = line.strip()
+        if not t or t == "WEBVTT" or "-->" in t or t.isdigit():
+            continue
+        if t.upper().startswith(("NOTE", "STYLE", "REGION")):
+            continue
+        if not out or out[-1] != t:   # khử dòng lặp liên tiếp (VTT hay lặp)
+            out.append(t)
+    return " ".join(out).strip()
+
+
 def tiktok_handle(handle_or_url: str) -> str:
     """Rút @handle từ URL TikTok hoặc trả về chính handle đã cho."""
     s = (handle_or_url or "").strip()
@@ -110,8 +158,9 @@ async def fetch_tiktok_page(handle_or_url: str, want_videos: int = 8, with_trans
                 try:
                     tr = await _get(c, "/v1/tiktok/video/transcript",
                                     {"url": f"https://www.tiktok.com/@{handle}/video/{aid}"})
-                    if tr.get("transcript"):
-                        transcripts[aid] = tr["transcript"]
+                    clean = _vtt_to_text(tr.get("transcript") or "")
+                    if clean:
+                        transcripts[aid] = clean
                 except Exception:
                     pass
 

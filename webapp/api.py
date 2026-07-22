@@ -571,7 +571,8 @@ async def biz_social_audit(request):
     data = await request.json()
     res = await biz.audit_social_page(
         data.get("url", ""), data.get("platform", "facebook"),
-        data.get("user_id"), int(data.get("posts") or 8))
+        data.get("user_id"), int(data.get("posts") or 8),
+        with_asr=data.get("asr", True) is not False)
     # Lỗi cứng (không lấy được data) → 400; lỗi mềm (có KPI, LLM hụt) → 200 để FE hiện phần đã có.
     hard_err = "error" in res and "kpi" not in res
     return JSONResponse(res, status_code=400 if hard_err else 200)
