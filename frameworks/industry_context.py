@@ -570,6 +570,51 @@ def get_industry_context(industry: str) -> Optional[IndustryContext]:
     return INDUSTRY_CONTEXT.get(industry)
 
 
+# Keyword (tiếng Việt) → slug. Bắc cầu free-text (user gõ tự do ở intake) → slug taxonomy.
+# GIỮ ĐỒNG BỘ với _INDUSTRY_KW ở web/app.js (classifier client cho placeholder ví dụ).
+_INDUSTRY_KEYWORDS: list = [
+    ("fnb", ("cà phê", "cafe", "coffee", "trà sữa", "quán ăn", "nhà hàng", "quán", "ăn uống", "ẩm thực", "đồ uống", "f&b", "fnb", "bếp", "đồ ăn")),
+    ("health_clinic", ("phòng khám", "nha khoa", "nha sĩ", "bác sĩ", "y tế", "clinic", "khám bệnh", "xét nghiệm")),
+    ("health_beauty", ("spa", "thẩm mỹ", "làm đẹp", "mỹ phẩm", "skincare", "nail", "salon tóc", "massage")),
+    ("fashion_retail", ("thời trang", "quần áo", "đầm", "giày", "túi xách", "phụ kiện", "may mặc", "boutique")),
+    ("education", ("giáo dục", "khoá học", "khóa học", "trung tâm", "đào tạo", "gia sư", "tiếng anh", "luyện thi", "dạy học")),
+    ("tech_saas", ("phần mềm", "saas", "ứng dụng", "công nghệ", "nền tảng", "giải pháp số")),
+    ("agency", ("agency", "quảng cáo", "truyền thông", "media", "sản xuất nội dung", "chạy ads")),
+    ("b2b_service", ("kế toán", "luật", "tư vấn doanh nghiệp", "dịch vụ doanh nghiệp", "logistics", "vận tải", "in ấn")),
+    ("real_estate", ("bất động sản", "nhà đất", "căn hộ", "môi giới", "ký gửi")),
+    ("travel_hospitality", ("du lịch", "khách sạn", "homestay", "resort", "tour", "lữ hành", "nghỉ dưỡng")),
+    ("interior_design", ("nội thất", "thiết kế nội thất", "kiến trúc")),
+    ("pet_care", ("thú cưng", "pet shop", "chó mèo", "thú y")),
+    ("events_wedding", ("sự kiện", "đám cưới", "tiệc cưới", "wedding", "trang trí tiệc")),
+    ("ecommerce", ("thương mại điện tử", "bán online", "sàn tmđt", "shopee", "lazada", "tiktok shop", "dropship", "ecommerce")),
+    ("retail", ("bán lẻ", "cửa hàng", "tạp hoá", "tạp hóa", "siêu thị", "mini mart")),
+]
+
+
+def classify_industry(text: str) -> str:
+    """Free-text ngành (user gõ) → slug taxonomy, hoặc '' nếu không nhận ra.
+
+    Nếu text ĐÃ là slug hợp lệ → trả luôn; ngược lại match keyword (substring, lower).
+    Bắc cầu để kho INDUSTRY_CONTEXT (keyed theo slug) dùng được cho hồ sơ free-text.
+    KHÔNG persist (derived-state): slug là hàm thuần của text founder — sửa text thì đổi
+    theo, không đóng băng đoán cũ (tránh stale). Không nhận ra → '' → degrade (không ground).
+    """
+    s = (text or "").strip().lower()
+    if not s:
+        return ""
+    if s in INDUSTRY_CONTEXT:
+        return s
+    for slug, kws in _INDUSTRY_KEYWORDS:
+        if any(k in s for k in kws):
+            return slug
+    return ""
+
+
+def get_industry_context_fuzzy(text: str) -> Optional[IndustryContext]:
+    """Như get_industry_context nhưng nhận free-text (tự classify → slug)."""
+    return get_industry_context(classify_industry(text))
+
+
 def get_industry_context_as_text(industry: str) -> str:
     """Format context (archetype + market dynamics + buyer psychology) cho prompt injection.
 

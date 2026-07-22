@@ -6585,6 +6585,17 @@ async def intake_suggestions(fields: dict = None) -> dict:
         from tools.llm_router import call as router_call, TaskType
         import json as _json
         qlist = "\n".join(f'- "{k}": {desc}' for k, desc in _STRATEGIC_QS.items())
+        # A2: GROUND chip bằng kho ngành thật (buyer_triggers/barriers/dynamics VN) → gợi ý bám
+        # thực tế thay vì generic. Guardrail: đây là mẫu PHỔ BIẾN để founder NHẬN RA, không phải
+        # câu trả lời; classify '' (không nhận ra ngành) → không ground, chip vẫn chạy như cũ.
+        ground = ""
+        try:
+            from frameworks.industry_context import classify_industry, get_industry_context_as_text
+            _slug = classify_industry(f.get("industry") or "")
+            if _slug:
+                ground = get_industry_context_as_text(_slug)
+        except Exception:
+            ground = ""
         system = (
             "Bạn giúp founder Việt Nam điền hồ sơ marketing. Với MỖI câu chiến lược, "
             "đưa 3-4 GỢI Ý câu trả lời NGẮN (≤14 từ), cụ thể & đời thường theo đúng "
@@ -6594,7 +6605,11 @@ async def intake_suggestions(fields: dict = None) -> dict:
             "founder chọn nếu đúng. Output JSON object: key = mã câu, value = mảng string. "
             "KHÔNG markdown wrapper."
         )
-        user = f"# Business\n{biz_ctx}\n\n# Các câu cần gợi ý\n{qlist}\n\n# Output\nJSON: {{\"jtbd\":[...], ...}}"
+        user = ("# Business\n" + biz_ctx + "\n\n"
+                + (("# Bối cảnh ngành (mẫu PHỔ BIẾN ở VN — để gợi ý bám thực tế, KHÔNG bịa; "
+                    "founder chọn cái đúng với họ)\n" + ground + "\n\n") if ground else "")
+                + "# Các câu cần gợi ý\n" + qlist
+                + '\n\n# Output\nJSON: {"jtbd":[...], ...}')
         res = await router_call(task_type=TaskType.INTAKE_JSON, system=system, user=user, max_tokens=900)
         raw = (res or {}).get("output", "").strip()
         raw = re.sub(r'^```(?:json)?\s*', '', raw)

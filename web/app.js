@@ -441,7 +441,7 @@
   // Form nhập hồ sơ doanh nghiệp — điểm khởi đầu cho user mới (thay ô chat)
   let _editProfile = false;
   // Onboarding wizard — hỏi từng câu một (kiểu Typeform), thân thiện với user mới
-  let _intakeStep = 0, _intakeData = {}, _intakeProv = {};
+  let _intakeStep = 0, _intakeData = {}, _intakeProv = {}, _intakeAnimDir = '';
   let _intakeSuggest = {}, _intakeSuggestBusy = false, _intakeSuggestDone = false;
   // D-032 step 2: sinh chip gợi ý cho câu chiến lược, bám ngành/sản phẩm/khách đã nhập
   async function fetchIntakeSuggestions() {
@@ -463,8 +463,8 @@
   // strategic=true → hiện helper bình dân + nút "để Max đoán"; skip = field giả định.
   const INTAKE_STEPS = [
     // ── Khối nền (bắt buộc) ──
-    { key: 'business_name', tier: 'core', q: 'Doanh nghiệp của bạn tên là gì?', ph: 'vd: Cà phê An' },
-    { key: 'industry', tier: 'core', q: 'Bạn kinh doanh trong ngành nào?', ph: 'vd: F&B — Quán cà phê' },
+    { key: 'business_name', tier: 'core', q: 'Doanh nghiệp của bạn tên là gì?', ph: 'tên thương hiệu / cửa hàng của bạn' },
+    { key: 'industry', tier: 'core', q: 'Bạn kinh doanh trong ngành nào?', ph: 'F&B, thời trang, spa, giáo dục, phần mềm…' },
     { key: 'product_service', tier: 'core', q: 'Bạn bán sản phẩm/dịch vụ gì?', ph: 'vd: Cà phê specialty pha máy + hạt rang mộc' },
     { key: 'target_customer', tier: 'core', q: 'Khách hàng bạn ĐANG có là ai (độ tuổi · đặc điểm · khu vực)?',
       helper: 'Mô tả tệp hiện tại — tệp ưu tiên ĐÁNH TRƯỚC sẽ chốt ở bước Chiến lược (Đặt cược).', ph: 'vd: Dân văn phòng 25–34, Q.1 TP.HCM' },
@@ -472,8 +472,8 @@
 
     // ── Khối chiến lược (tầng CMO — skip→AI suy, sẽ có chip gợi ý) ──
     { key: 'jtbd', tier: 'strategic', strategic: true,
-      q: 'Khách hàng "thuê" sản phẩm của bạn để hoàn thành việc gì?',
-      helper: 'Tức là: họ mua vào lúc/dịp nào, để giải quyết chuyện gì trong cuộc sống của họ?',
+      q: 'Khách tìm đến bạn để giải quyết chuyện gì, hoặc đạt được điều gì?',
+      helper: 'Tức là: họ mua vào lúc/dịp nào, để lo được việc gì trong cuộc sống/công việc của họ?',
       ph: 'vd: cần ly cà phê ngon để tỉnh táo & "thưởng" cho buổi sáng bận rộn' },
     { key: 'competitive_alternative', tier: 'strategic', strategic: true,
       q: 'Nếu không có bạn, khách sẽ dùng giải pháp thay thế nào?',
@@ -494,7 +494,7 @@
 
     // ── Khối bối cảnh (optional — gọn, chỉ cái cần để ra output) ──
     { key: 'current_channels', tier: 'context', optional: true, q: 'Kênh marketing bạn ĐANG dùng là gì?',
-      helper: 'Mô tả kênh hiện tại — kênh muốn TRIỂN KHAI/đánh sẽ chốt ở bước Chiến lược (Đặt cược).', ph: 'vd: Facebook, TikTok, Zalo OA' },
+      helper: 'Ghi RÕ TÊN từng kênh (Facebook, TikTok, Zalo, Shopee…), đừng viết tắt (fb, tt…) để Max hiểu đúng. Kênh muốn TRIỂN KHAI sẽ chốt ở bước Chiến lược.', ph: 'vd: Facebook, TikTok, Zalo OA' },
     { key: 'team_size', tier: 'context', optional: true, q: 'Đội làm marketing/nội dung của bạn mấy người?',
       choices: ['Một mình founder', '2–3 người', '4–10 người', 'Trên 10 / có agency'],
       note: 'Giúp Max đề xuất khối lượng & kênh KHẢ THI với nguồn lực của bạn — không vẽ quá sức.' },
@@ -504,6 +504,54 @@
   const PROFILE_COLUMN_KEYS = new Set(['business_name', 'industry', 'location', 'product_service',
     'target_customer', 'main_challenge', 'competitors', 'monthly_revenue',
     'monthly_marketing_budget', 'current_channels', 'primary_goal', 'usp']);
+  // A2-FE: đoán slug ngành từ text tự do user gõ (Q2) → ví dụ placeholder BÁM NGÀNH.
+  // Chỉ để gợi ý ĐỊNH DẠNG (không phải câu trả lời); không nhận diện được → ví dụ trung tính.
+  // Giữ đồng bộ keyword với classifier backend (frameworks/industry_context.classify_industry).
+  const _INDUSTRY_KW = [
+    ['fnb', ['cà phê','cafe','coffee','trà sữa','quán ăn','nhà hàng','quán','ăn uống','ẩm thực','đồ uống','f&b','fnb','bếp','đồ ăn']],
+    ['health_clinic', ['phòng khám','nha khoa','nha sĩ','bác sĩ','y tế','clinic','khám bệnh','xét nghiệm']],
+    ['health_beauty', ['spa','thẩm mỹ','làm đẹp','mỹ phẩm','skincare','nail','salon tóc','massage']],
+    ['fashion_retail', ['thời trang','quần áo','đầm','giày','túi xách','phụ kiện','may mặc','boutique']],
+    ['education', ['giáo dục','khoá học','khóa học','trung tâm','đào tạo','gia sư','tiếng anh','luyện thi','dạy học']],
+    ['tech_saas', ['phần mềm','saas','ứng dụng','công nghệ','nền tảng','giải pháp số']],
+    ['agency', ['agency','quảng cáo','truyền thông','media','sản xuất nội dung','chạy ads']],
+    ['b2b_service', ['kế toán','luật','tư vấn doanh nghiệp','dịch vụ doanh nghiệp','logistics','vận tải','in ấn']],
+    ['real_estate', ['bất động sản','nhà đất','căn hộ','môi giới','ký gửi']],
+    ['travel_hospitality', ['du lịch','khách sạn','homestay','resort','tour','lữ hành','nghỉ dưỡng']],
+    ['interior_design', ['nội thất','thiết kế nội thất','kiến trúc']],
+    ['pet_care', ['thú cưng','pet shop','chó mèo','thú y']],
+    ['events_wedding', ['sự kiện','đám cưới','tiệc cưới','wedding','trang trí tiệc']],
+    ['ecommerce', ['thương mại điện tử','bán online','sàn tmđt','shopee','lazada','tiktok shop','dropship','ecommerce']],
+    ['retail', ['bán lẻ','cửa hàng','tạp hoá','tạp hóa','siêu thị','mini mart']],
+  ];
+  function _industrySlug(text) {
+    const s = (text || '').toLowerCase();
+    if (!s.trim()) return '';
+    for (const [slug, kws] of _INDUSTRY_KW) if (kws.some(k => s.includes(k))) return slug;
+    return '';
+  }
+  // Ví dụ bám ngành cho 3 câu nền dễ lệch ngành nhất; ngành ngoài danh sách → _neutral (trung tính).
+  const IND_EXAMPLES = {
+    fnb:                { product_service:'cà phê specialty pha máy + hạt rang mộc', target_customer:'dân văn phòng 25–34, Q.1 TP.HCM', main_challenge:'cạnh tranh chuỗi lớn, chi phí mặt bằng cao' },
+    fashion_retail:     { product_service:'đầm/áo thiết kế may sẵn theo mùa', target_customer:'nữ 22–35 thành thị, gu tối giản', main_challenge:'tồn kho theo mùa, đối thủ online phá giá' },
+    ecommerce:          { product_service:'mỹ phẩm nội địa bán qua sàn + fanpage', target_customer:'nữ 18–30 mua online, nhạy khuyến mãi', main_challenge:'phí sàn cao, khó giữ khách quay lại' },
+    health_beauty:      { product_service:'liệu trình chăm sóc da tại spa', target_customer:'nữ 28–45 thu nhập khá, ngại rủi ro', main_challenge:'khách khó tin hiệu quả, cạnh tranh giá' },
+    health_clinic:      { product_service:'dịch vụ nha khoa thẩm mỹ + niềng răng', target_customer:'người đi làm 25–40 quan tâm ngoại hình', main_challenge:'khách sợ đau/đắt, cần xây niềm tin' },
+    education:          { product_service:'khoá tiếng Anh giao tiếp cho người đi làm', target_customer:'nhân viên 24–35 muốn thăng tiến', main_challenge:'học viên bỏ giữa chừng, khó chứng minh kết quả' },
+    b2b_service:        { product_service:'dịch vụ kế toán – thuế trọn gói cho SME', target_customer:'chủ doanh nghiệp nhỏ 5–30 nhân sự', main_challenge:'chu kỳ chốt dài, khó tạo khác biệt' },
+    agency:            { product_service:'gói chạy quảng cáo + sản xuất nội dung', target_customer:'SME/shop cần ra đơn qua kênh số', main_challenge:'khó giữ khách dài hạn, cạnh tranh giá' },
+    tech_saas:          { product_service:'phần mềm quản lý bán hàng cho cửa hàng', target_customer:'chủ shop/chuỗi nhỏ muốn số hoá', main_challenge:'khách quen mua đứt, ngại phí định kỳ' },
+    real_estate:        { product_service:'môi giới căn hộ + ký gửi cho thuê', target_customer:'người mua ở/đầu tư 30–50 tuổi', main_challenge:'chu kỳ quyết định dài, cạnh tranh môi giới' },
+    travel_hospitality: { product_service:'homestay/tour trải nghiệm địa phương', target_customer:'khách trẻ 22–35 thích khám phá', main_challenge:'mùa vụ rõ, phụ thuộc OTA' },
+    _neutral:          { product_service:'sản phẩm/dịch vụ chính bạn đang bán', target_customer:'nhóm khách đang phục vụ (tuổi · đặc điểm · khu vực)', main_challenge:'khó khăn lớn nhất đang cản trở tăng trưởng' },
+  };
+  // Placeholder câu nền: ưu tiên ví dụ bám ngành → ví dụ gốc của câu → hint chung.
+  function stepPlaceholder(st) {
+    const set = IND_EXAMPLES[_industrySlug(_intakeData.industry || '')] || IND_EXAMPLES._neutral;
+    const ex = set[st.key];
+    if (ex) return 'vd: ' + ex;
+    return st.ph || 'Nhập câu trả lời…';
+  }
   // AI-adaptive intake (Max phỏng vấn thông minh) — dùng khi có backend thật
   let _aiQ = '', _aiBusy = false, _aiStarted = false, _aiFailed = false;
   function aiIntakeView() {
@@ -558,11 +606,10 @@
     // textarea content cần escape & < > (D-032 §11)
     const val = (_intakeData[st.key] || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const preview = (!apiAvailable || !M.bizEnabled);
-    const canSkip = st.optional || st.strategic;   // strategic skip → AI suy (giả định)
     const body = st.choices
       ? `<div class="intake-choices">${st.choices.map(c =>
           `<button class="intake-choice${_intakeData[st.key] === c || (c === 'Không tiện chia sẻ' && _intakeData[st.key] === 'chưa rõ') ? ' on' : ''}" data-act="intake-choice" data-val="${c.replace(/"/g, '&quot;')}">${c}</button>`).join('')}</div>`
-      : `<textarea id="intakeBox" class="intake-input" rows="1" placeholder="${st.strategic ? 'Trả lời, hoặc bấm gợi ý bên dưới…' : 'Nhập câu trả lời…'}">${val}</textarea>`;
+      : `<textarea id="intakeBox" class="intake-input" rows="1" placeholder="${st.strategic ? 'Trả lời, hoặc bấm gợi ý bên dưới…' : stepPlaceholder(st).replace(/"/g, '&quot;')}">${val}</textarea>`;
     // D-032 step 2: câu chiến lược → fetch + render chip gợi ý (recognition, chọn nhiều được)
     let chips = '';
     if (st.strategic) {
@@ -576,25 +623,30 @@
         chips = `<div class="intake-sug muted">💡 Đang gợi ý theo ngành của bạn…</div>`;
       }
     }
-    const tag = st.strategic ? ' · để Max đoán nếu chưa chắc' : (st.optional ? ' · không bắt buộc' : '');
+    const tag = st.strategic ? ' · bỏ trống nếu chưa rõ' : (st.optional ? ' · không bắt buộc' : '');
+    const anim = _intakeAnimDir; _intakeAnimDir = '';   // cờ 1-lần: hướng fade câu mới
+    const animCls = anim === 'next' ? ' intake-enter' : anim === 'back' ? ' intake-enter-back' : '';
     return `
-      <div class="intake">
-        <div class="intake-prog"><div class="intake-bar" style="width:${Math.round(i / n * 100)}%"></div></div>
-        <p class="intake-count">Câu ${i + 1}/${n}${tag}</p>
-        <h3 class="intake-q">${st.q}</h3>
-        ${st.helper ? `<p class="intake-helper">💬 ${st.helper}</p>` : ''}
-        ${body}
-        ${chips}
-        ${st.note ? `<p class="muted intake-note">${st.note}</p>` : ''}
-        <div class="intake-nav">
-          ${i > 0 ? '<button class="ghost-line" data-act="intake-back">← Quay lại</button>' : '<span></span>'}
-          <div style="display:flex;gap:8px">
-            ${canSkip ? `<button class="ghost-line" data-act="intake-skip">${st.strategic ? '🤖 Để Max đoán' : 'Bỏ qua'}</button>` : ''}
-            ${st.choices ? '' : `<button class="primary-btn" data-act="intake-next">${i === n - 1 ? '✓ Hoàn tất' : 'Tiếp →'}</button>`}
+      <div class="intake-fs"><div class="intake">
+        <div class="intake-brand"><span class="cav">M</span>Max phỏng vấn nhanh để lập hồ sơ cho đúng doanh nghiệp bạn</div>
+        <div class="intake-prog"><div class="intake-bar" style="width:${Math.round((i + 1) / n * 100)}%"></div></div>
+        <div class="intake-card${animCls}" id="intakeCard">
+          <p class="intake-count">Câu ${i + 1}/${n}${tag}</p>
+          <h3 class="intake-q">${st.q}</h3>
+          ${st.helper ? `<p class="intake-helper">💬 ${st.helper}</p>` : ''}
+          ${body}
+          ${chips}
+          ${st.note ? `<p class="muted intake-note">${st.note}</p>` : ''}
+          <div class="intake-nav">
+            ${i > 0 ? '<button class="ghost-line" data-act="intake-back">← Quay lại</button>' : '<span></span>'}
+            <div style="display:flex;gap:8px">
+              ${st.optional ? `<button class="ghost-line" data-act="intake-skip">Bỏ qua</button>` : ''}
+              ${st.choices ? '' : `<button class="primary-btn" data-act="intake-next">${i === n - 1 ? '✓ Hoàn tất' : 'Tiếp →'}</button>`}
+            </div>
           </div>
+          ${preview ? '<p class="muted intake-note">⚠️ Xem trước — cần kết nối Supabase để lưu khi hoàn tất.</p>' : ''}
         </div>
-        ${preview ? '<p class="muted intake-note">⚠️ Xem trước — cần kết nối Supabase để lưu khi hoàn tất.</p>' : ''}
-      </div>`;
+      </div></div>`;
   }
   const PROFILE_FIELDS = [
     ['business_name', 'Tên doanh nghiệp', 'vd: Cà phê An'],
@@ -764,6 +816,14 @@
     if (cols.usp) cols.usp_confidence = 'clear';   // founder có USP → Max REFINE, không đẻ mới
     return cols;
   }
+  // A1: chuyển câu MƯỢT — mờ câu hiện tại ra rồi mới route() (câu mới tự fade-in qua .intake-enter).
+  function _intakeGoFade(dir) {
+    _intakeAnimDir = dir;
+    const card = document.getElementById('intakeCard');
+    if (!card) { route(); return; }
+    card.classList.add(dir === 'back' ? 'intake-leave-back' : 'intake-leave');
+    setTimeout(route, 140);
+  }
   async function handleIntake(action, choiceVal) {
     const box = document.getElementById('intakeBox');
     const st = INTAKE_STEPS[Math.min(_intakeStep, INTAKE_STEPS.length - 1)];
@@ -781,22 +841,22 @@
       _intakeProv[st.key] = 'suggested';
       route(); return;
     }
-    if (action === 'back') { _intakeStep = Math.max(0, _intakeStep - 1); route(); return; }
+    if (action === 'back') { _intakeStep = Math.max(0, _intakeStep - 1); _intakeGoFade('back'); return; }
     if (action === 'skip') {
       if (st.strategic) {            // tầng CMO bỏ qua → AI suy → gắn nhãn "(giả định)"
         _intakeProv[st.key] = 'inferred'; delete _intakeData[st.key];
       } else if (st.key === 'monthly_revenue') {
         _intakeData[st.key] = 'chưa rõ';   // không bao giờ rỗng (A1b)
       }
-      _intakeStep++; route(); return;
+      _intakeStep++; _intakeGoFade('next'); return;
     }
     // action === 'next'
     const v = _intakeData[st.key];
     if (st.strategic) _intakeProv[st.key] = v ? 'typed' : 'inferred';  // empty → AI suy
     else if (v) _intakeProv[st.key] = 'typed';
     // Bắt buộc: core không-optional, không-strategic phải có giá trị
-    if (!st.optional && !st.strategic && !v) { toast('Vui lòng nhập, hoặc bấm "Để Max đoán/Bỏ qua"'); return; }
-    if (_intakeStep < INTAKE_STEPS.length - 1) { _intakeStep++; route(); return; }
+    if (!st.optional && !st.strategic && !v) { toast('Vui lòng nhập câu trả lời'); return; }
+    if (_intakeStep < INTAKE_STEPS.length - 1) { _intakeStep++; _intakeGoFade('next'); return; }
     if (!apiAvailable) { toast('Đây là bản xem trước — cần backend + Supabase để lưu'); return; }
     try {
       const r = await API.post('api/biz/profile', { fields: buildProfilePayload(), user_id: _bizUserId });
