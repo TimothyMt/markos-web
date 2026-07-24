@@ -430,6 +430,19 @@ async def biz_data(user_id=None) -> dict:
         out["bizGaps"] = (_ie3.get("gaps") if isinstance(_ie3, dict) else []) or []
     except Exception:
         out["bizGaps"] = []
+    # S1: Bản đồ trận địa + nguồn lực + nguyên tắc cấm → FE trang Bản đồ (đọc/sửa).
+    # ⚠️ KHÔNG gọi campaign_plan() (hay bất kỳ LLM call nào) ở đây: biz_data chạy mỗi lần
+    # FE tải trang — nhét sinh-nội-dung vào đây là đốt latency/tiền/rate-limit.
+    try:
+        _ies = (out.get("bizProfile") or {}).get("intake_extra") or {}
+        _ies = _ies if isinstance(_ies, dict) else {}
+        out["bizBattleMap"]  = (_ies.get("battle_map") if isinstance(_ies.get("battle_map"), dict) else {}) or {}
+        out["bizResources"]  = (_ies.get("resources") if isinstance(_ies.get("resources"), dict) else {}) or {}
+        out["bizPrinciples"] = (_ies.get("principles") if isinstance(_ies.get("principles"), list) else []) or []
+    except Exception:
+        out["bizBattleMap"] = {}
+        out["bizResources"] = {}
+        out["bizPrinciples"] = []
     # Vision A: option đặt cược (5 nhóm) + lựa chọn founder đã chốt → FE màn "Đặt cược".
     try:
         _ie4 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -1038,7 +1051,7 @@ def _rw_specs():
                     "Indirect/Potential) mỗi nhóm 1 bảng 8 chiều + Messaging/Channel/Segment/Product Gap + "
                     "bản đồ định vị JSON.") + _RW_GUARD},
         "customer_insight": {
-            "label": "Customer Insight", "tt": "SYNTHESIS_LONG_CONTEXT", "mx": 16000,
+            "label": "Customer Insight", "tt": "CUSTOMER_INSIGHT_GROUNDED", "mx": 16000,
             "prior": ["market_research", "competitor"],
             "sys": (CUSTOMER_INSIGHT_SYSTEM or "Bạn là Customer Insight Agent — ICP + JTBD + Pain-Gain + "
                     "hành trình mua + bối cảnh văn hoá VN.") + _RW_GUARD},
@@ -1103,7 +1116,21 @@ async def research_web(user_id=None, progress=None, skills=None) -> dict:
             extra_hint = ""
             if sk == "competitor" and (known_comp or "").strip():
                 extra_hint = f"\n# Đối thủ founder nêu (ưu tiên tra)\n{known_comp}\n"
-            user = (biz_block + extra_hint + prior_txt +
+            # T3 GROUNDED: tiêm voice khách THẬT từ Báo cáo kênh (nếu đã chạy) + luật ưu tiên bằng chứng.
+            # Gemini + Google Search tự chạy nhờ task type CUSTOMER_INSIGHT_GROUNDED → 2 nguồn grounded bổ trợ.
+            ground_hint = ""
+            if sk == "customer_insight":
+                audit_md = await _latest_content(uid, "social_page_audit")
+                if (audit_md or "").strip():
+                    ground_hint += ("\n# VOICE KHÁCH THẬT — Báo cáo kênh (ScrapeCreators: bài đăng + bình luận thật)\n"
+                                    f"{audit_md[:4000]}\n")
+                ground_hint += (
+                    "\n# LUẬT GROUNDING (T3) — kết hợp bằng chứng + suy luận, KHÔNG bỏ cái nào\n"
+                    "- Ưu tiên BẰNG CHỨNG THẬT: web (Google Search) / mục «Voice khách thật» có nỗi-đau CỤ THỂ "
+                    "→ dùng làm CHÍNH, trích gần nguyên văn + ghi nguồn.\n"
+                    "- Chỗ KHÔNG có bằng chứng → vẫn suy luận từ ngành, nhưng GHI RÕ '(suy luận, chưa có bằng chứng)'.\n"
+                    "- CẤM biến platitude ('quan tâm chất lượng') thành insight — nỗi sợ phải CỤ THỂ, tình huống thật.\n")
+            user = (biz_block + extra_hint + ground_hint + prior_txt +
                     f"\n# Yêu cầu\nViết phần '{spec['label']}' đúng cấu trúc + luật ở system. TIẾNG VIỆT.")
             try:
                 tt = getattr(TaskType, spec["tt"])
@@ -4188,6 +4215,13 @@ CHANNELS = {
         "label": "Offline / tại điểm", "aliases": ["tại chỗ", "cửa hàng", "poster", "standee", "tờ rơi", "sự kiện", "event", "pr điểm bán"],
         "tiers": ("mofu", "bofu"), "formats": ["standee / poster", "tờ rơi", "sự kiện", "trải nghiệm tại điểm"],
         "write_spec": "Thông điệp 1 câu đọc-lướt-hiểu, ưu đãi tại điểm rõ, kèm QR / kênh online để ĐO."},
+    "google_maps": {
+        # ⚠️ KHÔNG để alias trần "map": channel_slug khớp LỎNG theo substring nên "roadmap"
+        # (từ đang dùng trong repo) sẽ bị nuốt thành google_maps. Giữ alias đủ dài, đủ đặc thù.
+        "label": "Google Maps / GBP", "aliases": ["google maps", "google map", "gbp",
+                                                  "google my business", "google business profile", "địa điểm google"],
+        "tiers": ("mofu", "bofu"), "formats": ["profil doanh nghiệp", "bài đăng GBP", "review/ảnh khách", "chỉ đường/điều hướng"],
+        "write_spec": "Cập nhật NAP chuẩn, ảnh thực tế, trả lời review, bài GBP kèm ưu đãi/cta 'chỉ đường'."},
     "kol_pr": {
         "label": "KOL / PR / Báo", "aliases": ["kol", "koc", "influencer", "pr", "báo chí", "seeding", "booking"],
         "tiers": ("tofu", "mofu"), "formats": ["bài review KOL", "booking KOC", "bài PR báo", "seeding"],
@@ -5264,6 +5298,492 @@ async def save_funnel_ratio(user_id=None, id: str = "", ratio: str = "") -> dict
         return {"ok": True, "funnel_map": fm}
     except Exception as e:
         logger.warning("biz.save_funnel_ratio failed: %s", e)
+        return {"error": str(e)}
+
+
+# ═══════════════════ S1 — BẢN ĐỒ TRẬN ĐỊA (Battle Map) ═══════════════════
+# 3 key trong intake_extra: battle_map, resources, principles
+# battle_map: {version, updated, audiences: [{id, role, label, source, confidence, why, edited_by_user,
+#              stages: {awareness:{applicable,problems[]}, ...}}]}
+#   problem:  {id, text, type, source, confidence, why, updated, edited_by_user}
+# resources: {can_owner_on_camera, can_shoot_video, can_render_3d, updated}
+# principles: [{id, text, expires, created}]
+#
+# Derived-state (WIRING §2): Max suy → confidence + updated + why + human-override + degrade.
+# LUẬT HUMAN-OVERRIDE (brief §5, §8): regen KHÔNG BAO GIỜ ghi đè thứ người đã sửa.
+#   - id tệp/vấn đề ổn định: mint 1 lần, sống qua đổi tên (hợp đồng persist cho S3 — mìn HANDOFF §4).
+#   - regen giữ nguyên: tệp/vấn đề có edited_by_user, và MỌI vấn đề source='user' (bạn kể).
+#   - regen chỉ làm mới đám auto (source research/max chưa bị sửa) + thêm tệp cho vai còn thiếu.
+#   - regen KHÔNG xoá tệp; xoá là quyền của người, qua save_battle_map.
+
+_ROLE_ENUM = ("core", "growth", "retain")
+_STAGE_ENUM = ("awareness", "consideration", "conversion", "retention")
+_PROBLEM_TYPE_ENUM = ("inconvenience", "unaware", "distrust", "risk", "price", "forget")
+_PROBLEM_SOURCE_ENUM = ("user", "research", "max")
+
+_ROLE_LABEL = {"core": "chính", "growth": "tăng trưởng", "retain": "duy trì"}
+_STAGE_LABEL = {"awareness": "Nhận biết", "consideration": "Cân nhắc", "conversion": "Chuyển đổi", "retention": "Duy trì"}
+_PROBLEM_TYPE_LABEL = {"inconvenience": "bất tiện", "unaware": "không biết", "distrust": "không tin",
+                       "risk": "rủi ro", "price": "giá", "forget": "không nhớ"}
+_PROBLEM_SOURCE_LABEL = {"user": "bạn kể", "research": "nghiên cứu", "max": "Max đoán"}
+
+_RESOURCE_FIELDS = ("can_owner_on_camera", "can_shoot_video", "can_render_3d")
+
+
+def _mint_audience_id() -> str:
+    return "aud_" + uuid.uuid4().hex[:8]
+
+
+def _mint_problem_id() -> str:
+    return "prob_" + uuid.uuid4().hex[:8]
+
+
+def _mint_principle_id() -> str:
+    return "prin_" + uuid.uuid4().hex[:8]
+
+
+def _norm_problem_type(v: str) -> str:
+    v = str(v or "").strip().lower()
+    return v if v in _PROBLEM_TYPE_ENUM else ""
+
+
+def _norm_problem_source(v: str) -> str:
+    v = str(v or "").strip().lower()
+    return v if v in _PROBLEM_SOURCE_ENUM else ""
+
+
+def _norm_role(v: str) -> str:
+    v = str(v or "").strip().lower()
+    return v if v in _ROLE_ENUM else ""
+
+
+def _norm_stage(v: str) -> str:
+    v = str(v or "").strip().lower()
+    return v if v in _STAGE_ENUM else ""
+
+
+def _norm_conf(v: str, default: str = "low") -> str:
+    v = str(v or "").strip().lower()
+    return v if v in ("high", "med", "low") else default
+
+
+def _now_iso() -> str:
+    """UTC ISO8601. Import LAZY trong hàm theo quy ước business.py (module KHÔNG import datetime)."""
+    from datetime import datetime as _dt, timezone as _tz
+    return _dt.now(_tz.utc).isoformat()
+
+
+def _stage_applicable_default(role: str, stage: str) -> bool:
+    """Tệp 'duy trì' → 2 giai đoạn đầu mặc định 'không áp dụng' (SPEC §1). Người bật lại được."""
+    return not (role == "retain" and stage in ("awareness", "consideration"))
+
+
+def _empty_stage(role: str = "", stage: str = "") -> dict:
+    return {"applicable": _stage_applicable_default(role, stage), "problems": []}
+
+
+def _prob_key(text) -> str:
+    """Khoá so trùng vấn đề — chuẩn hoá lỏng để regen không đẻ bản sao gần-giống."""
+    return re.sub(r"\s+", " ", str(text or "").strip().lower())[:80]
+
+
+def _is_pinned_problem(p: dict) -> bool:
+    """Vấn đề regen KHÔNG được đụng: người tự sửa, hoặc người tự kể (source='user')."""
+    return bool(p.get("edited_by_user")) or p.get("source") == "user"
+
+
+# nguồn hợp lệ của TỆP (khác nguồn của VẤN ĐỀ — vấn đề dùng _PROBLEM_SOURCE_ENUM)
+_AUDIENCE_SOURCE_ENUM = ("wedge", "segment_gap", "asked", "user", "max")
+_MAX_PROBLEMS_PER_STAGE = 6      # trần cứng — kệ không phình (SPEC §10 rủi ro 1)
+# chặn regression: LLM trả TÊN LOẠI làm nội dung vấn đề ("bất tiện" / "price") → vứt
+_TYPE_LABEL_KEYS = ({_prob_key(v) for v in _PROBLEM_TYPE_LABEL.values()}
+                    | {_prob_key(k) for k in _PROBLEM_TYPE_ENUM})
+
+
+def _sanitize_problem(p, default_source: str = "max"):
+    """1 vấn đề bất kỳ (LLM / client / bản cũ) → đúng shape hợp đồng; None nếu không cứu được.
+    Giữ id + edited_by_user nếu có. Vứt thứ chỉ là NHÃN LOẠI chứ không phải vấn đề (brief §9)."""
+    if not isinstance(p, dict):
+        return None
+    text = re.sub(r"\s+", " ", str(p.get("text") or "").strip())[:200]
+    ptype = _norm_problem_type(p.get("type"))
+    if not text or not ptype:
+        return None
+    if len(text) < 8 or _prob_key(text) in _TYPE_LABEL_KEYS:
+        return None
+    pid = p.get("id")
+    pid = pid if isinstance(pid, str) and pid.startswith("prob_") else _mint_problem_id()
+    return {"id": pid, "text": text, "type": ptype,
+            "source": _norm_problem_source(p.get("source")) or default_source,
+            "confidence": _norm_conf(p.get("confidence")),
+            "why": str(p.get("why") or "").strip()[:400],
+            "updated": str(p.get("updated") or _now_iso()),
+            "edited_by_user": bool(p.get("edited_by_user"))}
+
+
+def _sanitize_audience(a):
+    """1 tệp bất kỳ → đúng shape hợp đồng; None nếu hỏng. GIỮ id (hợp đồng persist S3) + edited_by_user."""
+    if not isinstance(a, dict):
+        return None
+    role = _norm_role(a.get("role"))
+    label = str(a.get("label") or "").strip()[:80]
+    if not role or not label:
+        return None
+    aid = a.get("id")
+    aid = aid if isinstance(aid, str) and aid.startswith("aud_") else _mint_audience_id()
+    src = str(a.get("source") or "").strip().lower()
+    if src not in _AUDIENCE_SOURCE_ENUM:
+        src = "max"
+    raw_stages = a.get("stages") if isinstance(a.get("stages"), dict) else {}
+    stages = {}
+    for st in _STAGE_ENUM:
+        rs = raw_stages.get(st) if isinstance(raw_stages.get(st), dict) else {}
+        probs = [sp for sp in (_sanitize_problem(p)
+                               for p in (rs.get("problems") if isinstance(rs.get("problems"), list) else [])) if sp]
+        stages[st] = {"applicable": bool(rs.get("applicable", _stage_applicable_default(role, st))),
+                      "problems": probs[:_MAX_PROBLEMS_PER_STAGE]}
+    return {"id": aid, "role": role, "label": label, "source": src,
+            "confidence": _norm_conf(a.get("confidence")),
+            "why": str(a.get("why") or "").strip()[:400],
+            "edited_by_user": bool(a.get("edited_by_user")), "stages": stages}
+
+
+_MAX_PROBLEMS_PER_STAGE = 6      # trần cứng — kệ không phình (SPEC §10 rủi ro 1)
+
+
+async def gen_battle_map(user_id=None) -> dict:
+    """S1: sinh BẢN ĐỒ TRẬN ĐỊA — 3 tệp-có-vai × 4 giai đoạn × vấn đề (loại + nguồn + confidence + why).
+
+    Nguyên liệu THẬT (không bịa): `wedge` → neo tệp core · nghiên cứu T2/T3 (synthesis +
+    customer_insight) → tệp growth + phần lớn vấn đề · intake Q9 `objection` (founder tự kể)
+    → vấn đề source='user'. 1 LLM call sinh NHÃN TỆP + VẤN ĐỀ CỤ THỂ bằng giọng khách;
+    enum/slug do code chuẩn hoá — LLM không được chế loại mới.
+
+    HUMAN-OVERRIDE (brief §5/§8): merge với bản đồ cũ, KHÔNG ghi đè việc người đã làm —
+    giữ id, giữ nguyên tệp/vấn đề có edited_by_user và MỌI vấn đề source='user'; chỉ làm mới
+    đám auto; KHÔNG xoá tệp nào (xoá là quyền của người, qua save_battle_map).
+
+    Degrade: thiếu nguyên liệu / LLM hỏng → giữ nguyên bản đồ cũ, trả `degraded=True` + note;
+    tệp thiếu vẫn dựng khung với nhãn THẬT THÀ (source='max'/'asked', confidence='low').
+    Giai đoạn không có bằng chứng → để RỖNG. Ô trống là sản phẩm, không lấp bài giả."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+
+        # ── Nguyên liệu ─────────────────────────────────────────────────────
+        wedge = str(extra.get("wedge") or "").strip()
+        industry = str(prof.get("industry") or "").strip()
+        _ans = extra.get("answers") if isinstance(extra.get("answers"), dict) else {}
+        objection = str((_ans or {}).get("objection") or "").strip()
+        synth = await _latest_content(uid, "synthesis")
+        fears = await _latest_content(uid, "customer_insight")
+
+        # ── Bản đồ cũ (merge nguồn cho human-override + giữ id) ─────────────
+        old_map = extra.get("battle_map") if isinstance(extra.get("battle_map"), dict) else {}
+        old_raw = old_map.get("audiences") if isinstance(old_map.get("audiences"), list) else []
+        old_auds = [x for x in (_sanitize_audience(a) for a in old_raw) if x]
+        old_by_role: dict = {}
+        for a in old_auds:
+            old_by_role.setdefault(a["role"], a)
+
+        # ── 1 LLM call ──────────────────────────────────────────────────────
+        llm_by_role: dict = {}
+        llm_ok = False
+        try:
+            from tools.llm_router import call as router_call, TaskType
+            import json as _json
+            system = (
+                "Bạn là AI CMO dựng BẢN ĐỒ TRẬN ĐỊA cho 1 SME Việt: khách đang bị CHẶN ở đâu trên hành trình mua.\n"
+                "Trả ĐÚNG 3 TỆP KHÁCH theo vai:\n"
+                "- core: tệp CHÍNH đang nuôi sống doanh nghiệp (bám 'Tệp ưu tiên (wedge)' nếu có).\n"
+                "- growth: tệp TĂNG TRƯỞNG — khoảng trống phân khúc đối thủ bỏ ngỏ (bám nghiên cứu).\n"
+                "- retain: tệp DUY TRÌ — khách đã mua, chuyện quay lại / giới thiệu.\n"
+                "label mỗi tệp = mô tả NGƯỜI THẬT, cụ thể, ≤80 ký tự "
+                "(VD tốt: 'chủ quán ăn nhỏ mở 2 năm, tự đứng bếp'). "
+                "🔴 CẤM label chung chung ('khách hàng tiềm năng', 'tệp tăng trưởng').\n\n"
+                "Mỗi tệp có 4 giai đoạn: awareness (chưa biết bạn tồn tại) · consideration (đang so sánh) · "
+                "conversion (sắp trả tiền mà chần chừ) · retention (đã mua, có quay lại không).\n"
+                "Mỗi giai đoạn: 0-3 VẤN ĐỀ. Mỗi vấn đề gồm:\n"
+                "- text: câu CỤ THỂ theo giọng khách, ≤120 ký tự. VD tốt: 'sợ tới nơi hết món, mất công đi'.\n"
+                "  🔴 CẤM lấy TÊN LOẠI làm nội dung ('bất tiện', 'không tin', 'giá') — đó là nhãn, không phải vấn đề.\n"
+                "- type: ĐÚNG 1 trong 6: inconvenience|unaware|distrust|risk|price|forget\n"
+                "- source: 'user' nếu bám mục «Rào cản founder tự kể»; 'research' nếu bám mục nghiên cứu; "
+                "'max' nếu bạn tự suy (không có trong dữ liệu).\n"
+                "- confidence: high|med|low — 'high' CHỈ khi có câu tương ứng trong dữ liệu.\n"
+                "- why: bám vào đâu mà nói vậy (trích ý nguồn), ≤160 ký tự.\n\n"
+                "🔴 Giai đoạn KHÔNG có bằng chứng → để mảng RỖNG. Ô trống là thông tin thật, ĐỪNG lấp cho đủ.\n"
+                + _VN_NATURAL_RULE + "🔴 KHÔNG bịa số liệu / thông tin không có trong dữ liệu.\n"
+                'Output JSON DUY NHẤT: {"audiences":[{"role":"core|growth|retain","label":"","why":"",'
+                '"confidence":"high|med|low","stages":{"awareness":[{"text":"","type":"","source":"",'
+                '"confidence":"","why":""}],"consideration":[],"conversion":[],"retention":[]}}]}'
+            )
+            user = (f"# Ngành\n{industry or '(chưa rõ)'}\n\n"
+                    f"# Tệp ưu tiên (wedge) — neo cho tệp 'core'\n{wedge or '(chưa chọn)'}\n\n"
+                    f"# Rào cản founder TỰ KỂ (intake Q9) — vấn đề bám mục này phải có source='user'\n"
+                    f"{objection or '(chưa có)'}\n\n"
+                    f"# Nghiên cứu khách (T3)\n{(fears or '')[:2500] or '(chưa có)'}\n\n"
+                    f"# Chiến lược / khoảng trống phân khúc (T2)\n{(synth or '')[:2500] or '(chưa có)'}")
+            res = await router_call(task_type=TaskType.INTAKE_JSON, system=system, user=user, max_tokens=8000)
+            # Haiku (provider thật của INTAKE_JSON) hay thêm RÁC sau khối JSON (prose / object 2)
+            # → json.loads(raw) ném "Extra data" → degrade OAN dù đã ra bản đồ ngon.
+            # raw_decode bóc ĐÚNG object đầu, bỏ mọi đuôi (+ gỡ fence ```json nếu có).
+            _txt = re.sub(r'^```(?:json)?\s*', '', (res or {}).get("output", "").strip())
+            _i = _txt.find('{')
+            _parsed = _json.JSONDecoder().raw_decode(_txt[_i:])[0] if _i >= 0 else {}
+            _parsed = _parsed if isinstance(_parsed, dict) else {}
+            for a in (_parsed.get("audiences") or []):
+                if not isinstance(a, dict):
+                    continue
+                r = _norm_role(a.get("role"))
+                if r and r not in llm_by_role:
+                    llm_by_role[r] = a
+            llm_ok = bool(llm_by_role)
+        except Exception as e:
+            logger.warning("gen_battle_map LLM/parse fail: %s", e)
+
+        # ── Seed thật thà cho từng vai khi thiếu nguyên liệu ────────────────
+        now = _now_iso()
+        seed = {
+            "core":   ("wedge" if wedge else "max", "high" if wedge else "low",
+                       f"tệp chính bám wedge founder đã chọn: «{wedge}»" if wedge
+                       else "chưa chọn wedge — Max dựng khung, cần bạn xác nhận"),
+            "growth": ("segment_gap" if (synth or "").strip() else "max",
+                       "med" if (synth or "").strip() else "low",
+                       "suy từ khoảng trống phân khúc trong nghiên cứu (T2/T3)" if (synth or "").strip()
+                       else "chưa có nghiên cứu — Max dựng khung, cần bạn xác nhận"),
+            "retain": ("asked", "low",
+                       "chưa có dữ liệu khách cũ / bán hàng — Max dựng khung, cần bạn xác nhận"),
+        }
+        fallback_label = {"core": (wedge[:80] if wedge else "Tệp chính — chưa xác định"),
+                          "growth": "Tệp tăng trưởng — chưa xác định",
+                          "retain": "Khách cũ — chưa xác định"}
+
+        # ── Merge: người thắng máy ──────────────────────────────────────────
+        audiences, consumed = [], set()
+        for role in _ROLE_ENUM:
+            prev = old_by_role.get(role)
+            llm_a = llm_by_role.get(role) or {}
+            if prev:
+                consumed.add(prev["id"])
+            s_src, s_conf, s_why = seed[role]
+            pinned_aud = bool(prev and prev.get("edited_by_user"))
+            if pinned_aud:                                   # người đã sửa → giữ NGUYÊN
+                label, a_src = prev["label"], prev["source"]
+                a_conf, a_why = prev["confidence"], prev["why"]
+            else:
+                label = (str(llm_a.get("label") or "").strip()[:80]
+                         or (prev["label"] if prev else fallback_label[role]))
+                a_src = s_src
+                a_conf = _norm_conf(llm_a.get("confidence"), s_conf) if llm_ok else s_conf
+                a_why = str(llm_a.get("why") or "").strip()[:400] or s_why
+
+            stages = {}
+            for st in _STAGE_ENUM:
+                prev_st = (prev or {}).get("stages", {}).get(st) if prev else None
+                prev_st = prev_st if isinstance(prev_st, dict) else None
+                applicable = bool(prev_st["applicable"]) if prev_st else _stage_applicable_default(role, st)
+                prev_probs = (prev_st or {}).get("problems") or []
+                if not llm_ok:
+                    probs = list(prev_probs)                 # LLM hỏng → KHÔNG xoá gì của người
+                else:
+                    pinned = [p for p in prev_probs if _is_pinned_problem(p)]
+                    seen = {_prob_key(p["text"]) for p in pinned}
+                    probs = list(pinned)
+                    for rp in ((llm_a.get("stages") or {}).get(st) or []):
+                        sp = _sanitize_problem(rp)
+                        if not sp or _prob_key(sp["text"]) in seen:
+                            continue
+                        seen.add(_prob_key(sp["text"]))
+                        sp["updated"] = now
+                        probs.append(sp)
+                stages[st] = {"applicable": applicable, "problems": probs[:_MAX_PROBLEMS_PER_STAGE]}
+
+            audiences.append({"id": prev["id"] if prev else _mint_audience_id(),
+                              "role": role, "label": label, "source": a_src,
+                              "confidence": a_conf, "why": a_why,
+                              "edited_by_user": pinned_aud, "stages": stages})
+
+        for a in old_auds:                                   # tệp người tự thêm ngoài 3 vai → KHÔNG xoá
+            if a["id"] not in consumed:
+                audiences.append(a)
+
+        battle_map = {"version": 1, "updated": now, "audiences": audiences}
+        extra["battle_map"] = battle_map
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "battle_map": battle_map, "degraded": not llm_ok,
+                "note": "" if llm_ok else
+                        "Chưa dựng được vấn đề tự động (thiếu nguyên liệu hoặc LLM lỗi) — "
+                        "bản đồ cũ giữ nguyên, bạn tự thêm hoặc thử lại."}
+    except Exception as e:
+        logger.warning("biz.gen_battle_map failed: %s", e)
+        return {"error": str(e)}
+
+
+_AUD_DIFF_FIELDS = ("label", "source", "confidence", "why")
+_PROB_DIFF_FIELDS = ("text", "type", "source", "confidence", "why")
+
+
+def _differs(new: dict, old: dict, fields) -> bool:
+    return any(str(new.get(f) or "").strip() != str((old or {}).get(f) or "").strip() for f in fields)
+
+
+async def save_battle_map(user_id=None, battle_map: dict = None) -> dict:
+    """S1: lưu bản NGƯỜI sửa — đây là nguồn chân lý cho luật human-override.
+
+    - **id do client gửi được TÔN TRỌNG** (chỉ validate tiền tố): đổi tên tệp/vấn đề KHÔNG
+      làm mất id → hợp đồng persist cho S3 đứng vững (mìn HANDOFF §4).
+    - **Tự đánh dấu `edited_by_user` bằng DIFF** với bản đã lưu: mục nào đổi nội dung, hoặc
+      mới toanh (id chưa từng có) → người đã đụng → `gen_battle_map` sau này không ghi đè.
+      Mục không đổi vẫn là auto → regen được phép làm mới. (Không phụ thuộc FE tự khai.)
+    - **Người XOÁ được thật**: tệp/vấn đề vắng mặt trong payload thì mất hẳn — KHÔNG hồi sinh
+      từ bản cũ. Ý người thắng máy, kể cả khi người xoá sạch.
+    """
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        if not isinstance(battle_map, dict):
+            return {"error": "Thiếu battle_map."}
+        auds_in = battle_map.get("audiences")
+        if not isinstance(auds_in, list):
+            return {"error": "battle_map.audiences phải là list."}
+
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+
+        # ── Index bản đã lưu theo id (để diff, KHÔNG để hồi sinh) ───────────
+        old_map = extra.get("battle_map") if isinstance(extra.get("battle_map"), dict) else {}
+        old_raw = old_map.get("audiences") if isinstance(old_map.get("audiences"), list) else []
+        old_aud_by_id, old_prob_by_id = {}, {}
+        for a in (x for x in (_sanitize_audience(a) for a in old_raw) if x):
+            old_aud_by_id[a["id"]] = a
+            for st in _STAGE_ENUM:
+                for p in a["stages"][st]["problems"]:
+                    old_prob_by_id[p["id"]] = p
+
+        clean = []
+        for a_in in auds_in:
+            a = _sanitize_audience(a_in)
+            if not a:
+                continue
+            old_a = old_aud_by_id.get(a["id"])
+            # tệp mới, hoặc nội dung đổi → người đã đụng
+            a["edited_by_user"] = bool(a.get("edited_by_user")
+                                       or old_a is None
+                                       or _differs(a, old_a, _AUD_DIFF_FIELDS))
+            for st in _STAGE_ENUM:
+                stage, old_stage = a["stages"][st], (old_a or {}).get("stages", {}).get(st) if old_a else None
+                if old_a is not None and isinstance(old_stage, dict) \
+                        and bool(stage["applicable"]) != bool(old_stage.get("applicable")):
+                    a["edited_by_user"] = True          # toggle "không áp dụng" cũng là ý người
+                for p in stage["problems"]:
+                    old_p = old_prob_by_id.get(p["id"])
+                    if old_p is None:
+                        p["edited_by_user"] = True      # người tự thêm
+                        if not p.get("source"):
+                            p["source"] = "user"
+                    elif _differs(p, old_p, _PROB_DIFF_FIELDS):
+                        p["edited_by_user"] = True
+                        p["updated"] = _now_iso()
+                    else:
+                        p["edited_by_user"] = bool(old_p.get("edited_by_user") or p.get("edited_by_user"))
+            clean.append(a)
+
+        extra["battle_map"] = {"version": 1, "updated": _now_iso(), "audiences": clean}
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "battle_map": extra["battle_map"]}
+    except Exception as e:
+        logger.warning("biz.save_battle_map failed: %s", e)
+        return {"error": str(e)}
+
+
+async def save_resources(user_id=None, resources: dict = None) -> dict:
+    """S1: lưu cờ nguồn lực (can_owner_on_camera, can_shoot_video, can_render_3d) + updated."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        if not isinstance(resources, dict):
+            return {"error": "Thiếu resources."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        clean = {}
+        for k in _RESOURCE_FIELDS:
+            clean[k] = bool(resources.get(k))
+        clean["updated"] = _now_iso()
+        extra["resources"] = clean
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "resources": clean}
+    except Exception as e:
+        logger.warning("biz.save_resources failed: %s", e)
+        return {"error": str(e)}
+
+
+async def save_principles(user_id=None, principles: list = None) -> dict:
+    """S1: lưu nguyên tắc cấm (CHỈ user gõ, Max KHÔNG suy). Mỗi mục: {id, text, expires, created}.
+
+    - `expires`: chuẩn hoá về **None** (vô hạn) hoặc chuỗi ngày — KHÔNG bao giờ để `""`,
+      vì consumer S2 kiểm `is None` sẽ đọc sai trạng thái thứ ba.
+    - `created`: GIỮ ngày tạo gốc của mục đã có (khớp theo id); chỉ mục mới mới lấy giờ hiện tại."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        if not isinstance(principles, list):
+            return {"error": "principles phải là list."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        now = _now_iso()
+        old = extra.get("principles") if isinstance(extra.get("principles"), list) else []
+        old_created = {p.get("id"): p.get("created") for p in old
+                       if isinstance(p, dict) and p.get("id") and p.get("created")}
+        clean = []
+        for p in principles:
+            if not isinstance(p, dict):
+                continue
+            text = str(p.get("text") or "").strip()
+            if not text:
+                continue
+            p_id = str(p.get("id") or "").strip()
+            if not p_id or not p_id.startswith("prin_"):
+                p_id = _mint_principle_id()
+            expires = str(p.get("expires") or "").strip()
+            if not expires or expires.lower() in ("null", "none", "vô hạn", "vo han"):
+                expires = None                      # vô hạn — không dùng "" (xem docstring)
+            clean.append({"id": p_id, "text": text[:400], "expires": expires,
+                          "created": old_created.get(p_id) or now})
+        extra["principles"] = clean
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "principles": clean}
+    except Exception as e:
+        logger.warning("biz.save_principles failed: %s", e)
         return {"error": str(e)}
 
 

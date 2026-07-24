@@ -701,6 +701,35 @@ async def reset_usage(request):
     return _ok(await store.reset_usage(int(request.path_params["id"])))
 
 
+# ── S1 Battle Map ───────────────────────────────────────────────────
+async def biz_map_gen(request):
+    """S1: sinh Bản đồ trận địa."""
+    d = await request.json()
+    res = await biz.gen_battle_map(d.get("user_id"))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_map_save(request):
+    """S1: lưu Bản đồ trận địa (user override)."""
+    d = await request.json()
+    res = await biz.save_battle_map(d.get("user_id"), d.get("battle_map"))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_resources_save(request):
+    """S1: lưu Nguồn lực (cờ có/không)."""
+    d = await request.json()
+    res = await biz.save_resources(d.get("user_id"), d.get("resources"))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_principles_save(request):
+    """S1: lưu Nguyên tắc cấm (chỉ user gõ)."""
+    d = await request.json()
+    res = await biz.save_principles(d.get("user_id"), d.get("principles"))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 # ── Admin thật (Supabase users + auth_identities) — gác bằng ADMIN_EMAILS ────
 def _is_admin(request) -> bool:
     sess = request.scope.get("session") or {}     # tránh assert nếu thiếu SessionMiddleware
@@ -735,6 +764,10 @@ def api_routes() -> list:
         Route("/api/biz/intake/suggest",           biz_intake_suggest, methods=["POST"]),
         Route("/api/biz/market-kpis",              biz_market_kpis,    methods=["GET"]),
         Route("/api/biz/gate",                     biz_save_gate,      methods=["POST"]),
+        Route("/api/biz/map/gen",                  biz_map_gen,        methods=["POST"]),
+        Route("/api/biz/map/save",                 biz_map_save,       methods=["POST"]),
+        Route("/api/biz/resources",                biz_resources_save, methods=["POST"]),
+        Route("/api/biz/principles",               biz_principles_save, methods=["POST"]),
         Route("/api/biz/synthesis-approve",        biz_synthesis_approve, methods=["POST"]),
         Route("/api/biz/pillars-lock",             biz_pillars_lock,   methods=["POST"]),
         Route("/api/biz/calendar/post-save",       biz_calendar_post_save, methods=["POST"]),
