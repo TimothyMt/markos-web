@@ -1,9 +1,10 @@
-"""Test FV3-4a — Từ điển kênh (CHANNELS 12 kênh + channel_slug/channel_label).
+"""Test FV3-4a — Từ điển kênh (CHANNELS 13 kênh + channel_slug/channel_label).
 
 Thuần đồng bộ, KHÔNG cần DB/LLM: import trực tiếp const + helper. (Không đụng gen/save nên khỏi stub storage.)
 
 Chốt đúng phạm vi brief FV3-4a (doc §3.3 Bước 1):
-  ① CHANNELS đúng 12 kênh, mỗi kênh có label/aliases/tiers/formats/write_spec; tiers ⊆ (tofu,mofu,bofu).
+  ① CHANNELS đúng 13 kênh, mỗi kênh có label/aliases/tiers/formats/write_spec; tiers ⊆ (tofu,mofu,bofu).
+     (google_maps thêm ở S1 — brief §4.4 "mở offline + Google Maps", F&B điểm bán cần.)
   ② channel_slug: slug thẳng · nhãn · alias · text LLM lỏng ('Reels 15s'→instagram) ·
      ĐẶC THÙ thắng chung chung ('facebook group'→facebook_group, 'tiktok shop'→tiktok_shop) ·
      lạ → '' · rỗng → ''.
@@ -26,11 +27,11 @@ def _run():
     res = []
     C = B.CHANNELS
     EXPECT = {"facebook", "facebook_group", "instagram", "tiktok", "tiktok_shop", "shopee",
-              "youtube", "zalo_oa", "website_seo", "email", "offline", "kol_pr"}
+              "youtube", "zalo_oa", "website_seo", "email", "offline", "google_maps", "kol_pr"}
 
     # ---- ① cấu trúc từ điển ----
     res += [
-        ("① đúng 12 kênh, đúng bộ slug", set(C.keys()) == EXPECT and len(C) == 12),
+        ("① đúng 13 kênh, đúng bộ slug", set(C.keys()) == EXPECT and len(C) == len(EXPECT)),
         ("① mỗi kênh đủ field label/aliases/tiers/formats/write_spec",
          all({"label", "aliases", "tiers", "formats", "write_spec"} <= set(v.keys()) for v in C.values())),
         ("① tiers ⊆ (tofu,mofu,bofu) và không rỗng",

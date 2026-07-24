@@ -6,7 +6,7 @@ Chốt đúng phạm vi brief FV3-4b (doc §3.3 Bước 2):
   ① channel LLM → slug chuẩn ('Reels 15s' → instagram); giữ channel_raw; format tách riêng.
   ② format LLM để trống + kênh có slug → gợi ý format đầu của kênh (không khoá cứng).
   ③ kênh LẠ (channel_slug='') → channel='', channel_guessed=True, giữ channel_raw (để #4c gán).
-  ④ biz_data.bizChannels: 12 kênh, mỗi kênh slug/label/tiers/formats.
+  ④ biz_data.bizChannels: khớp đúng số kênh trong CHANNELS, mỗi kênh slug/label/tiers/formats.
 
 Chạy:  python tests/test_fv3_post_channel.py   (exit 0 = pass)
 """
@@ -115,7 +115,7 @@ async def _run():
     bd = await B.biz_data(user_id=1)
     bc = bd.get("bizChannels")
     res += [
-        ("④ bizChannels 12 kênh", isinstance(bc, list) and len(bc) == 12),
+        ("④ bizChannels khớp CHANNELS", isinstance(bc, list) and len(bc) == len(B.CHANNELS)),
         ("④ mỗi kênh có slug/label/tiers/formats",
          all(isinstance(x, dict) and {"slug", "label", "tiers", "formats"} <= set(x.keys()) for x in (bc or []))),
     ]

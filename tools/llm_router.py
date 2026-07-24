@@ -64,6 +64,7 @@ class TaskType(str, Enum):
     COMPETITOR_RESEARCH       = "competitor_research"
     COMPETITOR_MATRIX         = "competitor_matrix"
     CUSTOMER_INSIGHT          = "customer_insight"
+    CUSTOMER_INSIGHT_GROUNDED = "customer_insight_grounded"  # T3-web: Gemini + Google Search (voice khách thật)
     PSYCHOLOGY                = "psychology"
     PRICING_MATH              = "pricing_math"
     USP_CREATIVE              = "usp_creative"
@@ -109,6 +110,8 @@ ROUTING_TABLE: dict[TaskType, list[Provider]] = {
 
     # VN-critical creative — Sonnet primary, GPT-5 fallback, Gemini Pro last
     TaskType.CUSTOMER_INSIGHT:           [Provider.ANTHROPIC_SONNET, Provider.OPENAI_GPT5, Provider.GEMINI_PRO],
+    # T3-web grounded: Google Search bật để moi review/bình luận THẬT → fallback Anthropic khi thiếu Gemini key
+    TaskType.CUSTOMER_INSIGHT_GROUNDED:  [Provider.GEMINI_PRO_GROUNDED, Provider.GEMINI_PRO, Provider.ANTHROPIC_SONNET],
     # PSYCHOLOGY: GPT-5 primary — combined psychology+pricing output is 8-10K tokens;
     # Sonnet hits 180s timeout at that length. GPT-5 completes in ~30-40s.
     TaskType.PSYCHOLOGY:                 [Provider.OPENAI_GPT5, Provider.ANTHROPIC_SONNET, Provider.GEMINI_PRO],
