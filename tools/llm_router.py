@@ -28,7 +28,7 @@ from typing import Optional
 
 import anthropic
 
-from config import ANTHROPIC_API_KEY, CLAUDE_SONNET_MODEL, CLAUDE_HAIKU_MODEL
+from config import ANTHROPIC_API_KEY, CLAUDE_SONNET_MODEL, CLAUDE_HAIKU_MODEL, CLAUDE_OPUS_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,7 @@ class Provider(str, Enum):
     """Available LLM providers. Order matters: primary first, fallbacks after."""
     ANTHROPIC_SONNET     = "anthropic_sonnet"      # claude-sonnet-4-6
     ANTHROPIC_HAIKU      = "anthropic_haiku"       # claude-haiku-4-5
+    ANTHROPIC_OPUS       = "anthropic_opus"        # claude-opus-4-8 (trần — heart feature tối-ưu)
     GEMINI_PRO           = "gemini_pro"            # gemini-2.5-pro (1M context)
     GEMINI_PRO_GROUNDED  = "gemini_pro_grounded"   # gemini-2.5-pro + Google Search (replace Perplexity)
     GEMINI_FLASH         = "gemini_flash"          # gemini-2.5-flash (cheap)
@@ -86,6 +87,12 @@ class TaskType(str, Enum):
     GENERIC_CREATIVE          = "generic_creative"
     GENERIC_STRUCTURED        = "generic_structured"
 
+    # S2 — Chiến dịch 4 tầng: gen nước đi 2-call (Sonnet nháp → Opus tối-ưu). Heart feature,
+    # on-demand (không high-freq) → trả 2-call cho depth. DRAFT chốt trên Sonnet (Haiku degrade);
+    # OPTIMIZE chốt trên Opus (Sonnet degrade nếu Opus hỏng/thiếu key).
+    CAMPAIGN_MOVES_DRAFT      = "campaign_moves_draft"
+    CAMPAIGN_MOVES_OPTIMIZE   = "campaign_moves_optimize"
+
     # ─── Operational skills ──────────────────────────────────────
     OPS_CRITICAL              = "ops_critical"          # High-stakes: ads_optimizer, brand_voice — Sonnet locked
     OPS_BRIEF                 = "ops_brief"             # Campaign Brief — GPT-5 primary
@@ -129,6 +136,10 @@ ROUTING_TABLE: dict[TaskType, list[Provider]] = {
 
     # Intake — GPT-5 mini primary (CEO-locked: reduce Sonnet load)
     TaskType.INTAKE_JSON:                [Provider.OPENAI_GPT5_MINI, Provider.ANTHROPIC_HAIKU, Provider.ANTHROPIC_SONNET],
+    # S2 nước đi: DRAFT Sonnet (Haiku degrade) → OPTIMIZE Opus (Sonnet degrade). KHÔNG để OpenAI/Gemini
+    # xen vào — chuỗi này CHỦ Ý bám Anthropic (workhorse TPM lớn) + cần chất chẩn-lực nhất quán 2 call.
+    TaskType.CAMPAIGN_MOVES_DRAFT:       [Provider.ANTHROPIC_SONNET, Provider.ANTHROPIC_HAIKU],
+    TaskType.CAMPAIGN_MOVES_OPTIMIZE:    [Provider.ANTHROPIC_OPUS, Provider.ANTHROPIC_SONNET],
 
     # Polish/critic — Haiku primary, GPT-5 mini fallback (avoid Sonnet for polish)
     TaskType.CRITIC_REVIEW:              [Provider.ANTHROPIC_HAIKU, Provider.OPENAI_GPT5_MINI, Provider.OPENAI_GPT5],
@@ -220,6 +231,35 @@ async def _call_anthropic_sonnet(
         "tokens_in": getattr(response.usage, "input_tokens", 0),
         "tokens_out": getattr(response.usage, "output_tokens", 0),
         "provider": Provider.ANTHROPIC_SONNET.value,
+    }
+
+
+async def _call_anthropic_opus(
+    system: str, user: str, max_tokens: int = 4000, **kwargs
+) -> dict:
+    """Call Anthropic Opus 4.8 — TRẦN chất lượng, chỉ dùng cho heart feature (S2 tối-ưu nước đi).
+    Giống Sonnet caller (cache system prompt, raise nếu cắt giữa câu để failover)."""
+    client = _get_anthropic_client()
+    extra_headers = {}
+    if max_tokens > 8192:
+        extra_headers["anthropic-beta"] = "output-128k-2025-02-19"
+    response = await client.messages.create(
+        model=CLAUDE_OPUS_MODEL,
+        max_tokens=max_tokens,
+        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": user}],
+        extra_headers=extra_headers,
+    )
+    if response.stop_reason == "max_tokens":
+        raise RuntimeError(
+            f"Anthropic {CLAUDE_OPUS_MODEL} output bị cắt giữa câu (stop_reason=max_tokens, "
+            f"max_tokens={max_tokens}) — failover sang provider khác."
+        )
+    return {
+        "output": response.content[0].text,
+        "tokens_in": getattr(response.usage, "input_tokens", 0),
+        "tokens_out": getattr(response.usage, "output_tokens", 0),
+        "provider": Provider.ANTHROPIC_OPUS.value,
     }
 
 
@@ -692,6 +732,7 @@ async def _call_perplexity_sonar(
 PROVIDER_CALLERS = {
     Provider.ANTHROPIC_SONNET:    _call_anthropic_sonnet,
     Provider.ANTHROPIC_HAIKU:     _call_anthropic_haiku,
+    Provider.ANTHROPIC_OPUS:      _call_anthropic_opus,
     Provider.GEMINI_PRO:          _call_gemini_pro,
     Provider.GEMINI_PRO_GROUNDED: _call_gemini_pro_grounded,
     Provider.GEMINI_FLASH:        _call_gemini_flash,
@@ -712,6 +753,7 @@ PROVIDER_CALLERS = {
 _PER_PROVIDER_TIMEOUT: dict[Provider, float] = {
     Provider.ANTHROPIC_SONNET:    300.0,  # content pipeline (post_batch 15K+ tokens) needs 2-3 min
     Provider.ANTHROPIC_HAIKU:     90.0,   # intake/classify — generous buffer for slow bursts
+    Provider.ANTHROPIC_OPUS:      300.0,  # S2 tối-ưu nước đi — reasoning sâu, cần buffer rộng
     Provider.OPENAI_GPT5:         300.0,  # reasoning model — can take 3-5 min on deep tasks
     Provider.OPENAI_GPT5_MINI:    180.0,  # sweet-spot model — content gen needs 2 min+
     Provider.OPENAI_GPT5_NANO:    90.0,   # bulk classify — short tasks but keep buffer
@@ -867,7 +909,7 @@ def _forced_test_provider() -> Optional[Provider]:
 
 def is_provider_available(provider: Provider) -> bool:
     """Check provider khả dụng (API key setup)."""
-    if provider in (Provider.ANTHROPIC_SONNET, Provider.ANTHROPIC_HAIKU):
+    if provider in (Provider.ANTHROPIC_SONNET, Provider.ANTHROPIC_HAIKU, Provider.ANTHROPIC_OPUS):
         return bool(ANTHROPIC_API_KEY)
     if provider in (Provider.GEMINI_PRO, Provider.GEMINI_PRO_GROUNDED, Provider.GEMINI_FLASH):
         return bool(os.getenv("GEMINI_API_KEY"))
