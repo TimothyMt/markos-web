@@ -36,6 +36,7 @@ PORT = int(os.getenv("PORT", "8000"))
 # 2-tier model: Haiku cho intake (classification + JSON extract, rẻ), Sonnet cho deep analysis + critic
 CLAUDE_SONNET_MODEL = "claude-sonnet-4-6"
 CLAUDE_HAIKU_MODEL  = "claude-haiku-4-5"
+CLAUDE_OPUS_MODEL   = "claude-opus-4-8"    # trần chất lượng — chỉ dùng cho heart feature (S2 tối-ưu nước đi)
 CLAUDE_MODEL        = CLAUDE_SONNET_MODEL  # backward-compat alias
 
 # OpenAI models (S8.8 — Phase 1b multi-provider router)

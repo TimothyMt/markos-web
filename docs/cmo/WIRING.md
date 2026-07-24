@@ -122,6 +122,26 @@ Spec: `SPEC-chien-dich-4-tang.md` · Brief: `BRIEF-S1-ban-do-tran-dia.md` §2. T
 
 **Seam grounding T3 (nuôi chất `battle_map`):** `gen_battle_map` đọc `customer_insight` (T3). T3 giờ chạy **grounded** qua task type `CUSTOMER_INSIGHT_GROUNDED` (`llm_router.py`: Gemini+Google Search → fallback Anthropic khi thiếu `GEMINI_API_KEY`) và **tiêu thụ `social_page_audit`** (producer = `audit_social_page`, "Báo cáo kênh") nếu đã cache → tiêm voice khách thật vào prompt T3. Degrade: thiếu Gemini/audit → T3 = suy luận như cũ (không mất gì). Bật thật cần prod có `GEMINI_API_KEY` + user chạy Báo cáo kênh 1 lần. Gate 2 (SPEC §10): bằng chứng thật đẩy vấn đề lên `source='research'`; chỗ trống vẫn suy luận nhưng gắn nhãn.
 
+### Hợp đồng S2 — Nước đi (`gen_moves` → ứng viên; `commit_move` → `big_ideas`)
+Gate 1 ĐÓNG (floor-test sống): **KHÔNG thư viện nước đi theo ngành**. "Thư viện" = 1 prompt-khung bất biến (JTBD Four-Forces × 5 bậc + phanh + grounding) + rubric mỏng. gen_moves = 2-call **Sonnet nháp → Opus tối-ưu**.
+
+| Khoá | Kiểu | Consumer | Producer | Khớp / degrade | Status |
+|---|---|---|---|---|---|
+| `audience_id` (input) | `aud_<8hex>` | `gen_moves`/`commit_move` `_find_aud_problem` | **S1** `battle_map.audiences[].id` | **seam đứt phải NỔ**: id không thấy → `error`, KHÔNG im | ✅ build |
+| `problem_id` (input) | `prob_<8hex>` | `gen_moves`/`commit_move` | **S1** `…problems[].id` | id không thấy trong tệp → `error` | ✅ build |
+| `TaskType.CAMPAIGN_MOVES_DRAFT` | enum | `gen_moves` call-1 | routing `[SONNET, HAIKU]` (`llm_router`) | Sonnet nháp; Haiku degrade. Chuỗi CHỦ Ý bám Anthropic | ✅ build |
+| `TaskType.CAMPAIGN_MOVES_OPTIMIZE` | enum | `gen_moves` call-2 | routing `[OPUS, SONNET]` | Opus tối-ưu; **Opus hỏng → degrade Sonnet**; optimize ra rác → dùng bản nháp (`optimized=False`) | ✅ build |
+| `Provider.ANTHROPIC_OPUS` | provider | router | `_call_anthropic_opus` (model `CLAUDE_OPUS_MODEL=claude-opus-4-8`) | key = `ANTHROPIC_API_KEY` (chung Sonnet/Haiku); cắt giữa câu → raise → failover | ✅ build |
+| nước đi `.bac` | enum 5 slug `van_hanh\|chao_hang\|phan_phoi\|kich_hoat\|noi_dung` | thẻ FE · `commit_move` | LLM chọn, `_norm_bac` chuẩn hoá (nhận số/nhãn/EN) | **KHOÁ CỨNG**: không suy được bậc → nước đi bị **vứt** (`_sanitize_move`→None) | ✅ build |
+| nước đi `.phanh` / `.phanh_loai` | str / enum 4 | thẻ FE (⚠️ + dấu vết nắn) | LLM (khung Tầng 4) | `phanh` chỉ khi sai gây HẠI không lùi; principle-vi-phạm → LLM VỨT (không nắn) | ✅ build |
+| `luc_chan` + `.xem_ky{…}` | str + object 6 mục | FE Xem-kỹ | LLM (khung) | parse vá `_parse_first_json` (raw_decode, bỏ đuôi rác); max_tokens 6000 | ✅ build |
+| moves (output) | list ≤3 | **FE giữ tới khi chốt** | `gen_moves` | **KHÔNG persist** (ứng viên) — chốt mới ghi; `bac_spread<2` → note cảnh báo dồn bậc | ✅ build |
+| `big_ideas[].{is_campaign,mechanic,snapshot}` | bool/obj/obj | S3 (việc→lịch) · `_build_campaign_bands` | `commit_move` | `snapshot` = chụp `audience_id+problem_id+text+type+stage` lúc chốt → không trôi khi bản đồ đổi; `grid/window` rỗng = DRAFT (S3 wire lịch) | ✅ build |
+| `bizMoveMeta` | dict (bac/phanh_loai labels) | FE thẻ (nhãn 5 bậc + 4 phanh) | `biz_data` (tĩnh, KHÔNG đọc DB) | tách khỏi bizBigIdeas (chốt) | ✅ build |
+
+> **Phanh 4-loại (SPEC §2) = rubric trong prompt, KHÔNG deterministic guard:** principle → VỨT (tuyệt đối); archetype sai-ý-đồ → giữ động tác đổi ý đồ + `nan_tu`; vượt nguồn lực → thu nhỏ liều; chọi chẩn đoán → chỉ nắn nếu trúng nghẽn thật khác. Enforce generatively (floor-test chứng: SCAFFOLD tôn trọng cấm, FREE phá) + Opus tối-ưu re-check. Guard cứng cho principle-violation = **nợ đã biết** (phát hiện NLP mong manh, để sau).
+> **FE nợ:** S2 mới là BE (như S1 = BE PR #43). Trang Bản đồ (S1 FE) + UI thẻ nước đi/Xem-kỹ/Chốt (S2 FE) là slice sau — cần S1 FE làm chỗ chọn tệp+vấn đề để gọi `/api/biz/moves/gen`.
+
 ## Khi nào chạy cổng này
 - **Brief-time (mọi function):** điền mục "Phân tích mối nối" (Tốc độ 2) — dòng hợp đồng + addendum. Không có = brief chưa xong.
 - **Mỗi slice K***: chạy `py brain/_check.py` (Lớp 1) + rà Lớp 2 cho khoá slice đụng tới.

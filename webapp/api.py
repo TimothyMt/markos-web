@@ -730,6 +730,21 @@ async def biz_principles_save(request):
     return JSONResponse(res, status_code=400 if "error" in res else 200)
 
 
+# ── S2 Nước đi ──────────────────────────────────────────────────────
+async def biz_moves_gen(request):
+    """S2: chẩn lực + 2–3 nước đi từ 1 vấn đề (Sonnet nháp → Opus tối-ưu). `rethink` = nghĩ thêm."""
+    d = await request.json()
+    res = await biz.gen_moves(d.get("user_id"), d.get("audience_id"), d.get("problem_id"), d.get("rethink") or "")
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
+async def biz_moves_commit(request):
+    """S2 chốt: 1 nước đi → chiến dịch (big_idea is_campaign + mechanic + snapshot)."""
+    d = await request.json()
+    res = await biz.commit_move(d.get("user_id"), d.get("audience_id"), d.get("problem_id"), d.get("move"))
+    return JSONResponse(res, status_code=400 if "error" in res else 200)
+
+
 # ── Admin thật (Supabase users + auth_identities) — gác bằng ADMIN_EMAILS ────
 def _is_admin(request) -> bool:
     sess = request.scope.get("session") or {}     # tránh assert nếu thiếu SessionMiddleware
@@ -768,6 +783,8 @@ def api_routes() -> list:
         Route("/api/biz/map/save",                 biz_map_save,       methods=["POST"]),
         Route("/api/biz/resources",                biz_resources_save, methods=["POST"]),
         Route("/api/biz/principles",               biz_principles_save, methods=["POST"]),
+        Route("/api/biz/moves/gen",                biz_moves_gen,      methods=["POST"]),
+        Route("/api/biz/moves/commit",             biz_moves_commit,   methods=["POST"]),
         Route("/api/biz/synthesis-approve",        biz_synthesis_approve, methods=["POST"]),
         Route("/api/biz/pillars-lock",             biz_pillars_lock,   methods=["POST"]),
         Route("/api/biz/calendar/post-save",       biz_calendar_post_save, methods=["POST"]),

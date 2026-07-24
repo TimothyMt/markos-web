@@ -443,6 +443,12 @@ async def biz_data(user_id=None) -> dict:
         out["bizBattleMap"] = {}
         out["bizResources"] = {}
         out["bizPrinciples"] = []
+    # S2: reference tĩnh cho FE thẻ nước đi (nhãn 5 bậc + 4 loại phanh). Nước đi KHÔNG persist
+    # (ứng viên) — FE gọi /api/biz/moves/gen on-demand; chốt → big_ideas (đã expose ở bizBigIdeas).
+    out["bizMoveMeta"] = {
+        "bac": [{"slug": s, "level": _BAC_LEVEL[s], "label": _BAC_LABEL[s]} for s in _BAC_ENUM],
+        "phanh_loai": [{"slug": k, "label": v} for k, v in _PHANH_LOAI_LABEL.items()],
+    }
     # Vision A: option đặt cược (5 nhóm) + lựa chọn founder đã chốt → FE màn "Đặt cược".
     try:
         _ie4 = (out.get("bizProfile") or {}).get("intake_extra") or {}
@@ -5784,6 +5790,379 @@ async def save_principles(user_id=None, principles: list = None) -> dict:
         return {"ok": True, "principles": clean}
     except Exception as e:
         logger.warning("biz.save_principles failed: %s", e)
+        return {"error": str(e)}
+
+
+# ═══════════════════ S2 — NƯỚC ĐI (Moves) ═══════════════════
+# Gate 1 ĐÓNG (floor-test sống): KHÔNG thư viện nước đi theo ngành. "Thư viện" = 1 prompt-khung
+# bất biến (JTBD Four-Forces × 5 bậc + phanh + grounding) + rubric mỏng. Ngành vào runtime qua
+# archetype (frameworks/industry_context) + grounding battle_map, KHÔNG phải chiều index.
+#
+# gen_moves = 2-call: Sonnet NHÁP (chẩn lực + 2-3 nước đi, ≥2 bậc) → Opus TỐI-ƯU (làm SÂU HƠN,
+# KHÔNG bào mòn cụ-thể-thành-generic, siết phanh, ép luật cấm). On-demand → chịu được 2-call.
+# "Nghĩ thêm" = tham số `rethink` (đổi hướng khi bộ trước hỏng / user bấm "Không hợp — vì sao?").
+#
+# SEAM S1→S2 (WIRING hợp đồng): bind vào battle_map.audiences[].id + problems[].id (id ỔN ĐỊNH),
+# KHÔNG bám text. Không tìm thấy id → LỖI hiện ra (đứt seam phải nổ, không im).
+# Kết quả nước đi KHÔNG persist (là ứng viên) — FE giữ tới khi CHỐT. Chốt = commit_move → big_idea
+# (is_campaign) + mechanic (nước đi) + snapshot (bản chụp vấn đề+tệp lúc chốt). KHÔNG đổi schema.
+
+_BAC_ENUM = ("van_hanh", "chao_hang", "phan_phoi", "kich_hoat", "noi_dung")
+_BAC_LABEL = {"van_hanh": "Vận hành", "chao_hang": "Chào hàng", "phan_phoi": "Phân phối",
+              "kich_hoat": "Kích hoạt", "noi_dung": "Nội dung"}
+_BAC_LEVEL = {"van_hanh": 1, "chao_hang": 2, "phan_phoi": 3, "kich_hoat": 4, "noi_dung": 5}  # bậc số (1=sâu nhất)
+# alias lỏng → slug (LLM hay trả số / nhãn / tiếng Anh)
+_BAC_ALIAS = {
+    "1": "van_hanh", "van hanh": "van_hanh", "vận hành": "van_hanh", "operation": "van_hanh", "operations": "van_hanh",
+    "2": "chao_hang", "chao hang": "chao_hang", "chào hàng": "chao_hang", "offer": "chao_hang", "pricing": "chao_hang", "gia": "chao_hang",
+    "3": "phan_phoi", "phan phoi": "phan_phoi", "phân phối": "phan_phoi", "distribution": "phan_phoi", "channel": "phan_phoi", "kenh": "phan_phoi",
+    "4": "kich_hoat", "kich hoat": "kich_hoat", "kích hoạt": "kich_hoat", "activation": "kich_hoat", "minigame": "kich_hoat", "event": "kich_hoat",
+    "5": "noi_dung", "noi dung": "noi_dung", "nội dung": "noi_dung", "content": "noi_dung",
+}
+_PHANH_LOAI_ENUM = ("principle", "archetype", "resource", "diagnosis")
+_PHANH_LOAI_LABEL = {"principle": "Nguyên tắc bạn tự đặt", "archetype": "Sai ý đồ ngành",
+                     "resource": "Vượt nguồn lực", "diagnosis": "Chọi chẩn đoán"}
+
+
+def _mint_move_id() -> str:
+    return "move_" + uuid.uuid4().hex[:8]
+
+
+def _norm_bac(v) -> str:
+    v = str(v or "").strip().lower()
+    if v in _BAC_ENUM:
+        return v
+    return _BAC_ALIAS.get(v, "")
+
+
+def _norm_phanh_loai(v) -> str:
+    v = str(v or "").strip().lower()
+    return v if v in _PHANH_LOAI_ENUM else ""
+
+
+def _parse_first_json(raw: str) -> dict:
+    """Bóc object JSON ĐẦU tiên, bỏ mọi đuôi rác (prose / object 2 / fence). Giống fix Gate 2:
+    Haiku/Sonnet hay thêm rác sau khối JSON → json.loads(raw) ném 'Extra data' → degrade OAN."""
+    import json as _json
+    txt = re.sub(r'^```(?:json)?\s*', '', str(raw or "").strip())
+    i = txt.find('{')
+    if i < 0:
+        return {}
+    try:
+        parsed = _json.JSONDecoder().raw_decode(txt[i:])[0]
+    except (_json.JSONDecodeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _sanitize_move(m) -> dict:
+    """1 nước đi bất kỳ (LLM) → đúng shape thẻ. None nếu thiếu 2 trường KHOÁ CỨNG: ten + bac."""
+    if not isinstance(m, dict):
+        return None
+    ten = re.sub(r"\s+", " ", str(m.get("ten") or "").strip())[:120]
+    bac = _norm_bac(m.get("bac"))
+    if not ten or not bac:                       # bậc là khoá cứng — không suy được thì vứt
+        return None
+    xk = m.get("xem_ky") if isinstance(m.get("xem_ky"), dict) else {}
+    steps = [str(s).strip()[:200] for s in (xk.get("cac_buoc") or []) if str(s).strip()][:8]
+    return {
+        "id": _mint_move_id(),
+        "ten": ten,
+        "bac": bac,
+        "bac_level": _BAC_LEVEL[bac],
+        "co_che": str(m.get("co_che") or "").strip()[:500],
+        "vi_du_mau": str(m.get("vi_du_mau") or "").strip()[:300],
+        "dich_luc": str(m.get("dich_luc") or "").strip()[:300],
+        "ai_nhung_tay": str(m.get("ai_nhung_tay") or "").strip()[:120],
+        "bao_lau": str(m.get("bao_lau") or "").strip()[:60],
+        "doi_van_hanh": bool(m.get("doi_van_hanh")),
+        "gia_co": str(m.get("gia_co") or "").strip()[:80],
+        "do_bang": str(m.get("do_bang") or "").strip()[:200],
+        "bang_chung": _norm_conf(m.get("bang_chung")),
+        "phanh": str(m.get("phanh") or "").strip()[:300],
+        "phanh_loai": _norm_phanh_loai(m.get("phanh_loai")),
+        "nan_tu": str(m.get("nan_tu") or "").strip()[:160],
+        "xem_ky": {
+            "cac_buoc": steps,
+            "vi_sao_chon": str(xk.get("vi_sao_chon") or "").strip()[:500],
+            "da_nghi_roi_bo": str(xk.get("da_nghi_roi_bo") or "").strip()[:400],
+            "bang_chung_chi_tiet": str(xk.get("bang_chung_chi_tiet") or "").strip()[:500],
+            "chot_se_co": str(xk.get("chot_se_co") or "").strip()[:500],
+            "do_va_nguong_dung": str(xk.get("do_va_nguong_dung") or "").strip()[:400],
+        },
+    }
+
+
+def _find_aud_problem(extra: dict, audience_id: str, problem_id: str):
+    """Truy tệp + vấn đề theo id ổn định (seam S1→S2). Trả (aud, prob, stage) hoặc (None, ...)."""
+    bmap = extra.get("battle_map") if isinstance(extra.get("battle_map"), dict) else {}
+    for a in (bmap.get("audiences") or []):
+        if not isinstance(a, dict) or a.get("id") != audience_id:
+            continue
+        for st in _STAGE_ENUM:
+            stage = (a.get("stages") or {}).get(st) if isinstance(a.get("stages"), dict) else None
+            for p in ((stage or {}).get("problems") or []):
+                if isinstance(p, dict) and p.get("id") == problem_id:
+                    return a, p, st
+        return a, None, ""      # thấy tệp nhưng không thấy vấn đề
+    return None, None, ""
+
+
+def _moves_grounding(extra: dict, prof: dict) -> str:
+    """Khối grounding chèn vào prompt: định vị + giọng + archetype ngành + nguồn lực + NGUYÊN TẮC CẤM.
+    Nguyên tắc cấm = phanh TUYỆT ĐỐI (loại principle) — chèn NGUYÊN VĂN, không tóm tắt."""
+    industry = str((prof or {}).get("industry") or "").strip()
+    wedge = str(extra.get("wedge") or "").strip()
+    parts = [f"# NGÀNH\n{industry or '(chưa rõ)'}"]
+    anchor = _messaging_anchor_from(extra)
+    if anchor:
+        parts.append(f"# THÔNG ĐIỆP (mọi nước đi phải nhất quán với cốt lõi + giọng)\n{anchor}")
+    try:
+        from frameworks.industry_context import format_archetype_block
+        blk = format_archetype_block(industry, wedge)
+        if blk:
+            parts.append(f"# ARCHETYPE MUA HÀNG CỦA NGÀNH\n{blk}")
+    except Exception as e:
+        logger.debug("moves grounding archetype fail: %s", e)
+    res = extra.get("resources") if isinstance(extra.get("resources"), dict) else {}
+    if res:
+        _rl = {"can_owner_on_camera": "chủ tự lên hình/livestream",
+               "can_shoot_video": "quay video tại chỗ", "can_render_3d": "dựng 3D/đồ hoạ"}
+        co = [lbl for k, lbl in _rl.items() if res.get(k)]
+        khong = [lbl for k, lbl in _rl.items() if not res.get(k)]
+        parts.append("# NGUỒN LỰC (nước đi phải nằm trong cái CÓ)\n"
+                     f"- CÓ: {', '.join(co) or '(chưa khai)'}\n- KHÔNG: {', '.join(khong) or '(—)'}")
+    # NGUYÊN TẮC CẤM — phanh tuyệt đối, lọc mục hết hạn
+    today = _now_iso()[:10]
+    prins = [p for p in (extra.get("principles") or [])
+             if isinstance(p, dict) and str(p.get("text") or "").strip()
+             and not (p.get("expires") and str(p.get("expires"))[:10] < today)]
+    if prins:
+        lines = "\n".join(f"- {str(p['text']).strip()}" for p in prins)
+        parts.append("# 🔴 NGUYÊN TẮC CẤM (user tự đặt — TUYỆT ĐỐI không lách, không đề xuất nước đi phạm)\n" + lines)
+    return "\n\n".join(parts)
+
+
+# ── Prompt khung bất biến (đã validate qua floor-test Gate 1) ────────────────
+_MOVES_FRAME = (
+    "# KHUNG BẤT BIẾN (áp dụng cho MỌI ngành)\n\n"
+    "## Tầng 1 — CHẨN LỰC (vì sao khách chưa đổi hành vi). Bốn lực (JTBD Four Forces):\n"
+    "- ĐẨY (Push): cái đau/bất mãn với hiện trạng khiến khách bắt đầu tìm.\n"
+    "- HÚT (Pull): sức hấp dẫn của tiến bộ mới mà khách hình dung được.\n"
+    "- LO (Anxiety): lo/nghi/rủi ro về giải pháp mới (gồm không-tin, sợ-mất-tiền, sợ-hỏng).\n"
+    "- QUÁN TÍNH (Habit): sức ì hiện trạng / quên / không tạo được nếp mới.\n"
+    "Luật: khách CHỈ đổi khi (Đẩy + Hút) > (Lo + Quán tính). Nước đi phải DỊCH đúng lực đang chặn — "
+    "đánh sai lực = vô ích/phản tác dụng (vd giảm giá cho ca 'không tin' chỉ khoét thêm nghi ngờ, KHÔNG gỡ niềm tin).\n\n"
+    "## Tầng 2 — 5 BẬC nước đi (loại đòn bẩy):\n"
+    "1. VẬN HÀNH (đổi cách bán/chính sách/quy trình) — sâu nhất.\n"
+    "2. CHÀO HÀNG (đổi gói/giá/bảo đảm/cam kết).\n"
+    "3. PHÂN PHỐI (đổi kênh/điểm chạm/đường tiếp cận).\n"
+    "4. KÍCH HOẠT (thẻ điểm, sự kiện, minigame) — nông.\n"
+    "5. NỘI DUNG (clip, bài, livestream).\n"
+    "BẮT BUỘC: đề xuất trải **≥2 bậc khác nhau**. Trọng lực luôn kéo về bậc 4–5; hãy cưỡng lại, "
+    "ưu tiên bậc 1–3 khi lực cho phép.\n\n"
+    "## Tầng 3 — BÁM THỰC TẾ (chống generic). Mỗi nước đi phải:\n"
+    "- Bám ĐÚNG lực đã chẩn ở Tầng 1; bám archetype ngành + trích CHI TIẾT cụ thể từ vấn đề.\n"
+    "- Nằm trong nguồn lực doanh nghiệp CÓ; tôn trọng TUYỆT ĐỐI nguyên tắc cấm.\n"
+    "- Có CƠ CHẾ nói-được-thành-lời + 1 ví dụ mẫu (câu/hành động THẬT), KHÔNG platitude.\n"
+    "CẤM các món generic-phản-xạ (chỉ dùng nếu THẬT SỰ dịch đúng lực + có cơ chế riêng): 'giảm giá/ưu đãi', "
+    "'minigame vòng quay', 'đăng bài nhắc nhở', 'tăng tương tác fanpage', 'chạy ads nhắm đúng đối tượng'.\n\n"
+    "## Tầng 4 — PHANH (4 loại, hành xử KHÁC nhau):\n"
+    "- **Nguyên tắc user tự đặt** → phạm là VỨT nước đi, không lách (không nắn được).\n"
+    "- **Sai ý đồ ngành (archetype)** → GIỮ động tác, ĐỔI ý đồ (vd livestream-chốt → livestream-dạy); đánh dấu `nan_tu`='↻ nắn từ …'.\n"
+    "- **Vượt nguồn lực** → THU NHỎ liều cho vừa cái đang CÓ.\n"
+    "- **Chọi chẩn đoán** → chỉ nắn nếu bản nắn trúng nghẽn CÓ THẬT khác; bịa nghẽn mới thì bỏ.\n"
+    "Trường `phanh` (⚠️ 'chỉ nên chốt nếu…') CHỈ ghi khi có điều kiện tiên quyết mà nếu SAI gây HẠI "
+    "KHÔNG lùi được (mất tiền/khách/uy tín — không phải 'kém hiệu quả'). Không có thì để trống. KHÔNG bịa cảnh báo.\n"
+)
+
+_MOVES_JSON_SCHEMA = (
+    "# ĐẦU RA — JSON DUY NHẤT (không kèm chữ ngoài JSON):\n"
+    '{"luc_chan": "<lực nào đang chặn + 1 câu vì sao>",\n'
+    ' "nuoc_di": [\n'
+    '   {"ten": "", "bac": "van_hanh|chao_hang|phan_phoi|kich_hoat|noi_dung",\n'
+    '    "co_che": "<cơ chế cụ thể>", "vi_du_mau": "<câu/hành động thật>",\n'
+    '    "dich_luc": "<gỡ lực nào, bằng cách nào>",\n'
+    '    "ai_nhung_tay": "<ai làm: chủ/GV/nhân viên…>", "bao_lau": "<CỠ, KHÔNG số: một buổi/vài tuần>",\n'
+    '    "doi_van_hanh": true, "gia_co": "<CỠ chi phí, vd rẻ/vài triệu — không bịa số chính xác>",\n'
+    '    "do_bang": "<đo bằng gì>", "bang_chung": "high|med|low",\n'
+    '    "phanh": "<⚠️ chỉ nên chốt nếu… hoặc để trống>",\n'
+    '    "phanh_loai": "principle|archetype|resource|diagnosis hoặc để trống",\n'
+    '    "nan_tu": "<↻ nắn từ … nếu là thẻ đã nắn, hoặc để trống>",\n'
+    '    "xem_ky": {"cac_buoc": ["b1","b2"], "vi_sao_chon": "", "da_nghi_roi_bo": "<đã cân nhắc rồi bỏ vì>",\n'
+    '      "bang_chung_chi_tiet": "", "chot_se_co": "<chốt thì sẽ có việc/bài gì — liệt kê, không việc nào mọc thêm sau>",\n'
+    '      "do_va_nguong_dung": "<đo + ngưỡng DỪNG: hỏng thì quay lại bản đồ đổi giả thuyết>"}}\n'
+    " ]}\n"
+    "Nhả 2–3 nước đi, trải ≥2 bậc."
+)
+
+_MOVES_DRAFT_SYS = (
+    "Bạn là Max — CMO (giám đốc marketing) AI cho SME Việt. Bạn KHÔNG sinh ý tưởng tự do; bạn CHẨN "
+    "rồi kê nước đi theo một khung bất biến. Trả lời bằng tiếng Việt tự nhiên, không dịch máy.\n\n"
+    + _MOVES_FRAME + "\n" + _MOVES_JSON_SCHEMA
+)
+
+_MOVES_OPTIMIZE_SYS = (
+    "Bạn là Max — CMO AI cho SME Việt, ở vai TỐI-ƯU. Bạn nhận BẢN NHÁP nước đi của một CMO khác cho "
+    "cùng ô bản đồ. Nhiệm vụ: LÀM SÂU HƠN, KHÔNG viết lại từ đầu, KHÔNG bào mòn cái cụ thể thành generic "
+    "(bẫy 'polish'). Trả lời tiếng Việt tự nhiên.\n\n"
+    "NGUYÊN TẮC TỐI-ƯU:\n"
+    "- GIỮ mọi grounding cụ thể trong nháp (chi tiết vấn đề, cơ chế, ví dụ thật) — chỉ mài sắc, thêm chiều sâu.\n"
+    "- ƯU TIÊN đẩy nước đi xuống bậc SÂU hơn (1–3) khi lực cho phép; nếu nháp toàn bậc 4–5, thử thay ≥1 cái "
+    "bằng nước đi vận hành/chào hàng/phân phối mạnh hơn.\n"
+    "- ÉP LUẬT CẤM: VỨT nước đi phạm nguyên tắc user tự đặt. Với biến tấu của món generic-phản-xạ, bảo đảm "
+    "có cơ chế riêng dịch đúng lực; nếu là nắn từ động tác sai-ý-đồ → điền `nan_tu`.\n"
+    "- SIẾT PHANH: chỉ giữ `phanh` (⚠️) khi sai gây HẠI KHÔNG lùi được; bỏ cảnh báo kiểu 'kém hiệu quả'.\n"
+    "- GIỮ ĐÚNG schema + luật khung bên dưới (chẩn lực, ≥2 bậc, chống generic).\n\n"
+    + _MOVES_FRAME + "\n" + _MOVES_JSON_SCHEMA
+)
+
+
+async def gen_moves(user_id=None, audience_id: str = "", problem_id: str = "", rethink: str = "") -> dict:
+    """S2: từ 1 VẤN ĐỀ trên bản đồ → chẩn lực + 2–3 NƯỚC ĐI (thẻ mỏng + Xem-kỹ). Không persist (ứng viên).
+
+    2-call: Sonnet NHÁP → Opus TỐI-ƯU (làm sâu, siết phanh, ép luật cấm). `rethink` (≠ rỗng) = "nghĩ thêm":
+    chèn hướng mới ("3 cái trước hỏng vì X, nghĩ KHÁC") — dùng khi validation rớt / user bấm 'Không hợp'.
+
+    SEAM: audience_id + problem_id là id ổn định S1. Không thấy → LỖI (đứt seam phải nổ, không im).
+    Degrade: draft hỏng → lỗi; optimize hỏng → dùng thẳng draft; parse hỏng → degraded=True + note."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        aid, pid = str(audience_id or "").strip(), str(problem_id or "").strip()
+        if not aid or not pid:
+            return {"error": "Thiếu audience_id / problem_id."}
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        aud, prob, stage = _find_aud_problem(extra, aid, pid)
+        if aud is None:
+            return {"error": "Không thấy tệp (audience_id) trên bản đồ — seam S1 lệch."}
+        if prob is None:
+            return {"error": "Không thấy vấn đề (problem_id) trong tệp — seam S1 lệch."}
+
+        # ── Payload: grounding chung + ô bản đồ đang xét ────────────────────
+        grounding = _moves_grounding(extra, prof)
+        ptype_lbl = _PROBLEM_TYPE_LABEL.get(prob.get("type"), prob.get("type") or "")
+        cell = (
+            f"# Ô BẢN ĐỒ ĐANG XÉT\n"
+            f"- Tệp khách: {aud.get('label') or ''} (vai: {_ROLE_LABEL.get(aud.get('role'), aud.get('role') or '')})\n"
+            f"- Giai đoạn: {_STAGE_LABEL.get(stage, stage)}\n"
+            f"- Loại vấn đề: {ptype_lbl}\n"
+            f"- Vấn đề (nguyên văn từ bản đồ): {prob.get('text') or ''}"
+        )
+        rt = str(rethink or "").strip()
+        rethink_block = (f"\n\n# NGHĨ THÊM (bộ nước đi trước chưa hợp)\n{rt[:500]}\n"
+                         "→ Nghĩ theo hướng KHÁC, đừng lặp lại các nước đi kiểu cũ.") if rt else ""
+        user_msg = f"{grounding}\n\n{cell}{rethink_block}\n\nChẩn lực và kê 2–3 nước đi theo khung bất biến. Trả JSON."
+
+        from tools.llm_router import call as router_call, TaskType, AllProvidersFailedError
+
+        # ── Call 1: Sonnet NHÁP ─────────────────────────────────────────────
+        try:
+            draft = await router_call(task_type=TaskType.CAMPAIGN_MOVES_DRAFT,
+                                      system=_MOVES_DRAFT_SYS, user=user_msg, max_tokens=6000)
+        except AllProvidersFailedError as e:
+            logger.warning("gen_moves draft fail: %s", e)
+            return {"error": "Chưa nghĩ được nước đi (LLM bận) — thử lại sau."}
+        draft_raw = (draft or {}).get("output", "")
+
+        # ── Call 2: Opus TỐI-ƯU (degrade về draft nếu hỏng) ────────────────
+        final_raw, optimized = draft_raw, False
+        try:
+            opt_user = (f"{user_msg}\n\n# BẢN NHÁP CẦN TỐI-ƯU (làm sâu hơn, đừng viết lại từ đầu)\n{draft_raw}")
+            opt = await router_call(task_type=TaskType.CAMPAIGN_MOVES_OPTIMIZE,
+                                    system=_MOVES_OPTIMIZE_SYS, user=opt_user, max_tokens=6000)
+            opt_parsed = _parse_first_json((opt or {}).get("output", ""))
+            if opt_parsed.get("nuoc_di"):          # chỉ nhận nếu tối-ưu ra được nước đi hợp lệ
+                final_raw, optimized = (opt or {}).get("output", ""), True
+        except AllProvidersFailedError as e:
+            logger.info("gen_moves optimize degrade→draft: %s", e)
+
+        parsed = _parse_first_json(final_raw)
+        moves = [m for m in (_sanitize_move(x) for x in (parsed.get("nuoc_di") or [])) if m][:3]
+        if not moves and final_raw is not draft_raw:   # tối-ưu ra rác → thử lại parse nháp
+            moves = [m for m in (_sanitize_move(x) for x in (_parse_first_json(draft_raw).get("nuoc_di") or [])) if m][:3]
+            optimized = False
+        if not moves:
+            return {"ok": True, "moves": [], "degraded": True,
+                    "note": "Chưa dựng được nước đi cụ thể (LLM trả không hợp lệ) — thử 'Nghĩ thêm' hoặc lại sau."}
+        bac_spread = len({m["bac"] for m in moves})
+        return {"ok": True,
+                "audience_id": aid, "problem_id": pid, "stage": stage,
+                "luc_chan": str(parsed.get("luc_chan") or "").strip()[:400],
+                "moves": moves, "bac_spread": bac_spread, "optimized": optimized,
+                "degraded": False,
+                "note": "" if bac_spread >= 2 else "⚠️ Các nước đi đang dồn về 1 bậc — nên có bậc sâu hơn."}
+    except Exception as e:
+        logger.warning("biz.gen_moves failed: %s", e)
+        return {"error": str(e)}
+
+
+async def commit_move(user_id=None, audience_id: str = "", problem_id: str = "", move: dict = None) -> dict:
+    """S2 CHỐT: 1 nước đi đã chọn → CHIẾN DỊCH = big_idea(is_campaign) + mechanic + snapshot.
+
+    - snapshot = bản CHỤP tệp+vấn đề lúc chốt (id + text + loại + giai đoạn) → chiến dịch không trôi
+      khi sau này bản đồ đổi (WIRING §8 'thêm khoá snapshot'). Vẫn giữ id để S3 mọc việc/lịch.
+    - grid/window để RỖNG → chiến dịch DRAFT (chưa lên lịch); S3 wire việc → lịch theo pha.
+    - KHÔNG đổi schema: ghi vào intake_extra.big_ideas (mẫu như save_campaign)."""
+    if not available():
+        return {"error": "Chưa cấu hình Supabase."}
+    try:
+        await ensure_client()
+        uid = await pick_user_id(user_id)
+        if uid is None:
+            return {"error": "Chưa có user."}
+        mv = _sanitize_move(move)
+        if not mv:
+            return {"error": "Nước đi không hợp lệ (thiếu tên/bậc)."}
+        aid, pid = str(audience_id or "").strip(), str(problem_id or "").strip()
+        from storage.v2 import profiles
+        prof = await profiles.get_profile(uid) or {}
+        extra = prof.get("intake_extra") if isinstance(prof.get("intake_extra"), dict) else {}
+        if not isinstance(extra, dict):
+            extra = {}
+        aud, prob, stage = _find_aud_problem(extra, aid, pid)
+        snapshot = {
+            "audience_id": aid,
+            "audience_label": (aud or {}).get("label", "") if aud else "",
+            "audience_role": (aud or {}).get("role", "") if aud else "",
+            "problem_id": pid,
+            "problem_text": (prob or {}).get("text", "") if prob else "",
+            "problem_type": (prob or {}).get("type", "") if prob else "",
+            "stage": stage,
+            "captured_at": _now_iso(),
+        }
+        big_ideas = extra.get("big_ideas") if isinstance(extra.get("big_ideas"), list) else []
+        if not isinstance(big_ideas, list):
+            big_ideas = []
+        now = time.time()
+        bid = f"{int(now)}-{(re.sub(r'[^a-z0-9]+', '-', mv['ten'].lower())[:24].strip('-') or 'move')}"
+        campaign = {
+            "id": bid,
+            "title": mv["ten"][:140],
+            "sub_message": mv.get("dich_luc", "")[:400],   # nước đi gỡ lực gì = thông điệp đợt (con của cốt lõi ở FE)
+            "kind": "spike",
+            "status": "draft",
+            "is_campaign": True,
+            "mechanic": mv,            # WIRING §8: khoá 'mechanic' (nước đi đầy đủ, gồm Xem-kỹ)
+            "snapshot": snapshot,      # WIRING §8: bản chụp vấn đề
+            "grid": [], "channel_caps": {},
+            "window_start": "", "window_end": "", "peak_date": "",
+            "created_at": now, "updated_at": now,
+        }
+        big_ideas.append(campaign)
+        extra["big_ideas"] = big_ideas
+        await profiles.upsert_profile(uid, intake_extra=extra)
+        return {"ok": True, "campaign": campaign}
+    except Exception as e:
+        logger.warning("biz.commit_move failed: %s", e)
         return {"error": str(e)}
 
 
